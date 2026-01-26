@@ -46,7 +46,7 @@ if choice == "Múltiplos ativos":
         for i in range (int(qnt_orders)):
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.text_input(st.text_input(f"Ticker {i+1}", value="AAPL", key=f"t_{i}"))
+                st.text_input(f"Ticker {i+1}", value="AAPL", key=f"t_{i}")
             with col2:
                 st.text_input(f"Qtd {i+1}", value="1.0", key=f"q_{i}")
             with col3: 
