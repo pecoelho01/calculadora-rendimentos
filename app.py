@@ -71,6 +71,7 @@ if choice == "Múltiplos ativos":
             gain = (today_price - p) * q
             roi = ((today_price - p) / p) * 100
 
+    # Preencher a lista com os múltiplos ativos 
             lista_ativos.append({
                     "Date": d,
                     "Ticker": t,
@@ -81,7 +82,9 @@ if choice == "Múltiplos ativos":
                 })
 
     if lista_ativos:
+        # Divisão 
         st.divider()        
         st.subheader("Resumo do portfólio")
+    
         df_final = pd.DataFrame(lista_ativos)
         st.dataframe(df_final, use_container_width=True)
