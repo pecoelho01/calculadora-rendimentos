@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
 
 st.title("📈 Calculadora de Rendimentos")
 
@@ -39,6 +40,7 @@ if choice == "Apenas um ativo":
 
 if choice == "Múltiplos ativos":
     qnt_orders = st.number_input("Insira o nº de ordens que quer calcular os ganhos/perdas: ", value=4)
+    lista_ativos = []
        
     with st.form("multi_orders"):
         st.write("Insira os dados de cada ordem:")
@@ -69,6 +71,17 @@ if choice == "Múltiplos ativos":
             gain = (today_price - p) * q
             roi = ((today_price - p) / p) * 100
 
-            st.write(f"Data: {d} | Ticker: {t} | Shares: {q} | Gain: {gain:.2f} | ROI (‰): {roi:.2f} ")
+            lista_ativos.append({
+                    "Date": d,
+                    "Ticker": t,
+                    "Shares": q,
+                    "Buy Price": f"{p:.2f}€",
+                    "Gain (€)": round(gain, 2),
+                    "ROI (%)": f"{roi:.2f}%"
+                })
 
-
+    if lista_ativos:
+        st.divider()        
+        st.subheader("Resumo do portfólio")
+        df_final = pd.DataFrame(lista_ativos)
+        st.dataframe(df_final, use_container_width=True)
