@@ -69,6 +69,6 @@ if choice == "Múltiplos ativos":
             gain = (today_price - p) * q
             roi = ((today_price - p) / p) * 100
 
-            st.write(f"Data: {d} | Ticker: {t} | Shares: {q} | Gain: {gain:.2e} | ROI (‰): {roi:.2e} ")
+            st.write(f"Data: {d} | Ticker: {t} | Shares: {q} | Gain: {gain:.2f} | ROI (‰): {roi:.2f} ")
 
 
