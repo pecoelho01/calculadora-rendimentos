@@ -1,39 +1,43 @@
 # 📈 Asset Yield Calculator
 
-A simple and efficient web application to monitor your investment performance in real-time.
+An interactive web application built with Python to monitor investment performance for single or multiple assets in real-time.
 
-### 🔗 Project Link: 
+### 🔗 Live Project: 
 **[https://calculadora-rendimentos.streamlit.app/](https://calculadora-rendimentos.streamlit.app/)**
 
 ---
 
 ## 📖 About the Project
-This project was developed in Python using the Streamlit framework to transform a financial calculation script into an interactive web interface. It uses the `yfinance` library to fetch the latest market quotes and calculate the return on a long position.
+This project evolved from a simple calculation script into a versatile financial tool. Using the **Streamlit** framework and **Yahoo Finance API**, it allows users to track their portfolio's health by calculating gains and ROI (Return on Investment) based on current market prices.
 
 ## ✨ Features
-* **Price Inquiry**: Gets the latest closing price for any ticker supported by Yahoo Finance.
-* **Total Gain Calculation**: Calculates absolute profit or loss based on the quantity of shares and purchase price entered.
-* **ROI Calculation**: Displays the Return on Investment in percentage format.
-* **Interactive Interface**: Allows data entry via text boxes and displays instant visual metrics.
+* **Dual Calculation Modes**: Choose between analyzing a single asset or batch-processing multiple orders.
+* **Dynamic Forms**: For multiple assets, the app generates a specific number of input fields (Ticker, Quantity, Purchase Price, and Date) based on your needs.
+* **Real-time Market Data**: Fetches the most recent closing prices automatically using `yfinance`.
+* **Visual Metrics**: View single-asset results with professional dashboard metrics (including green/red delta indicators).
+* **Batch Summary**: Process and list all your orders at once with a single click.
 
 ## 🛠️ Technologies Used
-* **Python**: The base language of the project.
-* **Streamlit**: Used to create the website interface.
-* **yfinance**: Responsible for providing updated financial data.
+* **Python**: The core programming language.
+* **Streamlit**: For the interactive web interface.
+* **yfinance**: For fetching financial market data.
+* **Pandas**: For structured data handling and table visualization (optional but recommended).
 
 ## 🚀 How to Run Locally
-If you want to test this code on your computer:
-
-1.  Make sure you have Python installed.
-2.  Install the required libraries:
+1.  **Clone the repository**:
     ```bash
-    pip install streamlit yfinance
+    git clone [https://github.com/pecoelho01/calculadora-rendimentos.git](https://github.com/pecoelho01/calculadora-rendimentos.git)
     ```
-3.  Run the command:
+2.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Run the app**:
     ```bash
     streamlit run app.py
     ```
 
 ## 📂 File Structure
-* `app.py`: The main application code.
-* `requirements.txt`: List of dependencies for deployment on Streamlit Cloud.
+* `app.py`: The main application logic and UI.
+* `requirements.txt`: List of Python packages required for deployment.
+* `.devcontainer/`: Configuration for standardized development environments.
