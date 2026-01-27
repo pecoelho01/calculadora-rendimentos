@@ -4,7 +4,7 @@ import pandas as pd
 
 st.title("📈 Calculadora de Rendimentos")
 
-# First setp (choice)
+st.link_button("Pesquisa os tickers", "https://finance.yahoo.com/")
 
 choice = st.selectbox( 
     "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
