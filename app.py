@@ -5,6 +5,8 @@ import pandas as pd
 st.title("📈 Calculadora de Rendimentos")
 
 st.link_button("Pesquisa os tickers", "https://finance.yahoo.com/")
+st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
+
 
 choice = st.selectbox( 
     "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
