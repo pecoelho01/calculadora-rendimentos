@@ -5,7 +5,7 @@ import pandas as pd
 st.title("📈 Calculadora de Rendimentos")
 
 st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
-st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> e depois verificar o Ticker do seu ativo.")
+st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> do Yahoo Finance e depois verificar o Ticker do seu ativo.")
 
 
 choice = st.selectbox( 
