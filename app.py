@@ -6,14 +6,14 @@ st.title("📈 Calculadora de Rendimentos")
 
 st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
 st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> do Yahoo Finance e depois verificar o Ticker do seu ativo.")
-
+my_tickers = [ "SXR8.DE", "SEC0D.XD", "EMIMA.XD", "EUNK.DE"]
 
 choice = st.selectbox( 
     "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
 
 if choice == "Apenas um ativo":
 
-    my_tickers = [ "SXR8.DE", "SEC0D.XD", "EMIMA.XD"]
+    
     #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
     ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
     share_input = st.text_input("Quantidade de shares:", value="1")
@@ -46,7 +46,6 @@ if choice == "Apenas um ativo":
 if choice == "Múltiplos ativos":
     qnt_orders = st.number_input("Insira o nº de ordens que quer calcular os ganhos/perdas: ", value=4)
     lista_ativos = []
-    my_tickers = [ "SXR8.DE", "SEC0D.XD", "EMIMA.XD"]
        
     with st.form("multi_orders"):
         st.write("Insira os dados de cada ordem:")
