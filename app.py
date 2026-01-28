@@ -13,7 +13,7 @@ choice = st.selectbox(
 
 if choice == "Apenas um ativo":
 
-    my_tickers = [ "SXR8.DE", "SEC0D.XD"]
+    my_tickers = [ "SXR8.DE", "SEC0D.XD", "EMIMA.XD"]
     #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
     ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
     share_input = st.text_input("Quantidade de shares:", value="1")
