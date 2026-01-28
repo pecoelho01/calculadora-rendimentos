@@ -6,7 +6,7 @@ st.title("📈 Calculadora de Rendimentos")
 
 st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
 st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> do Yahoo Finance e depois verificar o Ticker do seu ativo.")
-my_tickers = [ "SXR8.DE-MSCI SP500", "SEC0D.XD-MSCI Semiondutores", "EMIMA.XD-MSCI IMI EME", "EUNK.DE-MSCI Europe"]
+my_tickers = [ "SXR8.DE-MSCI SP500", "SEC0D.XD-MSCI Semiondutores", "EMIMA.XD-MSCI IMI EME", "EUNK.DE-MSCI Europe", "Outro ativo (digite...)"]
 
 choice = st.selectbox( 
     "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
@@ -16,6 +16,9 @@ if choice == "Apenas um ativo":
     
     #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
     ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
+    if  ticker_symbol == "Outro ativo (digite...)":
+        ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
+    
     ticker_symbol_partes = ticker_symbol.split("-",1)
     share_input = st.text_input("Quantidade de shares:", value="1")
     price_input = st.text_input("Preço de compra:", value="150")
