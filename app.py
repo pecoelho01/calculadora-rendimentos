@@ -62,7 +62,9 @@ if choice == "Múltiplos ativos":
                              key=f"t_{i}")
                 
                 if option == "Outro ativo (digite...)":
-                    st.text_input(f"Qtd {i+1}", value="1.0", key=f"t_{i}")
+                    ticket_manual = st.text_input(f"Qtd {i+1}", value="1.0", key=f"manual_{i}")
+                    st.session_state[f"t_{i}"] = ticket_manual
+
                 
             with col2:
                 st.text_input(f"Qtd {i+1}", value="1.0", key=f"q_{i}")
