@@ -46,6 +46,7 @@ if choice == "Apenas um ativo":
 if choice == "Múltiplos ativos":
     qnt_orders = st.number_input("Insira o nº de ordens que quer calcular os ganhos/perdas: ", value=4)
     lista_ativos = []
+    my_tickers = [ "SXR8.DE", "SEC0D.XD", "EMIMA.XD"]
        
     with st.form("multi_orders"):
         st.write("Insira os dados de cada ordem:")
@@ -53,7 +54,9 @@ if choice == "Múltiplos ativos":
         for i in range (int(qnt_orders)):
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.text_input(f"Ticker {i+1}", value="AAPL", key=f"t_{i}")
+                st.selectbox(f"Ticker {i+1}",
+                            options=my_tickers,
+                             key=f"t_{i}")
             with col2:
                 st.text_input(f"Qtd {i+1}", value="1.0", key=f"q_{i}")
             with col3: 
