@@ -12,7 +12,10 @@ choice = st.selectbox(
     "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
 
 if choice == "Apenas um ativo":
-    ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
+
+    my_tickers = [ "SXR8.DE", "SEC0D.XD"]
+    #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
+    ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
     share_input = st.text_input("Quantidade de shares:", value="1")
     price_input = st.text_input("Preço de compra:", value="150")
 
