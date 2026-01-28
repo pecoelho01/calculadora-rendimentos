@@ -25,7 +25,7 @@ if choice == "Apenas um ativo":
             shares = float(share_input.replace(',', '.'))
             price_buy = float(price_input.replace(',','.'))
             
-            ticker_data = yf.Ticker(ticker_symbol_partes)
+            ticker_data = yf.Ticker(ticker_symbol_partes[0])
             # Pegando o preço mais recente
             df = ticker_data.history(period="1d")
             
@@ -76,7 +76,7 @@ if choice == "Múltiplos ativos":
             p = float(st.session_state[f"p_{i}"].replace(',', '.'))
             d = st.session_state[f"d_{i}"]
 
-            today_price = yf.Ticker(t).info['regularMarketPrice']
+            today_price = yf.Ticker(t_final[0]).info['regularMarketPrice']
 
             gain = (today_price - p) * q
             roi = ((today_price - p) / p) * 100
