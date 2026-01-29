@@ -119,7 +119,7 @@ if choice == "Importar dados - CSV":
     with open(model_file, "rb") as file:
         st.download_button(
             label="📥 Download do modelo CSV",
-            data=file,
+            data=file.read(),
             file_nam="modelo_investimentos.csv",
             mime="text/csv"
         )
