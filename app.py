@@ -120,7 +120,7 @@ if choice == "Importar dados - CSV":
         st.download_button(
             label="📥 Download do modelo CSV",
             data=file,
-            file_nam="modelo_investimentos.csv"
+            file_nam="modelo_investimentos.csv",
             mime="text/csv"
         )
     file = st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
