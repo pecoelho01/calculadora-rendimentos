@@ -117,7 +117,7 @@ if choice == "Importar dados - CSV":
     st.title("Dados via CSV")
     st.text("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar")
     try:
-        with open("modelo_ativos.csv", "rb") as f:
+        with open("modelo_site_ativos.csv", "rb") as f:
             conteudo_do_arquivo = f.read() 
             
         st.download_button(
