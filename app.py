@@ -108,19 +108,19 @@ if choice == "Múltiplos ativos":
                 st.error(f"Erro ao processar {ticker_clean}: {e}")
 
     # Preencher a lista com os múltiplos ativos 
-            lista_ativos.append({
-                    "Date": d,
-                    "Ticker": t,
+            dados_ordens.append({
+                    "Date": ticker_data,
+                    "Ticker": ticker_clean,
                     "Shares": q,
                     "Buy Price": f"{p:.2f}€",
                     "Gain (€)": round(gain, 2),
                     "ROI (%)": f"{roi:.2f}%"
                 })
 
-    if lista_ativos:
+    if dados_ordens:
         # Divisão 
         st.divider()        
         st.subheader("Resumo do portfólio")
     
-        df_final = pd.DataFrame(lista_ativos)
+        df_final = pd.DataFrame(dados_ordens)
         st.dataframe(df_final, use_container_width=True)
