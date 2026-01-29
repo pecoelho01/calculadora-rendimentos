@@ -12,7 +12,7 @@ choice = st.selectbox(
     "Como deseja calcular?", ("Apenas um ativo - manual", "Múltiplos ativos - manual", "Importar dados - CSV") )
 
 if choice == "Apenas um ativo - manual":
-
+    st.title("Apenas um ativo manualmente")
     
     #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
     ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
@@ -48,6 +48,7 @@ if choice == "Apenas um ativo - manual":
 
 
 if choice == "Múltiplos ativos - manual":
+    st.title("Múltiplos ativos manualmente")
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=4)
     dados_ordens = []
        
