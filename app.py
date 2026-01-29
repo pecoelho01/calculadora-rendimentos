@@ -109,3 +109,7 @@ if choice == "Múltiplos ativos - manual":
             st.subheader("Resumo do Portfólio")
             df_final = pd.DataFrame(dados_ordens)
             st.dataframe(df_final, use_container_width=True)
+
+if choice == "Importar dados - CSV":
+
+    st.title("Dados através de um CSV")
