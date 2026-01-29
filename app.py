@@ -112,16 +112,22 @@ if choice == "Múltiplos ativos - manual":
             st.dataframe(df_final, use_container_width=True)
 
 if choice == "Importar dados - CSV":
-    model_file = "modelo_site_ativos.csv"
+    #model_file = "modelo_site_ativos.csv"
 
     st.title("Dados via CSV")
     st.text("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar")
-    with open(model_file, "rb") as file:
+    try:
+        with open("modelo_ativos.csv", "rb") as f:
+            conteudo_do_arquivo = f.read() 
+            
         st.download_button(
             label="📥 Download do modelo CSV",
-            data=file.read(),
-            file_nam="modelo_investimentos.csv",
+            data=conteudo_do_arquivo,
+            file_name="modelo_investimentos.csv",
             mime="text/csv"
         )
+    except FileNotFoundError:
+        st.error("O arquivo 'modelo_ativos.csv' não foi encontrado no servidor.")
+
     file = st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
