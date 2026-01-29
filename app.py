@@ -9,9 +9,9 @@ st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> 
 my_tickers = [ "SXR8.DE-MSCI SP500", "SEC0D.XD-MSCI Semiondutores", "EMIMA.XD-MSCI IMI EME", "EUNK.DE-MSCI Europe", "Outro ativo (digite...)"]
 
 choice = st.selectbox( 
-    "Como deseja calcular?", ("Apenas um ativo", "Múltiplos ativos") )
+    "Como deseja calcular?", ("Apenas um ativo - manual", "Múltiplos ativos - manual", "Importar dados - CSV") )
 
-if choice == "Apenas um ativo":
+if choice == "Apenas um ativo - manual":
 
     
     #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
@@ -47,7 +47,7 @@ if choice == "Apenas um ativo":
             st.error("Erro nos dados inseridos. Verifique os valores.")
 
 
-if choice == "Múltiplos ativos":
+if choice == "Múltiplos ativos - manual":
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=4)
     dados_ordens = []
        
