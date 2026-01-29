@@ -49,78 +49,63 @@ if choice == "Apenas um ativo":
 
 if choice == "Múltiplos ativos":
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=4)
-    
-    # Lista para armazenar os dados coletados
     dados_ordens = []
-
-    # Se você quer dinamismo (aparecer/sumir campos), evite o st.form para a entrada
-    # ou aceite que o campo de texto deve estar sempre visível se "Outro" for uma opção.
-    
+       
     with st.form("multi_orders"):
         st.write("Insira os dados de cada ordem:")
 
         for i in range(int(qnt_orders)):
             col1, col2, col3, col4 = st.columns(4)
-            
             with col1:
-                # Selectbox normal
-                ticker_sel = st.selectbox(f"Ticker {i+1}", options=my_tickers, key=f"t_sel_{i}")
-                # Campo extra sempre visível ou condicional ao submit
-                ticker_manual = st.text_input(f"Se 'Outro', digite aqui {i+1}", key=f"manual_{i}")
+                # 1. Mudamos a chave para não conflitar
+                sel = st.selectbox(f"Ticker {i+1}", options=my_tickers, key=f"sel_{i}")
+                # 2. O campo manual fica aqui, visível para preenchimento
+                man = st.text_input(f"Se 'Outro', digite:", key=f"man_{i}", help="Digite o ticker (ex: TSLA)")
                 
             with col2:
                 st.text_input(f"Qtd {i+1}", value="1.0", key=f"q_{i}")
             with col3: 
                 st.text_input(f"Preço de compra {i+1}", value="150.0", key=f"p_{i}")
             with col4: 
-                st.text_input(f"Data de compra {i+1}", value="2023-10-25", key=f"d_{i}")
+                st.text_input(f"Data {i+1}", value="25-10-2023", key=f"d_{i}")
             st.divider()
-
+            
         submit = st.form_submit_button("Calcular Todos")
     
     if submit: 
         for i in range(int(qnt_orders)):
-            # Lógica para escolher o ticker correto
-            sel = st.session_state[f"t_sel_{i}"]
-            man = st.session_state[f"manual_{i}"]
-            
-            # Se selecionou outro, usa o manual, senão usa o do selectbox
-            t_final_name = man if sel == "Outro ativo (digite...)" else sel
-            
-            # Limpeza do ticker (ex: remover descrição após o hífen se houver)
-            ticker_clean = t_final_name.split("-")[0].strip()
-
             try:
-                # Conversão de valores
+                # 3. Lógica de decisão: Qual ticker usar?
+                ticker_final = st.session_state[f"man_{i}"] if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)" else st.session_state[f"sel_{i}"]
+                
+                # Limpeza e captura de dados
+                t_clean = ticker_final.split("-")[0].strip()
                 q = float(st.session_state[f"q_{i}"].replace(',', '.'))
                 p = float(st.session_state[f"p_{i}"].replace(',', '.'))
-                
-                # Busca no Yahoo Finance
-                ticker_data = yf.Ticker(ticker_clean)
-                # Dica: .info pode ser lento em loops, use .fast_info se disponível
-                today_price = ticker_data.fast_info['last_price']
+                d = st.session_state[f"d_{i}"]
+
+                # Consulta API
+                ticker_api = yf.Ticker(t_clean)
+                # fast_info é mais rápido que .info para loops
+                today_price = ticker_api.fast_info['last_price']
 
                 gain = (today_price - p) * q
                 roi = ((today_price - p) / p) * 100
-                
-                st.success(f"{ticker_clean}: Ganho de R$ {gain:.2f} ({roi:.2f}%)")
-            except Exception as e:
-                st.error(f"Erro ao processar {ticker_clean}: {e}")
 
-    # Preencher a lista com os múltiplos ativos 
-            dados_ordens.append({
-                    "Date": ticker_data,
-                    "Ticker": ticker_clean,
-                    "Shares": q,
-                    "Buy Price": f"{p:.2f}€",
-                    "Gain (€)": round(gain, 2),
+                # 4. Adiciona à lista DENTRO do try para evitar erros de variáveis vazias
+                dados_ordens.append({
+                    "Data Compra": d,
+                    "Ticker": t_clean,
+                    "Qtd": q,
+                    "Preço Compra": f"{p:.2f}",
+                    "Preço Atual": f"{today_price:.2f}",
+                    "Ganho": round(gain, 2),
                     "ROI (%)": f"{roi:.2f}%"
                 })
+            except Exception as e:
+                st.error(f"Erro no ticker {i+1}: Ativo não encontrado ou dados inválidos.")
 
-    if dados_ordens:
-        # Divisão 
-        st.divider()        
-        st.subheader("Resumo do portfólio")
-    
-        df_final = pd.DataFrame(dados_ordens)
-        st.dataframe(df_final, use_container_width=True)
+        if dados_ordens:
+            st.subheader("Resumo do Portfólio")
+            df_final = pd.DataFrame(dados_ordens)
+            st.dataframe(df_final, use_container_width=True)
