@@ -113,4 +113,5 @@ if choice == "Múltiplos ativos - manual":
 
 if choice == "Importar dados - CSV":
 
-    st.title("Dados através de um CSV")
+    st.title("Dados via CSV")
+    file = st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
