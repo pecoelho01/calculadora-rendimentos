@@ -144,7 +144,7 @@ if choice == "Importar dados - CSV":
 
             dados_finais = []
 
-            if st.button("🚀 Calcular Resultados"):
+            if st.button("Calcular"):
 
                 for i in range(len(colunaDate)):
                     current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
@@ -157,8 +157,8 @@ if choice == "Importar dados - CSV":
                         "Ticker": colunaTicker[i],
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
-                        "GAIN(euros)": gain,
-                        "ROI %": roi
+                        "GAIN(euros)": round(gain,2),
+                        "ROI %": round(roi,2)
                     })
 
                 df_final_ = pd.DataFrame(dados_finais)
