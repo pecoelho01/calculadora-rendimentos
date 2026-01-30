@@ -138,7 +138,7 @@ if choice == "Importar dados - CSV":
             df["price_buy"] = df["price_buy"].astype(str).str.replace(",", ".", regex=False).astype(float)
             df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
             colunaDate = df["date"]
-            colunaTicker = df["ticket"]
+            colunaTicker = df["ticker"]
             colunaPriceBuy = df["price_buy"]
             colunaShares = df["shares"]
 
