@@ -131,3 +131,37 @@ if choice == "Importar dados - CSV":
 
     file = st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
+    if file is not None:
+        try:
+            df = pd.read_csv(file, sep=None, engine="python")
+
+            df["price_buy"] = df["price_buy"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            colunaDate = df["date"]
+            colunaTicker = df["ticket"]
+            colunaPriceBuy = df["price_buy"]
+            colunaShares = df["shares"]
+
+            dados_finais = []
+
+            for i in range(len(colunaDate)):
+                current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
+
+                gain = (current_price - colunaPriceBuy[i]) * colunaShares[i]
+                roi = ((current_price - colunaPriceBuy[i]) / colunaPriceBuy[i]) * 100
+
+                dados_finais.append({
+                    "Date": colunaDate[i],
+                    "Ticker": colunaTicker[i],
+                    "Price Buy": colunaPriceBuy[i],
+                    "Shares": colunaShares[i],
+                    "GAIN(euros)": gain,
+                    "ROI %": roi
+                })
+
+            df_final_ = pd.DataFrame(dados_finais)
+            st.dataframe(df_final_, use_container_width=True)
+
+        except FileNotFoundError:
+            st.error("Arquivo não compatível")
+
