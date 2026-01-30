@@ -159,8 +159,8 @@ if choice == "Importar dados - CSV":
                         "Shares": colunaShares[i],
                         "GAIN(euros)": round(gain,2),
                         "ROI %": round(roi,2)
-                    })
-
+                    }) 
+                st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
 
