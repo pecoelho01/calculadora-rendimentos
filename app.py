@@ -144,23 +144,25 @@ if choice == "Importar dados - CSV":
 
             dados_finais = []
 
-            for i in range(len(colunaDate)):
-                current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
+            if st.button("🚀 Calcular Resultados"):
 
-                gain = (current_price - colunaPriceBuy[i]) * colunaShares[i]
-                roi = ((current_price - colunaPriceBuy[i]) / colunaPriceBuy[i]) * 100
+                for i in range(len(colunaDate)):
+                    current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
 
-                dados_finais.append({
-                    "Date": colunaDate[i],
-                    "Ticker": colunaTicker[i],
-                    "Price Buy": colunaPriceBuy[i],
-                    "Shares": colunaShares[i],
-                    "GAIN(euros)": gain,
-                    "ROI %": roi
-                })
+                    gain = (current_price - colunaPriceBuy[i]) * colunaShares[i]
+                    roi = ((current_price - colunaPriceBuy[i]) / colunaPriceBuy[i]) * 100
 
-            df_final_ = pd.DataFrame(dados_finais)
-            st.dataframe(df_final_, use_container_width=True)
+                    dados_finais.append({
+                        "Date": colunaDate[i],
+                        "Ticker": colunaTicker[i],
+                        "Price Buy": colunaPriceBuy[i],
+                        "Shares": colunaShares[i],
+                        "GAIN(euros)": gain,
+                        "ROI %": roi
+                    })
+
+                df_final_ = pd.DataFrame(dados_finais)
+                st.dataframe(df_final_, use_container_width=True)
 
         except FileNotFoundError:
             st.error("Arquivo não compatível")
