@@ -2,6 +2,70 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
+# 1. Configuração da Página (Tab do browser)
+st.set_page_config(page_title="Asset Yield", page_icon="📈", layout="wide")
+
+# 2. CSS "Estilo Vercel" - Injeção direta
+st.markdown("""
+    <style>
+    /* Fonte e Background */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #fbfbfb;
+    }
+
+    /* Estilizar Títulos */
+    h1 {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #111;
+    }
+
+    /* Cartões de Métricas (Vercel Style) */
+    div[data-testid="stMetric"] {
+        background-color: white;
+        border: 1px solid #eaeaea;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        transition: all 0.3s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #0070f3;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    /* Inputs e Selectbox */
+    div[data-baseweb="select"], div[data-baseweb="input"] {
+        border-radius: 8px !important;
+    }
+
+    /* Botão Principal */
+    .stButton>button {
+        background-color: #000;
+        color: #fff;
+        border-radius: 6px;
+        padding: 0.5rem 2rem;
+        border: none;
+        transition: 0.2s;
+    }
+    .stButton>button:hover {
+        background-color: #333;
+        border: none;
+        color: #fff;
+    }
+
+    /* Divider mais subtil */
+    hr {
+        margin: 2em 0;
+        border: 0;
+        border-top: 1px solid #eaeaea;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("📈 Calculadora de Rendimentos")
 
 st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
@@ -144,7 +208,7 @@ if choice == "Importar dados - CSV":
 
             dados_finais = []
 
-            if st.button("Calcular"):
+            if st.button("Calcular share-to-share"):
 
                 for i in range(len(colunaDate)):
                     current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
@@ -163,6 +227,9 @@ if choice == "Importar dados - CSV":
                 st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
+
+          #  if st.button("Calcular o combo de cada ativo "):
+
 
         except FileNotFoundError:
             st.error("Arquivo não compatível")
