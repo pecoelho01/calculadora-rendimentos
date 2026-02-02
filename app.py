@@ -75,20 +75,6 @@ if choice == "Importar dados - CSV":
 
     st.title("Dados via CSV")
     st.text("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar")
-    # try:
-    #     with open("modelo_site_ativos.csv", "rb") as f:
-    #         conteudo_do_arquivo = f.read() 
-            
-    #     st.download_button(
-    #         label="📥 Download do modelo CSV",
-    #         data=conteudo_do_arquivo,
-    #         file_name="modelo_investimentos.csv",
-    #         mime="text/csv"
-    #     )
-    # except FileNotFoundError:
-    #     st.error("O arquivo 'modelo_ativos.csv' não foi encontrado no servidor.")
-
-   # file = st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
     file = csv_download_import()
 
