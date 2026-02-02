@@ -12,3 +12,21 @@ def process_ticket(ticket, buy_price, shares):
     results = [gain, roi, today_price]
 
     return results
+
+
+def csv_download_import():
+    try:
+        with open("modelo_site_ativos.csv", "rb") as f:
+            conteudo_do_arquivo = f.read() 
+            
+        st.download_button(
+            label="📥 Download do modelo CSV",
+            data=conteudo_do_arquivo,
+            file_name="modelo_investimentos.csv",
+            mime="text/csv"
+        )
+    except FileNotFoundError:
+        st.error("O arquivo 'modelo_ativos.csv' não foi encontrado no servidor.")
+
+    
+    return st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
