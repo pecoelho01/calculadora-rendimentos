@@ -83,11 +83,11 @@ if choice == "Importar dados - CSV":
             df = pd.read_csv(file, sep=None, engine="python")
             df.columns = df.columns.str.strip()
 
-            df["price_buy"] = df["price_buy"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            df["pricebuy"] = df["pricebuy"].astype(str).str.replace(",", ".", regex=False).astype(float)
             df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
             colunaDate = df["date"]
             colunaTicker = df["ticker"]
-            colunaPriceBuy = df["price_buy"]
+            colunaPriceBuy = df["pricebuy"]
             colunaShares = df["shares"]
 
             dados_finais = []
