@@ -11,43 +11,7 @@ my_tickers = [ "SXR8.DE-MSCI SP500", "SEC0D.XD-MSCI Semiondutores", "EMIMA.XD-MS
 choice = st.selectbox( 
     "Como deseja calcular?", ("Apenas um ativo - manual", "Múltiplos ativos - manual", "Importar dados - CSV") )
 
-if choice == "Apenas um ativo - manual":
-    st.title("Apenas um ativo manualmente")
-    
-    #ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
-    ticker_symbol = st.selectbox("Digite o ativo que deseja ou digite para filtrar:", options=my_tickers)
-    if  ticker_symbol == "Outro ativo (digite...)":
-        ticker_symbol = st.text_input("Ticker do Ativo (ex: AAPL ou PETR4.SA):", value="AAPL")
-    
-    ticker_symbol_partes = ticker_symbol.split("-",1)
-    share_input = st.text_input("Quantidade de shares:", value="1")
-    price_input = st.text_input("Preço de compra:", value="150")
-
-    if st.button("Calcular"):
-        try:
-            shares = float(share_input.replace(',', '.'))
-            price_buy = float(price_input.replace(',','.'))
-            
-            ticker_data = yf.Ticker(ticker_symbol_partes[0])
-            # Pegando o preço mais recente
-            df = ticker_data.history(period="1d")
-            
-            if not df.empty:
-                today_price = df['Close'].iloc[-1]
-                gain = (today_price - price_buy) * shares
-                roi = ((today_price - price_buy) / price_buy) * 100
-                
-                st.divider()
-                st.metric("Preço Atual", f"{today_price:.2f}")
-                st.metric("Ganho Total", f"{gain:.2f} €", delta=f"{gain:.2f}")
-                st.metric("ROI", f"{roi:.2f}%", delta=f"{roi:.2f}%")
-            else:
-                st.error("Dados não encontrados para este ticker.")
-        except Exception as e:
-            st.error("Erro nos dados inseridos. Verifique os valores.")
-
-
-if choice == "Múltiplos ativos - manual":
+if choice == "Ativo manualmente":
     st.title("Múltiplos ativos manualmente")
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=4)
     dados_ordens = []
@@ -164,7 +128,9 @@ if choice == "Importar dados - CSV":
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
 
-          #  if st.button("Calcular o combo de cada ativo "):
+           # if st.button("Calcular o combo de cada ativo "):
+            #    for i in range(len(colunaDate)):
+             #       current_price = 
 
 
         except FileNotFoundError:
