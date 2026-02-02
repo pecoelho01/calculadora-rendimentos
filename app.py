@@ -9,7 +9,7 @@ st.write("Nota: basta pesquisar o nome do ativo financeiro na barra <pesquisar> 
 my_tickers = [ "SXR8.DE-MSCI SP500", "SEC0D.XD-MSCI Semiondutores", "EMIMA.XD-MSCI IMI EME", "EUNK.DE-MSCI Europe", "Outro ativo (digite...)"]
 
 choice = st.selectbox( 
-    "Como deseja calcular?", ("Apenas um ativo - manual", "Múltiplos ativos - manual", "Importar dados - CSV") )
+    "Como deseja calcular?", ("Ativo manualmente", "Importar dados - CSV") )
 
 if choice == "Ativo manualmente":
     st.title("Múltiplos ativos manualmente")
