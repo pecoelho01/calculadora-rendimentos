@@ -128,6 +128,9 @@ if choice == "Importar dados - CSV":
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
 
+                st.subheader("ROI por ativos - comparação")
+                st.bar_char(data=df_final, x="Ticker", y="ROI %")
+
            # if st.button("Calcular o combo de cada ativo "):
             #    for i in range(len(colunaDate)):
              #       current_price = 
