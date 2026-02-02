@@ -129,7 +129,7 @@ if choice == "Importar dados - CSV":
                 st.dataframe(df_final_, use_container_width=True)
 
                 st.subheader("ROI por ativos - comparação")
-                st.bar_chart(data=df_final_, x="Date", y="ROI %")
+                st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
 
            # if st.button("Calcular o combo de cada ativo "):
             #    for i in range(len(colunaDate)):
