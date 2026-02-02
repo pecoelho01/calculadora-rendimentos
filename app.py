@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+from logic import process_ticket
 
 st.title("📈 Calculadora de Rendimentos")
 
@@ -49,13 +50,7 @@ if choice == "Calcular ativos manualmente":
                 p = float(st.session_state[f"p_{i}"].replace(',', '.'))
                 d = st.session_state[f"d_{i}"]
 
-                # Consulta API
-                ticker_api = yf.Ticker(t_clean)
-                # fast_info é mais rápido que .info para loops
-                today_price = ticker_api.fast_info['last_price']
-
-                gain = (today_price - p) * q
-                roi = ((today_price - p) / p) * 100
+                results = process_ticket(t_clean, p, q)
 
                 # 4. Adiciona à lista DENTRO do try para evitar erros de variáveis vazias
                 dados_ordens.append({
@@ -63,9 +58,9 @@ if choice == "Calcular ativos manualmente":
                     "Ticker": t_clean,
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
-                    "Preço Atual": f"{today_price:.2f}",
-                    "Ganho": round(gain, 2),
-                    "ROI (%)": f"{roi:.2f}%"
+                    "Preço Atual": f"{results[2]:.2f}",
+                    "Ganho": round(results[0], 2),
+                    "ROI (%)": f"{results[1]:.2f}%"
                 })
             except Exception as e:
                 st.error(f"Erro no ticker {i+1}: Ativo não encontrado ou dados inválidos.")
@@ -111,18 +106,16 @@ if choice == "Importar dados - CSV":
             if st.button("Calcular share-to-share"):
 
                 for i in range(len(colunaDate)):
-                    current_price = yf.Ticker(colunaTicker[i]).fast_info['last_price']
 
-                    gain = (current_price - colunaPriceBuy[i]) * colunaShares[i]
-                    roi = ((current_price - colunaPriceBuy[i]) / colunaPriceBuy[i]) * 100
+                    results = process_ticket(colunaTicker[i], colunaPriceBuy[i], colunaShares[i])
 
                     dados_finais.append({
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
-                        "GAIN(euros)": round(gain,2),
-                        "ROI %": round(roi,2)
+                        "GAIN(euros)": round(results[0],2),
+                        "ROI %": round(results[1],2)
                     }) 
                 st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
