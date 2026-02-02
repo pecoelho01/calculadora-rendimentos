@@ -81,6 +81,7 @@ if choice == "Importar dados - CSV":
     if file is not None:
         try:
             df = pd.read_csv(file, sep=None, engine="python")
+            df.columns = df.columns.str.strip()
 
             df["price_buy"] = df["price_buy"].astype(str).str.replace(",", ".", regex=False).astype(float)
             df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
