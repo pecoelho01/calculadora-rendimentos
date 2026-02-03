@@ -1,43 +1,40 @@
-# 📈 Asset Yield Calculator
+# 📈 Calculadora de Rendimentos
 
-An interactive web application built with Python to monitor investment performance for single or multiple assets in real-time.
+Aplicação web em **Streamlit** que calcula ganhos e ROI de ativos usando preços em tempo real do **Yahoo Finance** (`yfinance`). Permite inserir vários ativos manualmente ou importar uma folha CSV.
 
-### 🔗 Live Project: 
+### 🔗 App online
 **[https://calculadora-rendimentos.streamlit.app/](https://calculadora-rendimentos.streamlit.app/)**
 
 ---
 
-## 📖 About the Project
-This project evolved from a simple calculation script into a versatile financial tool. Using the **Streamlit** framework and **Yahoo Finance API**, it allows users to track their portfolio's health by calculating gains and ROI (Return on Investment) based on current market prices.
+## 🔍 Como funciona
+- **Modo manual**: escolha o número de ordens, preencha Ticker, Quantidade, Preço de compra e Data. Há uma lista rápida de ETFs/índices e a opção “Outro ativo (digite...)”.
+- **Modo CSV**: faça download do modelo (`modelo_site_ativos.csv`), preencha as colunas `date`, `ticker`, `pricebuy`, `shares` e faça upload. Valores com vírgula são normalizados para ponto.
+- **Preços em tempo real**: `logic.process_ticket` obtém `fast_info['last_price']` de cada ticker no Yahoo Finance e calcula ganho absoluto e ROI (%).
+- **Resultados**: tabela resumida no modo manual; no modo CSV inclui também gráfico de barras comparando ROI por ativo/data.
 
-## ✨ Features
-* **Dual Calculation Modes**: Choose between analyzing a single asset or batch-processing multiple orders.
-* **Dynamic Forms**: For multiple assets, the app generates a specific number of input fields (Ticker, Quantity, Purchase Price, and Date) based on your needs.
-* **Real-time Market Data**: Fetches the most recent closing prices automatically using `yfinance`.
-* **Visual Metrics**: View single-asset results with professional dashboard metrics (including green/red delta indicators).
-* **Batch Summary**: Process and list all your orders at once with a single click.
+## 🚀 Executar localmente
+```bash
+git clone https://github.com/pecoelho01/calculadora-rendimentos.git
+cd calculadora-rendimentos
+pip install -r requirements.txt
+streamlit run app.py
+```
 
-## 🛠️ Technologies Used
-* **Python**: The core programming language.
-* **Streamlit**: For the interactive web interface.
-* **yfinance**: For fetching financial market data.
-* **Pandas**: For structured data handling and table visualization (optional but recommended).
+## 📂 Estrutura
+- `app.py`: interface Streamlit com modos Manual e CSV.
+- `logic.py`: funções de cálculo (`process_ticket`) e utilitário para download/upload do modelo CSV (`csv_download_import`).
+- `modelo_site_ativos.csv`: modelo de cabeçalho para importação (colunas: `date,ticker,pricebuy,shares`).
+- `requirements.txt`: dependências da aplicação.
+- `components.py`: reservado (vazio atualmente).
 
-## 🚀 How to Run Locally
-1.  **Clone the repository**:
-    ```bash
-    git clone [https://github.com/pecoelho01/calculadora-rendimentos.git](https://github.com/pecoelho01/calculadora-rendimentos.git)
-    ```
-2.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Run the app**:
-    ```bash
-    streamlit run app.py
-    ```
+## 🧰 Dependências
+- streamlit
+- yfinance
+- pandas
 
-## 📂 File Structure
-* `app.py`: The main application logic and UI.
-* `requirements.txt`: List of Python packages required for deployment.
-* `.devcontainer/`: Configuration for standardized development environments.
+## ⚠️ Notas e limitações
+- Necessita de ligação à internet para obter preços do Yahoo Finance.
+- Os tickers devem existir no Yahoo; em caso contrário a app mostra erro por ordem.
+- A data serve apenas para referência visual; não altera os cálculos.
+- Preço atual usa `fast_info['last_price']`, podendo variar intradiariamente.
