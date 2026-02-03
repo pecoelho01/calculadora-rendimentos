@@ -150,7 +150,7 @@ if choice == "Importar dados - CSV":
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
-                    ticketFiltro = st.text_input("Filtrar por ticker:", value="AAPL").upper()
+                    ticketFiltro = st.text_input("Filtrar por ticker:", value="").upper()
                     if ticketFiltro: 
                         filtro =  (df_combo['Ticker'] == ticketFiltro)
                         resultado = df_combo[filtro]
