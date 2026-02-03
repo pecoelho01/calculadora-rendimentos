@@ -116,12 +116,14 @@ if choice == "Importar dados - CSV":
             # Combina todas as ordens de cada ticker para um resumo consolidado
             if st.button("Calcular combo por ativo"):
                 combos = []
-                for ticker in colunaTicker.unique():
-                    bloco = df[df["ticker"] == ticker]
-                    total_shares = bloco["shares"].sum()
-                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
 
-                    try:
+                # Ele iterar sobre o ticket na colunaTicker de forma "Unique"
+                for ticker in colunaTicker.unique():
+                    bloco = df[df["ticker"] == ticker] # Obtém todo o dataframe (linhas completa) daquele ticket em específico
+                    total_shares = bloco["shares"].sum() # Obtém o total de shares adquiridas
+                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum() # O custo total (multiplicando o pricebuy e o shares de cada linha e somando linha a linha)
+
+                    try: # O preço atual do ativo 
                         current_price = yf.Ticker(ticker).fast_info["last_price"]
                     except Exception:
                         current_price = None
@@ -130,7 +132,7 @@ if choice == "Importar dados - CSV":
                         st.error(f"Não foi possível obter preço atual para {ticker}.")
                         continue
 
-                    total_value = total_shares * current_price
+                    total_value = total_shares * current_price 
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 if total_cost else 0
 
