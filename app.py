@@ -150,19 +150,17 @@ if choice == "Importar dados - CSV":
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
-                    ticketFiltro = st.text_input("Filtrar por ticker (case-insensitive):", value="").strip()
-                    if ticketFiltro:
-                        filtro = df_combo["Ticker"].str.contains(ticketFiltro, case=False, regex=False)
+                    ticketFiltro = st.text_input("Filtrar por ticker:", value="").upper()
+                    if ticketFiltro: 
+                        filtro =  (df_combo['Ticker'] == ticketFiltro)
                         resultado = df_combo[filtro]
-                        if resultado.empty:
-                            st.info("Nenhum ticker corresponde ao filtro.")
                     else:
                         resultado = df_combo
-
+                    
                     st.dataframe(resultado, use_container_width=True)
 
                     st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=resultado, x="Ticker", y="ROI %", color="Ticker")
+                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
 
 
         except FileNotFoundError:
