@@ -14,7 +14,7 @@ choice = st.selectbox(
 
 if choice == "Calcular ativos manualmente":
     st.title("Múltiplos ativos manualmente")
-    qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=4)
+    qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=1)
     dados_ordens = []
        
     with st.form("multi_orders"):
@@ -150,7 +150,14 @@ if choice == "Importar dados - CSV":
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
-                    st.dataframe(df_combo, use_container_width=True)
+                    ticketFiltro = st.text_input("Filtrar por ticker:", value="AAPL").upper()
+                    if ticketFiltro: 
+                        filtro =  (df_combo['Ticker'] == ticketFiltro)
+                        resultado = df_combo[filtro]
+                    else:
+                        resultado = df_combo
+                    
+                    st.dataframe(resultado, use_container_width=True)
 
                     st.subheader("ROI consolidado por ticker")
                     st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
