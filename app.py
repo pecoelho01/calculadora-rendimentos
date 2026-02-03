@@ -113,11 +113,46 @@ if choice == "Importar dados - CSV":
                 st.subheader("ROI por ativos - comparação")
                 st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
 
-           # if st.button("Calcular o combo de cada ativo "):
-            #    for i in range(len(colunaDate)):
-             #       current_price = 
+            # Combina todas as ordens de cada ticker para um resumo consolidado
+            if st.button("Calcular combo por ativo"):
+                combos = []
+                for ticker in colunaTicker.unique():
+                    bloco = df[df["ticker"] == ticker]
+                    total_shares = bloco["shares"].sum()
+                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
+
+                    try:
+                        current_price = yf.Ticker(ticker).fast_info["last_price"]
+                    except Exception:
+                        current_price = None
+
+                    if current_price is None:
+                        st.error(f"Não foi possível obter preço atual para {ticker}.")
+                        continue
+
+                    total_value = total_shares * current_price
+                    gain = total_value - total_cost
+                    roi = (gain / total_cost) * 100 if total_cost else 0
+
+                    combos.append({
+                        "Ticker": ticker,
+                        "Qtd Total": round(total_shares, 2),
+                        "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
+                        "Preço Atual": round(current_price, 4),
+                        "Custo Total": round(total_cost, 2),
+                        "Valor Atual": round(total_value, 2),
+                        "GAIN": round(gain, 2),
+                        "ROI %": round(roi, 2)
+                    })
+
+                if combos:
+                    st.subheader("Resumo consolidado por ticker")
+                    df_combo = pd.DataFrame(combos)
+                    st.dataframe(df_combo, use_container_width=True)
+
+                    st.subheader("ROI consolidado por ticker")
+                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %")
 
 
         except FileNotFoundError:
             st.error("Arquivo não compatível")
-

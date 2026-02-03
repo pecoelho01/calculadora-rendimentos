@@ -12,6 +12,7 @@ Aplicação web em **Streamlit** que calcula ganhos e ROI de ativos usando preç
 - **Modo CSV**: faça download do modelo (`modelo_site_ativos.csv`), preencha as colunas `date`, `ticker`, `pricebuy`, `shares` e faça upload. Valores com vírgula são normalizados para ponto.
 - **Preços em tempo real**: `logic.process_ticket` obtém `fast_info['last_price']` de cada ticker no Yahoo Finance e calcula ganho absoluto e ROI (%).
 - **Resultados**: tabela resumida no modo manual; no modo CSV inclui também gráfico de barras comparando ROI por ativo/data.
+- **Combo por ativo (CSV)**: botão "Calcular combo por ativo" agrupa todas as ordens de cada ticker, calcula preço médio ponderado, custo total, valor atual, GAIN e ROI% consolidados, e mostra tabela + gráfico de ROI por ticker.
 
 ## 🚀 Executar localmente
 ```bash
