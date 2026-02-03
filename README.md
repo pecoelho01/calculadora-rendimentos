@@ -1,20 +1,20 @@
-# 📈 Calculadora de Rendimentos
+# 📈 Asset Yield Calculator
 
-Aplicação web em **Streamlit** que calcula ganhos e ROI de ativos usando preços em tempo real do **Yahoo Finance** (`yfinance`). Permite inserir vários ativos manualmente ou importar uma folha CSV.
+Interactive **Streamlit** app that computes gain and ROI for financial assets using real-time prices from **Yahoo Finance** (`yfinance`). Supports manual multi-order input and CSV imports.
 
-### 🔗 App online
+### 🔗 Live app
 **[https://calculadora-rendimentos.streamlit.app/](https://calculadora-rendimentos.streamlit.app/)**
 
 ---
 
-## 🔍 Como funciona
-- **Modo manual**: escolha o número de ordens, preencha Ticker, Quantidade, Preço de compra e Data. Há uma lista rápida de ETFs/índices e a opção “Outro ativo (digite...)”.
-- **Modo CSV**: faça download do modelo (`modelo_site_ativos.csv`), preencha as colunas `date`, `ticker`, `pricebuy`, `shares` e faça upload. Valores com vírgula são normalizados para ponto.
-- **Preços em tempo real**: `logic.process_ticket` obtém `fast_info['last_price']` de cada ticker no Yahoo Finance e calcula ganho absoluto e ROI (%).
-- **Resultados**: tabela resumida no modo manual; no modo CSV inclui também gráfico de barras comparando ROI por ativo/data.
-- **Combo por ativo (CSV)**: botão "Calcular combo por ativo" agrupa todas as ordens de cada ticker, calcula preço médio ponderado, custo total, valor atual, GAIN e ROI% consolidados, e mostra tabela + gráfico de ROI por ticker.
+## How it works
+- **Manual mode**: choose how many orders to enter; fill Ticker, Quantity, Buy Price and Date for each. Includes a quick list of ETFs/indices plus “Other asset (type...)”.
+- **CSV mode**: download the template (`modelo_site_ativos.csv`), fill columns `date`, `ticker`, `pricebuy`, `shares`, then upload. Commas in numbers are converted to dots automatically.
+- **Per-order calc**: `logic.process_ticket` fetches `fast_info['last_price']` for each ticker and calculates absolute gain and ROI (%).
+- **Per-order outputs**: table of every row and a bar chart comparing ROI by Date and Ticker.
+- **Per-ticker combo (CSV)**: the “Calcular combo por ativo” button groups all orders of each ticker, computing weighted average price, total cost, current value, consolidated GAIN and ROI%, plus a ROI bar chart by ticker.
 
-## 🚀 Executar localmente
+## Quickstart
 ```bash
 git clone https://github.com/pecoelho01/calculadora-rendimentos.git
 cd calculadora-rendimentos
@@ -22,20 +22,37 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## 📂 Estrutura
-- `app.py`: interface Streamlit com modos Manual e CSV.
-- `logic.py`: funções de cálculo (`process_ticket`) e utilitário para download/upload do modelo CSV (`csv_download_import`).
-- `modelo_site_ativos.csv`: modelo de cabeçalho para importação (colunas: `date,ticker,pricebuy,shares`).
-- `requirements.txt`: dependências da aplicação.
-- `components.py`: reservado (vazio atualmente).
+## CSV template
+- File: `modelo_site_ativos.csv`
+- Header columns: `date,ticker,pricebuy,shares` (header starts on the second line; first line is blank to match the current uploader).
+- Example (also saved as `sample_combo.csv`):
+```csv
+,,,,,
+,,date,ticker,pricebuy,shares
+,,2024-01-10,SXR8.DE,60,5
+,,2024-03-15,SXR8.DE,65,4
+,,2024-06-20,SXR8.DE,70,3
+,,2024-09-05,SXR8.DE,68,2
+,,2024-02-01,TSLA,190,1
+,,2024-05-12,TSLA,210,2
+,,2024-08-18,AMZN,130,3
+```
 
-## 🧰 Dependências
+## Project structure
+- `app.py`: Streamlit UI; manual mode, CSV mode, per-order and per-ticker outputs.
+- `logic.py`: calculation helpers (`process_ticket`) and CSV download/upload helper (`csv_download_import`).
+- `modelo_site_ativos.csv`: blank template for imports.
+- `sample_combo.csv`: ready-to-use sample dataset for testing the combo feature.
+- `requirements.txt`: app dependencies.
+- `components.py`: reserved placeholder (currently empty).
+
+## Dependencies
 - streamlit
 - yfinance
 - pandas
 
-## ⚠️ Notas e limitações
-- Necessita de ligação à internet para obter preços do Yahoo Finance.
-- Os tickers devem existir no Yahoo; em caso contrário a app mostra erro por ordem.
-- A data serve apenas para referência visual; não altera os cálculos.
-- Preço atual usa `fast_info['last_price']`, podendo variar intradiariamente.
+## Notes & limitations
+- Requires internet access; prices come from Yahoo Finance at request time.
+- Tickers must exist on Yahoo Finance; missing tickers trigger per-order error messages.
+- Dates are informational only; calculations use current prices, not historical ones.
+- Current price uses `fast_info['last_price']` and may move intraday.
