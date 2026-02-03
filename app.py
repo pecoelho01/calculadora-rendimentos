@@ -157,11 +157,11 @@ if choice == "Importar dados - CSV":
             if "df_combo" in st.session_state:
                 st.subheader("Filtrar combo por ticker")
                 df_combo_cached = st.session_state["df_combo"]
-                ticketFiltro = st.text_input("Ticker (case-insensitive):", value="")
+                ticketFiltro = st.text_input("Ticker (case-insensitive):", value="").strip().upper()
                 aplicar = st.button("Aplicar filtro")
 
                 if aplicar and ticketFiltro.strip():
-                    filtro = df_combo_cached['Ticker'].str.contains(ticketFiltro.strip(), case=False, regex=False)
+                    filtro = (df_combo_cached['Ticker'] == ticketFiltro)
                     resultado = df_combo_cached[filtro]
                     if resultado.empty:
                         st.info("Nenhum ticker corresponde ao filtro.")
