@@ -151,7 +151,7 @@ if choice == "Importar dados - CSV":
                     st.dataframe(df_combo, use_container_width=True)
 
                     st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %")
+                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
 
 
         except FileNotFoundError:
