@@ -57,10 +57,10 @@ if choice == "Calcular ativos manualmente":
                     "Data Compra": d,
                     "Ticker": t_clean,
                     "Qtd": q,
-                    "Preço Compra": f"{p:.2f}",
-                    "Preço Atual": f"{results[2]:.2f}",
+                    "Preço Compra": round(p, 2),
+                    "Preço Atual": round(results[2], 2),
                     "Ganho": round(results[0], 2),
-                    "ROI (%)": f"{results[1]:.2f}%"
+                    "ROI (%)": round(results[1], 2)
                 })
             except Exception as e:
                 st.error(f"Erro no ticker {i+1}: Ativo não encontrado ou dados inválidos.")
@@ -68,7 +68,23 @@ if choice == "Calcular ativos manualmente":
         if dados_ordens:
             st.subheader("Resumo do Portfólio")
             df_final = pd.DataFrame(dados_ordens)
-            st.dataframe(df_final, use_container_width=True)
+
+            tickers_manual = sorted(df_final["Ticker"].unique())
+            selected_manual = st.multiselect(
+                "Filtrar por ticker",
+                options=tickers_manual,
+                default=tickers_manual,
+                key="filter_manual"
+            )
+            df_view = df_final[df_final["Ticker"].isin(selected_manual)]
+
+            fmt_manual = {
+                "Preço Compra": "€{:.2f}",
+                "Preço Atual": "€{:.2f}",
+                "Ganho": "€{:.2f}",
+                "ROI (%)": "{:.2f}%"
+            }
+            st.dataframe(df_view.style.format(fmt_manual), use_container_width=True)
 
 if choice == "Importar dados - CSV":
     #model_file = "modelo_site_ativos.csv"
@@ -108,10 +124,24 @@ if choice == "Importar dados - CSV":
                     }) 
                 st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
-                st.dataframe(df_final_, use_container_width=True)
+
+                tickers_csv = sorted(df_final_["Ticker"].unique())
+                selected_csv = st.multiselect(
+                    "Filtrar por ticker (linhas individuais)",
+                    options=tickers_csv,
+                    default=tickers_csv,
+                    key="filter_csv_rows"
+                )
+                df_view_rows = df_final_[df_final_["Ticker"].isin(selected_csv)]
+                fmt_rows = {
+                    "Price Buy": "€{:.2f}",
+                    "GAIN(euros)": "€{:.2f}",
+                    "ROI %": "{:.2f}%"
+                }
+                st.dataframe(df_view_rows.style.format(fmt_rows), use_container_width=True)
 
                 st.subheader("ROI por ativos - comparação")
-                st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
+                st.bar_chart(data=df_view_rows, x="Date", y="ROI %", color="Ticker")
 
             # Combina todas as ordens de cada ticker para um resumo consolidado
             if st.button("Calcular combo por ativo"):
@@ -150,10 +180,27 @@ if choice == "Importar dados - CSV":
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
-                    st.dataframe(df_combo, use_container_width=True)
+                    tickers_combo = sorted(df_combo["Ticker"].unique())
+                    selected_combo = st.multiselect(
+                        "Filtrar combo por ticker",
+                        options=tickers_combo,
+                        default=tickers_combo,
+                        key="filter_combo"
+                    )
+                    df_combo_view = df_combo[df_combo["Ticker"].isin(selected_combo)]
+                    fmt_combo = {
+                        "Qtd Total": "{:.2f}",
+                        "Preço Médio": "€{:.4f}",
+                        "Preço Atual": "€{:.4f}",
+                        "Custo Total": "€{:.2f}",
+                        "Valor Atual": "€{:.2f}",
+                        "GAIN": "€{:.2f}",
+                        "ROI %": "{:.2f}%"
+                    }
+                    st.dataframe(df_combo_view.style.format(fmt_combo), use_container_width=True)
 
                     st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
+                    st.bar_chart(data=df_combo_view, x="Ticker", y="ROI %", color="Ticker")
 
 
         except FileNotFoundError:
