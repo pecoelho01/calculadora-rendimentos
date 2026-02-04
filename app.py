@@ -150,28 +150,28 @@ if choice == "Importar dados - CSV":
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
-                    st.session_state["df_combo"] = df_combo  # guarda para reutilizar sem precisar recalcular
+                   # st.session_state["df_combo"] = df_combo  # guarda para reutilizar sem precisar recalcular
                     st.dataframe(df_combo, use_container_width=True)
 
         # Filtro e visualização persistentes do combo (não dependem de pressionar o botão novamente)
-                    if "df_combo" in st.session_state:
-                        st.subheader("Filtrar combo por ticker")
-                        df_combo_cached = st.session_state["df_combo"]
-                        ticketFiltro = st.text_input("Ticker (case-insensitive):", value="").strip().upper()
-                        aplicar = st.button("Aplicar filtro")
+                    # if "df_combo" in st.session_state:
+                    #     st.subheader("Filtrar combo por ticker")
+                    #     df_combo_cached = st.session_state["df_combo"]
+                    #     ticketFiltro = st.text_input("Ticker (case-insensitive):", value="").strip().upper()
+                    #     aplicar = st.button("Aplicar filtro")
 
-                        if aplicar and ticketFiltro.strip():
-                            filtro = (df_combo_cached['Ticker'] == ticketFiltro)
-                            resultado = df_combo_cached[filtro]
-                            if resultado.empty:
-                                st.info("Nenhum ticker corresponde ao filtro.")
-                        else:
-                            resultado = df_combo_cached
+                    #     if aplicar and ticketFiltro.strip():
+                    #         filtro = (df_combo_cached['Ticker'] == ticketFiltro)
+                    #         resultado = df_combo_cached[filtro]
+                    #         if resultado.empty:
+                    #             st.info("Nenhum ticker corresponde ao filtro.")
+                    #     else:
+                    #         resultado = df_combo_cached
 
-                        st.dataframe(resultado, use_container_width=True)
+                    #     st.dataframe(resultado, use_container_width=True)
 
-                        st.subheader("ROI consolidado por ticker")
-                        st.bar_chart(data=resultado, x="Ticker", y="ROI %", color="Ticker")
+                    #     st.subheader("ROI consolidado por ticker")
+                    #     st.bar_chart(data=resultado, x="Ticker", y="ROI %", color="Ticker")
 
 
         except FileNotFoundError:
