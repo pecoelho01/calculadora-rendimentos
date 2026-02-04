@@ -151,7 +151,7 @@ if choice == "Importar dados - CSV":
                     st.subheader("Resumo consolidado por ticker")
                     df_combo = pd.DataFrame(combos)
                     st.session_state["df_combo"] = df_combo  # guarda para reutilizar sem precisar recalcular
-                   # st.dataframe(df_combo, use_container_width=True)
+                    st.dataframe(df_combo, use_container_width=True)
 
         # Filtro e visualização persistentes do combo (não dependem de pressionar o botão novamente)
                     if "df_combo" in st.session_state:
