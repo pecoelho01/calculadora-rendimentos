@@ -152,6 +152,8 @@ if choice == "Importar dados - CSV":
                     df_combo = pd.DataFrame(combos)
                    # st.session_state["df_combo"] = df_combo  # guarda para reutilizar sem precisar recalcular
                     st.dataframe(df_combo, use_container_width=True)
+                    st.subheader("ROI consolidado por ticker")
+                    st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
 
         # Filtro e visualização persistentes do combo (não dependem de pressionar o botão novamente)
                     # if "df_combo" in st.session_state:
