@@ -180,8 +180,8 @@ if choice == "Importar dados - CSV":
 
 
                 st.subheader("Rentabilidade total do portfólio")
-                st.metric("Total investido (€)", f"{valor_investido:.2f}")
                 st.metric("ROI Total (%)", f"{roi_total:.2f}%")
+                st.metric("Total investido (€)", f"{valor_investido:.2f}")
                 st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                 st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
