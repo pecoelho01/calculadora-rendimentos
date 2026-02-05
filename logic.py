@@ -26,10 +26,10 @@ def process_ticket(ticket, buy_price, shares):
 
         # 3) Histórico diário (fallback final)
         try:
-            hist = ticker_api.history(period="1d")
-            if not hist.empty:
-                price = hist["Close"].iloc[-1]
-                if pd.notna(price):
+            for period in ("1d", "5d", "1mo"):
+                hist = ticker_api.history(period=period)
+                if not hist.empty:
+                    price = hist["Close"].dropna().iloc[-1]
                     return float(price)
         except Exception:
             pass

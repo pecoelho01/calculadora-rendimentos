@@ -3,6 +3,13 @@ import yfinance as yf
 import pandas as pd
 from logic import process_ticket, csv_download_import
 
+
+def _to_float(text: str, label: str) -> float:
+    try:
+        return float(str(text).replace(",", "."))
+    except ValueError:
+        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
+
 st.title("📈 Calculadora de Rendimentos")
 
 st.markdown("Para saber mais sobre os tickers, visite o [Yahoo Finance](https://finance.yahoo.com/).")
@@ -46,9 +53,13 @@ if choice == "Calcular ativos manualmente":
                 
                 # Limpeza e captura de dados
                 t_clean = ticker_final.split("-")[0].strip()
-                type = t_clean.get_info().get("quoteType")
-                q = float(st.session_state[f"q_{i}"].replace(',', '.'))
-                p = float(st.session_state[f"p_{i}"].replace(',', '.'))
+                try:
+                    asset_type = yf.Ticker(t_clean).info.get("quoteType")
+                except Exception:
+                    asset_type = None
+
+                q = _to_float(st.session_state[f"q_{i}"], "Quantidade")
+                p = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
                 d = st.session_state[f"d_{i}"]
 
                 results = process_ticket(t_clean, p, q)
@@ -57,7 +68,7 @@ if choice == "Calcular ativos manualmente":
                 dados_ordens.append({
                     "Data Compra": d,
                     "Ticker": t_clean,
-                    "Tipo de ativo": type,
+                    "Tipo de ativo": asset_type,
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
                     "Preço Atual": f"{results[2]:.2f}",
@@ -65,7 +76,7 @@ if choice == "Calcular ativos manualmente":
                     "ROI (%)": f"{results[1]:.2f}%"
                 })
             except Exception as e:
-                st.error(f"Erro no ticker {i+1}: Ativo não encontrado ou dados inválidos.")
+                st.error(f"Erro no ticker {i+1} ({t_clean}): {e}")
 
         if dados_ordens:
             st.subheader("Resumo do Portfólio")
