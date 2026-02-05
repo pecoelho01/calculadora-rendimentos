@@ -159,12 +159,28 @@ if choice == "Importar dados - CSV":
                         "GAIN": round(gain, 2),
                         "ROI %": round(roi, 2)
                     })
+                
 
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
                     st.subheader("ROI consolidado por ticker")
                     st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
+
+            if st.button("Calcular total do portfólio"):
+                # preços atuais por ticker para evitar múltiplas chamadas
+                last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in colunaTicker.unique()}
+
+                custo_total = (df["pricebuy"] * df["shares"]).sum()
+                valor_atual = sum(df.loc[i, "shares"] * last_prices[df.loc[i, "ticker"]] for i in df.index)
+
+                ganho_total = valor_atual - custo_total
+                roi_total = (ganho_total / custo_total) * 100 if custo_total else 0
+
+                st.subheader("Rentabilidade total do portfólio")
+                st.metric("ROI Total (%)", f"{roi_total:.2f}%")
+                st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
+                st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
 
         except FileNotFoundError:
