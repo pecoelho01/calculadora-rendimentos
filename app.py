@@ -149,8 +149,10 @@ if choice == "Importar dados - CSV":
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 if total_cost else 0
 
+                    tipoAtivo = yf.Ticker(ticker).info.get("quoteType")
                     combos.append({
                         "Ticker": ticker,
+                        "Tipo de ativo": tipoAtivo,
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
@@ -162,31 +164,9 @@ if choice == "Importar dados - CSV":
 
                 if combos:
                     st.subheader("Resumo consolidado por ticker")
-                    df_combo = pd.DataFrame(combos)
-                   # st.session_state["df_combo"] = df_combo  # guarda para reutilizar sem precisar recalcular
                     st.dataframe(df_combo, use_container_width=True)
                     st.subheader("ROI consolidado por ticker")
                     st.bar_chart(data=df_combo, x="Ticker", y="ROI %", color="Ticker")
-
-        # Filtro e visualização persistentes do combo (não dependem de pressionar o botão novamente)
-                    # if "df_combo" in st.session_state:
-                    #     st.subheader("Filtrar combo por ticker")
-                    #     df_combo_cached = st.session_state["df_combo"]
-                    #     ticketFiltro = st.text_input("Ticker (case-insensitive):", value="").strip().upper()
-                    #     aplicar = st.button("Aplicar filtro")
-
-                    #     if aplicar and ticketFiltro.strip():
-                    #         filtro = (df_combo_cached['Ticker'] == ticketFiltro)
-                    #         resultado = df_combo_cached[filtro]
-                    #         if resultado.empty:
-                    #             st.info("Nenhum ticker corresponde ao filtro.")
-                    #     else:
-                    #         resultado = df_combo_cached
-
-                    #     st.dataframe(resultado, use_container_width=True)
-
-                    #     st.subheader("ROI consolidado por ticker")
-                    #     st.bar_chart(data=resultado, x="Ticker", y="ROI %", color="Ticker")
 
 
         except FileNotFoundError:
