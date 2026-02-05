@@ -197,7 +197,7 @@ if choice == "Importar dados - CSV":
                                  title="Distribuição do portfólio por ativo",
                                  hole=0.3)
                     
-                    st.plotly.chart(fig)
+                    st.plotly_chart(fig)
 
 
         except FileNotFoundError:
