@@ -33,4 +33,7 @@ def csv_download_import():
     
     return st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
+def type_ticket(ticket):
+    return yf.Ticker(ticket).info.get("quoteType")
+
     

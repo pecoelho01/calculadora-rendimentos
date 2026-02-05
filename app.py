@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-from logic import process_ticket, csv_download_import
+from logic import process_ticket, csv_download_import, type_ticket
 
 
 def _to_float(text: str, label: str) -> float:
@@ -53,10 +53,7 @@ if choice == "Calcular ativos manualmente":
                 
                 # Limpeza e captura de dados
                 t_clean = ticker_final.split("-")[0].strip()
-                try:
-                    asset_type = yf.Ticker(t_clean).info.get("quoteType")
-                except Exception:
-                    asset_type = None
+              
 
                 q = _to_float(st.session_state[f"q_{i}"], "Quantidade")
                 p = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
@@ -68,7 +65,7 @@ if choice == "Calcular ativos manualmente":
                 dados_ordens.append({
                     "Data Compra": d,
                     "Ticker": t_clean,
-                    "Tipo de ativo": asset_type,
+                    "Tipo de ativo": type_ticket(t_clean),
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
                     "Preço Atual": f"{results[2]:.2f}",
@@ -114,6 +111,7 @@ if choice == "Importar dados - CSV":
                     dados_finais.append({
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
+                        "Tipo de ativo": type_ticket(colunaTicker[i]),
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
                         "GAIN(euros)": round(results[0],2),
@@ -149,10 +147,10 @@ if choice == "Importar dados - CSV":
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 if total_cost else 0
 
-                    tipoAtivo = yf.Ticker(ticker).info.get("quoteType")
+                   
                     combos.append({
                         "Ticker": ticker,
-                        "Tipo de ativo": tipoAtivo,
+                        "Tipo de ativo": type_ticket(ticker),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
