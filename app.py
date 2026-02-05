@@ -194,8 +194,7 @@ if choice == "Importar dados - CSV":
 
                     df = pd.DataFrame(data)
                     fig = px.pie(df, values="Valores", names="Categoria",
-                                 title="Distribuição do portfólio por ativo",
-                                 hole=0.3)
+                                 hole=0.5)
                     
                     st.plotly_chart(fig)
 
