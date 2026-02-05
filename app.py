@@ -46,6 +46,7 @@ if choice == "Calcular ativos manualmente":
                 
                 # Limpeza e captura de dados
                 t_clean = ticker_final.split("-")[0].strip()
+                type = t_clean.get_info().get("quoteType")
                 q = float(st.session_state[f"q_{i}"].replace(',', '.'))
                 p = float(st.session_state[f"p_{i}"].replace(',', '.'))
                 d = st.session_state[f"d_{i}"]
@@ -56,6 +57,7 @@ if choice == "Calcular ativos manualmente":
                 dados_ordens.append({
                     "Data Compra": d,
                     "Ticker": t_clean,
+                    "Tipo de ativo": type,
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
                     "Preço Atual": f"{results[2]:.2f}",
