@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.express as px
 from logic import process_ticket, csv_download_import, type_ticket
 
 
@@ -178,11 +179,24 @@ if choice == "Importar dados - CSV":
                     st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                     st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
-
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
+
                     st.subheader("ROI consolidado por ticker")
                     st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
+
+                    st.subheader("Divisão do portfólio")
+                    data = {
+                        "Categoria": combos["Ticker"],
+                        "Valores": combos["Valor atual"]
+                    }
+
+                    df = pd.DataFrame(data)
+                    fig = px.pie(df, values="Valores", names="Categoria",
+                                 title="Distribuição do portfólio por ativo",
+                                 hole=0.3)
+                    
+                    st.plotly.chart(fig)
 
 
         except FileNotFoundError:
