@@ -189,7 +189,7 @@ if choice == "Importar dados - CSV":
                     df_combo = pd.DataFrame(combos)
                     data = {
                         "Categoria": df_combo["Ticker"],
-                        "Valores": df_combo["Valor atual"]
+                        "Valores": df_combo["Valor Atual"]
                     }
 
                     df = pd.DataFrame(data)
