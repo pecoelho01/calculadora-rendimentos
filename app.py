@@ -176,8 +176,11 @@ if choice == "Importar dados - CSV":
 
                 ganho_total = valor_atual - custo_total
                 roi_total = (ganho_total / custo_total) * 100 if custo_total else 0
+                valor_investido = ( valor_atual - ganho_total)
+
 
                 st.subheader("Rentabilidade total do portfólio")
+                st.metric("Total investido (€)", f"{valor_investido:.2f}")
                 st.metric("ROI Total (%)", f"{roi_total:.2f}%")
                 st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                 st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
