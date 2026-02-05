@@ -186,9 +186,10 @@ if choice == "Importar dados - CSV":
                     st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
 
                     st.subheader("Divisão do portfólio")
+                    df_combo = pd.DataFrame(combos)
                     data = {
-                        "Categoria": combos["Ticker"],
-                        "Valores": combos["Valor atual"]
+                        "Categoria": df_combo["Ticker"],
+                        "Valores": df_combo["Valor atual"]
                     }
 
                     df = pd.DataFrame(data)
