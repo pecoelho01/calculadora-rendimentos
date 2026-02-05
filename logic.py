@@ -4,9 +4,39 @@ import pandas as pd
 import os
 
 def process_ticket(ticket, buy_price, shares):
+    """Calcula ganho/ROI com busca de preço resiliente."""
     ticker_api = yf.Ticker(ticket)
-    # fast_info é mais rápido que .info para loops
-    today_price = ticker_api.fast_info['last_price']
+
+    def _current_price():
+        # 1) fast_info (mais rápido)
+        try:
+            price = ticker_api.fast_info.get("last_price")
+            if price is not None:
+                return price
+        except Exception:
+            pass
+
+        # 2) info (alguns ativos só expõem aqui)
+        try:
+            price = ticker_api.info.get("currentPrice")
+            if price is not None:
+                return price
+        except Exception:
+            pass
+
+        # 3) Histórico diário (fallback final)
+        try:
+            hist = ticker_api.history(period="1d")
+            if not hist.empty:
+                price = hist["Close"].iloc[-1]
+                if pd.notna(price):
+                    return float(price)
+        except Exception:
+            pass
+
+        raise ValueError("Preço atual indisponível para o ticker.")
+
+    today_price = _current_price()
 
     gain = (today_price - buy_price) * shares
     roi = ((today_price - buy_price) / buy_price) * 100
