@@ -169,6 +169,16 @@ if choice == "Importar dados - CSV":
                     st.subheader("ROI consolidado por ticker")
                     st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
 
+                    st.subheader("Divisão do portfólio")
+                    df_combo = pd.DataFrame(combos)
+                    data = {
+                        "Categoria": df_combo["Ticker"],
+                        "Valores": df_combo["Valor Atual"]
+                    }
+                    df_pizza = pd.DataFrame(data)
+                    fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
+                    st.plotly_chart(fig)
+
 
         except FileNotFoundError:
            st.error("Arquivo não compatível")
