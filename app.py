@@ -1,8 +1,7 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import plotly.express as px
-from logic import process_ticket, csv_download_import, type_ticket
+from logic import process_ticket, csv_download_import, cached_type_ticket, cached_last_price, _fetch_prices_parallel
 
 
 def _to_float(text: str, label: str) -> float:
@@ -10,6 +9,7 @@ def _to_float(text: str, label: str) -> float:
         return float(str(text).replace(",", "."))
     except ValueError:
         raise ValueError(f"{label} inválido: use número (ex: 123.45)")
+
 
 st.title("📈 Calculadora de Rendimentos")
 
@@ -66,7 +66,7 @@ if choice == "Calcular ativos manualmente":
                 dados_ordens.append({
                     "Data Compra": d,
                     "Ticker": t_clean,
-                    "Tipo de ativo": type_ticket(t_clean),
+                    "Tipo de ativo": cached_type_ticket(t_clean),
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
                     "Preço Atual": f"{results[2]:.2f}",
@@ -112,7 +112,7 @@ if choice == "Importar dados - CSV":
                     dados_finais.append({
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
-                        "Tipo de ativo": type_ticket(colunaTicker[i]),
+                        "Tipo de ativo": cached_type_ticket(colunaTicker[i]),
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
                         "GAIN(euros)": round(results[0],2),
@@ -129,29 +129,26 @@ if choice == "Importar dados - CSV":
             if st.button("Calcular portfólio"):
                 combos = []
 
-                # Ele iterar sobre o ticket na colunaTicker de forma "Unique"
+                # Busca preços em paralelo com cache
+                last_prices = _fetch_prices_parallel(colunaTicker.unique())
+
                 for ticker in colunaTicker.unique():
-                    bloco = df[df["ticker"] == ticker] # Obtém todo o dataframe (linhas completa) daquele ticket em específico
-                    total_shares = bloco["shares"].sum() # Obtém o total de shares adquiridas
-                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum() # O custo total (multiplicando o pricebuy e o shares de cada linha e somando linha a linha)
+                    bloco = df[df["ticker"] == ticker]
+                    total_shares = bloco["shares"].sum()
+                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
 
-                    try: # O preço atual do ativo 
-                        current_price = yf.Ticker(ticker).fast_info["last_price"]
-                    except Exception:
-                        current_price = None
-
+                    current_price = last_prices.get(ticker)
                     if current_price is None:
                         st.error(f"Não foi possível obter preço atual para {ticker}.")
                         continue
 
-                    total_value = total_shares * current_price 
+                    total_value = total_shares * current_price
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 if total_cost else 0
 
-                   
                     combos.append({
                         "Ticker": ticker,
-                        "Tipo de ativo": type_ticket(ticker),
+                        "Tipo de ativo": cached_type_ticket(ticker),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
@@ -160,18 +157,14 @@ if choice == "Importar dados - CSV":
                         "GAIN": round(gain, 2),
                         "ROI %": round(roi, 2)
                     })
-                
 
                 if combos:
-                    last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in colunaTicker.unique()}
-
                     custo_total = (df["pricebuy"] * df["shares"]).sum()
-                    valor_atual = sum(df.loc[i, "shares"] * last_prices[df.loc[i, "ticker"]] for i in df.index)
+                    valor_atual = sum(df.loc[i, "shares"] * last_prices.get(df.loc[i, "ticker"], 0) for i in df.index)
 
                     ganho_total = valor_atual - custo_total
                     roi_total = (ganho_total / custo_total) * 100 if custo_total else 0
-                    valor_investido = ( valor_atual - ganho_total)
-
+                    valor_investido = valor_atual - ganho_total
 
                     st.subheader("Rentabilidade total do portfólio")
                     st.metric("ROI Total (%)", f"{roi_total:.2f}%")
@@ -183,19 +176,15 @@ if choice == "Importar dados - CSV":
                     st.dataframe(combos, use_container_width=True)
 
                     st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
+                    st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker") 
 
                     st.subheader("Divisão do portfólio")
                     df_combo = pd.DataFrame(combos)
-                    data = {
+                    pie_df = pd.DataFrame({
                         "Categoria": df_combo["Ticker"],
-                        "Valores": (df_combo["Valor Atual"])
-                    }
-
-                    df = pd.DataFrame(data)
-                    fig = px.pie(df, values="Valores", names="Categoria",
-                                 hole=0.5)
-                    
+                        "Valores": df_combo["Valor Atual"]
+                    })
+                    fig = px.pie(pie_df, values="Valores", names="Categoria", hole=0.5)
                     st.plotly_chart(fig)
 
 
