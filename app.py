@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
-from logic import process_ticket, csv_download_import, type_ticket
+from logic import process_ticket, csv_download_import, type_ticket, _to_float
 
 st.set_page_config(
     page_title="Calculadora de Rendimentos",
@@ -23,13 +23,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-def _to_float(text: str, label: str) -> float:
-    try:
-        return float(str(text).replace(",", "."))
-    except ValueError:
-        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
 
 
 st.title("📈 Calculadora de Rendimentos")

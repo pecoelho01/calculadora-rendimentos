@@ -35,3 +35,10 @@ def csv_download_import():
 
 def type_ticket(ticket):
     return yf.Ticker(ticket).info.get("quoteType")
+
+
+def _to_float(text: str, label: str) -> float:
+    try:
+        return float(str(text).replace(",", "."))
+    except ValueError:
+        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
