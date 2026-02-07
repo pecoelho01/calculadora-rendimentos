@@ -104,7 +104,7 @@ def render_csv_calc():
                 st.subheader("ROI por ativos - comparação")
                 st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
 
-            if st.button("Calcular portfólio"):
+            if st.button("Calcular por combo de ativos"):
                 combos = []
 
                 for ticker in colunaTicker.unique():
@@ -152,6 +152,9 @@ def render_csv_calc():
                     df_pizza = pd.DataFrame(data)
                     fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
                     st.plotly_chart(fig)
+            
+
+
 
         except FileNotFoundError:
            st.error("Arquivo não compatível")
