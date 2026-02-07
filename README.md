@@ -42,12 +42,12 @@ streamlit run app.py
 ```
 
 ### Estrutura do projeto
-- `app.py`: UI Streamlit; fluxos manual/CSV, tabelas e gráficos.
-- `logic.py`: `process_ticket` (preço atual via `fast_info['last_price']`) e `csv_download_import`.
+- `app.py`: entrada da app, configura layout wide e direciona para cada fluxo.
+- `components.py`: UI em funções `render_manual_calc` e `render_csv_calc` (tabelas, gráficos e formulários).
+- `logic.py`: `_to_float`, `process_ticket` (preço atual via `fast_info['last_price']`) e `csv_download_import`.
 - `modelo_site_ativos.csv`: template em branco.
 - `sample_combo.csv`: dataset de exemplo.
 - `requirements.txt`: dependências.
-- `components.py`: reservado (vazio).
 
 ### Limitações / notas
 - Requer internet; preços vêm do Yahoo Finance em tempo real.
@@ -94,12 +94,12 @@ streamlit run app.py
 ```
 
 ### Project structure
-- `app.py`: Streamlit UI; manual/CSV flows, tables, and charts.
-- `logic.py`: `process_ticket` (current price via `fast_info['last_price']`) and `csv_download_import`.
+- `app.py`: app entry, sets wide layout and routes to each flow.
+- `components.py`: UI helpers `render_manual_calc` and `render_csv_calc` (forms, tables, charts).
+- `logic.py`: `_to_float`, `process_ticket` (current price via `fast_info['last_price']`), `csv_download_import`.
 - `modelo_site_ativos.csv`: blank template.
 - `sample_combo.csv`: ready-to-use sample dataset.
 - `requirements.txt`: dependencies.
-- `components.py`: reserved placeholder (currently empty).
 
 ### Notes & limitations
 - Needs internet; prices are fetched live from Yahoo Finance.

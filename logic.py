@@ -3,6 +3,12 @@ import yfinance as yf
 import pandas as pd
 import os
 
+def _to_float(text: str, label: str) -> float:
+    try:
+        return float(str(text).replace(",", "."))
+    except ValueError:
+        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
+
 def process_ticket(ticket, buy_price, shares):
     ticker_api = yf.Ticker(ticket)
     # fast_info é mais rápido que .info para loops
