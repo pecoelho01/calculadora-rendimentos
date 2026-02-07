@@ -230,7 +230,7 @@ def render_csv_calc():
                     df_roi["roi_acum"] = round((df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100, 2)
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
-                        st.line_chart(df_roi, x="Date", y="ROI(%)")
+                        st.line_chart(df_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
