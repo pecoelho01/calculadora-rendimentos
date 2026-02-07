@@ -99,6 +99,19 @@ def render_manual_calc(my_tickers):
                     st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
                     st.metric("Valor Atual (€)", f"{total_value:,.2f}")
 
+                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
+                    df_roi = df_final.copy()
+                    df_roi["Data Compra"] = pd.to_datetime(df_roi["Data Compra"], errors="coerce")
+                    df_roi = df_roi.sort_values("Data Compra").dropna(subset=["Data Compra"])
+                    df_roi["Custo"] = df_roi["Preço Compra"].astype(float) * df_roi["Qtd"].astype(float)
+                    df_roi["Valor Atual Linha"] = df_roi["Preço Atual"].astype(float) * df_roi["Qtd"].astype(float)
+                    df_roi["Custo Acum"] = df_roi["Custo"].cumsum()
+                    df_roi["Valor Acum"] = df_roi["Valor Atual Linha"].cumsum()
+                    df_roi["ROI Acum (%)"] = (df_roi["Valor Acum"] - df_roi["Custo Acum"]) / df_roi["Custo Acum"] * 100
+                    if not df_roi.empty:
+                        st.subheader("Evolução do ROI do portfólio (acumulado)")
+                        st.line_chart(df_roi, x="Data Compra", y="ROI Acum (%)")
+
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
                     st.subheader("ROI consolidado por ticker")
@@ -204,6 +217,20 @@ def render_csv_calc():
                     st.metric("Total investido (€)", f"{valor_investido:.2f}")
                     st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                     st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
+
+                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
+                    df_roi = df.copy()
+                    df_roi["date"] = pd.to_datetime(df_roi["date"], errors="coerce")
+                    df_roi = df_roi.sort_values("date").dropna(subset=["date"])
+                    df_roi["current_price"] = df_roi["ticker"].map(last_prices)
+                    df_roi["custo"] = df_roi["pricebuy"] * df_roi["shares"]
+                    df_roi["valor_atual_linha"] = df_roi["current_price"] * df_roi["shares"]
+                    df_roi["custo_acum"] = df_roi["custo"].cumsum()
+                    df_roi["valor_acum"] = df_roi["valor_atual_linha"].cumsum()
+                    df_roi["roi_acum"] = (df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100
+                    if not df_roi.empty:
+                        st.subheader("Evolução do ROI do portfólio (acumulado)")
+                        st.line_chart(df_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
