@@ -127,7 +127,7 @@ if choice == "Importar dados - CSV":
                 st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
 
             # Combina todas as ordens de cada ticker para um resumo consolidado
-            if st.button("Calcular combo por ativo"):
+            if st.button("Calcular portfólio"):
                 combos = []
 
                 # Ele iterar sobre o ticket na colunaTicker de forma "Unique"
