@@ -32,11 +32,14 @@ def _historical_roi_line(df_orders, date_col, ticker_col, price_col, shares_col,
 
     for t in tickers:
         bloco = df[df[ticker_col] == t]
-        # Passo de compra (cost e shares no dia da compra)
-        cost_steps = bloco.set_index(date_col)[price_col].astype(float) * bloco.set_index(date_col)[shares_col].astype(float)
+        # agrega por data para evitar índices duplicados
+        cost_steps = (
+            bloco.groupby(date_col)
+            .apply(lambda b: (b[price_col].astype(float) * b[shares_col].astype(float)).sum())
+        )
         cost_series = cost_steps.reindex(date_index, fill_value=0).cumsum()
 
-        share_steps = bloco.set_index(date_col)[shares_col].astype(float)
+        share_steps = bloco.groupby(date_col)[shares_col].sum()
         shares_cum = share_steps.reindex(date_index, fill_value=0).cumsum()
 
         try:
