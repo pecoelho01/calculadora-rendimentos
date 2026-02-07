@@ -61,6 +61,59 @@ def render_manual_calc(my_tickers):
             df_final = pd.DataFrame(dados_ordens)
             st.dataframe(df_final, use_container_width=True)
 
+            if st.button("Calcular portfólio"):
+                combos = []
+
+                for ticker in df_final["Ticker"].unique():
+                    bloco = df_final[df_final["Ticker"] == ticker]
+                    total_shares = bloco["Qtd"].astype(float).sum()
+                    total_cost = (bloco["Preço Compra"].astype(float) * bloco["Qtd"].astype(float)).sum()
+                    current_price = float(bloco["Preço Atual"].iloc[0])
+
+                    total_value = total_shares * current_price
+                    gain = total_value - total_cost
+                    roi = (gain / total_cost) * 100 if total_cost else 0
+
+                    combos.append({
+                        "Ticker": ticker,
+                        "Tipo de ativo": type_ticket(ticker),
+                        "Qtd Total": round(total_shares, 2),
+                        "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
+                        "Preço Atual": round(current_price, 4),
+                        "Custo Total": round(total_cost, 2),
+                        "Valor Atual": round(total_value, 2),
+                        "GAIN": round(gain, 2),
+                        "ROI %": round(roi, 2)
+                    })
+
+                if combos:
+                    st.subheader("Resumo consolidado por ticker")
+                    total_cost = sum(item["Custo Total"] for item in combos)
+                    total_value = sum(item["Valor Atual"] for item in combos)
+                    total_gain = sum(item["GAIN"] for item in combos)
+                    total_roi = (total_gain / total_cost) * 100 if total_cost else 0
+
+                    st.subheader("Rentabilidade total do portfólio")
+                    st.metric("ROI Total (%)", f"{total_roi:.2f}%")
+                    st.metric("Total investido (€)", f"{total_cost:.2f}")
+                    st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
+                    st.metric("Valor Atual (€)", f"{total_value:,.2f}")
+
+                    st.subheader("Resumo consolidado por ticker")
+                    st.dataframe(combos, use_container_width=True)
+                    st.subheader("ROI consolidado por ticker")
+                    st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
+
+                    st.subheader("Divisão do portfólio")
+                    df_combo = pd.DataFrame(combos)
+                    data = {
+                        "Categoria": df_combo["Ticker"],
+                        "Valores": df_combo["Valor Atual"]
+                    }
+                    df_pizza = pd.DataFrame(data)
+                    fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
+                    st.plotly_chart(fig)
+
 
 def render_csv_calc():
     st.title("Dados via CSV")
@@ -104,7 +157,7 @@ def render_csv_calc():
                 st.subheader("ROI por ativos - comparação")
                 st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
 
-            if st.button("Calcular por combo de ativos"):
+            if st.button("Calcular portfólio"):
                 combos = []
 
                 for ticker in colunaTicker.unique():
@@ -138,6 +191,20 @@ def render_csv_calc():
                     })
 
                 if combos:
+                    last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in colunaTicker.unique()}
+
+                    custo_total = (df["pricebuy"] * df["shares"]).sum()
+                    valor_atual = sum(df.loc[i, "shares"] * last_prices[df.loc[i, "ticker"]] for i in df.index)
+                    ganho_total = valor_atual - custo_total
+                    roi_total = (ganho_total / custo_total) * 100 if custo_total else 0
+                    valor_investido = valor_atual - ganho_total
+
+                    st.subheader("Rentabilidade total do portfólio")
+                    st.metric("ROI Total (%)", f"{roi_total:.2f}%")
+                    st.metric("Total investido (€)", f"{valor_investido:.2f}")
+                    st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
+                    st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
+
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
                     st.subheader("ROI consolidado por ticker")
