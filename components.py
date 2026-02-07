@@ -142,6 +142,7 @@ def render_csv_calc():
             df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
             colunaDate = df["date"]
             colunaTicker = df["ticker"]
+            colunaName = df.get("name")
             colunaPriceBuy = df["pricebuy"]
             colunaShares = df["shares"]
 
@@ -156,6 +157,7 @@ def render_csv_calc():
                     dados_finais.append({
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
+                        "Name": colunaName[i] if colunaName is not None else "",
                         "Tipo de ativo": type_ticket(colunaTicker[i]),
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
@@ -174,6 +176,7 @@ def render_csv_calc():
 
                 for ticker in colunaTicker.unique():
                     bloco = df[df["ticker"] == ticker]
+                    name_value = bloco["name"].iloc[0] if "name" in bloco.columns else ""
                     total_shares = bloco["shares"].sum()
                     total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
 
@@ -192,6 +195,7 @@ def render_csv_calc():
 
                     combos.append({
                         "Ticker": ticker,
+                        "Name": name_value,
                         "Tipo de ativo": type_ticket(ticker),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,

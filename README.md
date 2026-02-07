@@ -27,18 +27,18 @@ streamlit run app.py
 
 ### Modelo CSV
 - Arquivo: `modelo_site_ativos.csv`
-- Colunas (cabeçalho na segunda linha): `date,ticker,pricebuy,shares`
+- Colunas (cabeçalho na segunda linha): `date,ticker,name,pricebuy,shares`
 - Exemplo rápido (também em `sample_combo.csv`):
 ```csv
 ,,,,,
-,,date,ticker,pricebuy,shares
-,,2024-01-10,SXR8.DE,60,5
-,,2024-03-15,SXR8.DE,65,4
-,,2024-06-20,SXR8.DE,70,3
-,,2024-09-05,SXR8.DE,68,2
-,,2024-02-01,TSLA,190,1
-,,2024-05-12,TSLA,210,2
-,,2024-08-18,AMZN,130,3
+,,date,ticker,name,pricebuy,shares
+,,2024-01-10,SXR8.DE,iShares Core S&P 500,60,5
+,,2024-03-15,SXR8.DE,iShares Core S&P 500,65,4
+,,2024-06-20,SXR8.DE,iShares Core S&P 500,70,3
+,,2024-09-05,SXR8.DE,iShares Core S&P 500,68,2
+,,2024-02-01,TSLA,Tesla,190,1
+,,2024-05-12,TSLA,Tesla,210,2
+,,2024-08-18,AMZN,Amazon,130,3
 ```
 
 ### Estrutura do projeto
