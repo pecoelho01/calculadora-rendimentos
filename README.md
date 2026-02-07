@@ -9,8 +9,8 @@
 ### O que faz
 - Calcula **GANHO** e **ROI (%)** com preços em tempo real via Yahoo Finance (`yfinance`).
 - Dois modos: **manual** (várias ordens de uma vez) e **CSV** (importação em lote).
-- No CSV, botão **“Calcular portfólio”** consolida por ticker e mostra métricas totais (total investido, valor atual, ganho total, ROI total), além de gráficos (barras, pizza) e linha de ROI acumulado no tempo.
-- No manual, mostra tabela de cada ordem com preço atual e ROI individual e permite consolidar com **“Calcular portfólio”** (mesmas métricas totais, gráficos e linha de ROI acumulado).
+- No CSV, botão **“Calcular portfólio”** consolida por ticker, mostra métricas totais (total investido, valor atual, ganho total, ROI total), gráficos (barras, pizza) e duas linhas de ROI: uma com preços históricos por data e outra com preço atual aplicado (acumulado nas compras).
+- No manual, idem: consolidação, métricas, gráficos e as duas linhas de ROI (histórico e acumulado com preço atual).
 
 ### Como usar
 1) Instalar e rodar:
@@ -22,8 +22,8 @@ streamlit run app.py
 ```
 2) Abrir `http://localhost:8501`.
 3) Escolher o modo:
-   - **Calcular ativos manualmente**: definir nº de ordens, preencher Ticker, Quantidade, Preço de compra e Data. Clique “Calcular Todos”; depois, opcionalmente, “Calcular portfólio” para ver resumo consolidado, métricas totais, gráficos e linha de ROI acumulado.
-   - **Importar dados - CSV**: baixar o modelo, preencher e enviar. Clique “Calcular share-to-share” para ver cada ordem ou “Calcular portfólio” para consolidar, ver métricas totais, gráficos e linha de ROI acumulado.
+   - **Calcular ativos manualmente**: definir nº de ordens, preencher Ticker, Quantidade, Preço de compra e Data. Clique “Calcular Todos”; depois, opcionalmente, “Calcular portfólio” para ver resumo consolidado, métricas totais, gráficos e linhas de ROI (histórica e acumulada com preço atual).
+   - **Importar dados - CSV**: baixar o modelo, preencher e enviar. Clique “Calcular share-to-share” para ver cada ordem ou “Calcular portfólio” para consolidar, ver métricas totais, gráficos e as duas linhas de ROI.
 
 ### Modelo CSV
 - Arquivo: `modelo_site_ativos.csv`
@@ -61,8 +61,8 @@ streamlit run app.py
 ### What it does
 - Computes **GAIN** and **ROI (%)** using real-time prices from Yahoo Finance (`yfinance`).
 - Two modes: **manual** (multiple orders at once) and **CSV** (batch import).
-- In CSV mode, **“Calcular portfólio”** groups by ticker and also shows portfolio totals (invested, current value, total gain, total ROI) plus charts (bars, pie) and a cumulative ROI line over time.
-- Manual mode shows every order with current price and individual ROI and lets you consolidate with **“Calcular portfólio”** (same totals, charts, and cumulative ROI line).
+- In CSV mode, **“Calcular portfólio”** groups by ticker, shows portfolio totals, charts (bars, pie) and two ROI lines: one using historical prices by date, another using today’s price applied cumulatively.
+- Manual mode mirrors the same totals/charts and both ROI lines.
 
 ### How to run
 1) Install and launch:
@@ -74,8 +74,8 @@ streamlit run app.py
 ```
 2) Open `http://localhost:8501`.
 3) Pick a mode:
-   - **Calcular ativos manualmente (Manual)**: set order count, fill Ticker, Quantity, Buy Price, Date, then click “Calcular Todos”; optionally click “Calcular portfólio” to see consolidated summary, totals, charts, and the cumulative ROI line.
-   - **Importar dados - CSV**: download the template, fill it, upload it. Click “Calcular share-to-share” for per-order view or “Calcular portfólio” to consolidate, see totals, charts, and the cumulative ROI line.
+   - **Calcular ativos manualmente (Manual)**: set order count, fill Ticker, Quantity, Buy Price, Date, then click “Calcular Todos”; optionally click “Calcular portfólio” to see consolidated summary, totals, charts, and both ROI lines (historical and cumulative with current price).
+   - **Importar dados - CSV**: download the template, fill it, upload it. Click “Calcular share-to-share” for per-order view or “Calcular portfólio” to consolidate, see totals, charts, and both ROI lines.
 
 ### CSV template
 - File: `modelo_site_ativos.csv`
