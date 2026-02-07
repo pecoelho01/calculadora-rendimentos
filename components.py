@@ -2,67 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import yfinance as yf
-import datetime as dt
-
 from logic import process_ticket, csv_download_import, type_ticket, _to_float
-
-
-def _historical_roi_line(df_orders, date_col, ticker_col, price_col, shares_col, title_suffix=""):
-    """
-    Constrói série diária de ROI acumulado usando preços históricos.
-    Usa compras como aportes (sem vendas) e avalia carteira com 'Close' diário.
-    """
-    if df_orders.empty:
-        return
-
-    df = df_orders.copy()
-    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-    df = df.dropna(subset=[date_col])
-    if df.empty:
-        return
-
-    tickers = df[ticker_col].unique()
-    start = df[date_col].min().normalize()
-    end = dt.datetime.utcnow().date() + dt.timedelta(days=1)  # incluir hoje
-    date_index = pd.date_range(start=start, end=end, freq="D")
-
-    # Inicia acumuladores
-    total_cost = pd.Series(0.0, index=date_index)
-    total_value = pd.Series(0.0, index=date_index)
-
-    for t in tickers:
-        bloco = df[df[ticker_col] == t]
-        # agrega por data para evitar índices duplicados
-        cost_steps = (
-            bloco.groupby(date_col)
-            .apply(lambda b: (b[price_col].astype(float) * b[shares_col].astype(float)).sum())
-        )
-        cost_series = cost_steps.reindex(date_index, fill_value=0).cumsum()
-
-        share_steps = bloco.groupby(date_col)[shares_col].sum()
-        shares_cum = share_steps.reindex(date_index, fill_value=0).cumsum()
-
-        try:
-            hist = yf.Ticker(t).history(start=start, end=end)
-            price_series = hist["Close"].reindex(date_index).ffill()
-        except Exception:
-            # se falhar, pula ticker
-            continue
-
-        total_cost = total_cost.add(cost_series, fill_value=0)
-        total_value = total_value.add(shares_cum * price_series, fill_value=0)
-
-    valid = total_cost > 0
-    if not valid.any():
-        return
-
-    roi = (total_value - total_cost) / total_cost * 100
-    df_roi = pd.DataFrame({"Data": date_index, "ROI Acum (%)": roi})
-    df_roi = df_roi[valid]
-
-    if not df_roi.empty:
-        st.subheader(f"Evolução do ROI do portfólio (preços históricos){title_suffix}")
-        st.line_chart(df_roi, x="Data", y="ROI Acum (%)")
 
 
 def render_manual_calc(my_tickers):
@@ -157,15 +97,6 @@ def render_manual_calc(my_tickers):
                     st.metric("Total investido (€)", f"{total_cost:.2f}")
                     st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
                     st.metric("Valor Atual (€)", f"{total_value:,.2f}")
-
-                    _historical_roi_line(
-                        df_final,
-                        date_col="Data Compra",
-                        ticker_col="Ticker",
-                        price_col="Preço Compra",
-                        shares_col="Qtd",
-                        title_suffix="",
-                    )
 
                     # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
                     df_roi = df_final.copy()
@@ -286,15 +217,6 @@ def render_csv_calc():
                     st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                     st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
-                    _historical_roi_line(
-                        df,
-                        date_col="date",
-                        ticker_col="ticker",
-                        price_col="pricebuy",
-                        shares_col="shares",
-                        title_suffix="",
-                    )
-
                     # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
                     df_roi = df.copy()
                     df_roi["date"] = pd.to_datetime(df_roi["date"], errors="coerce")
@@ -307,7 +229,7 @@ def render_csv_calc():
                     df_roi["roi_acum"] = round((df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100, 2)
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
-                        st.line_chart(df_roi, x="date", y="roi_acum", color="yellow")
+                        st.line_chart(df_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
