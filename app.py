@@ -4,6 +4,26 @@ import pandas as pd
 import plotly.express as px
 from logic import process_ticket, csv_download_import, type_ticket
 
+st.set_page_config(
+    page_title="Calculadora de Rendimentos",
+    page_icon="📈",
+    layout="wide",
+)
+
+# Remover limites de largura e reduzir a folga lateral/padding padrão
+st.markdown(
+    """
+    <style>
+    .main .block-container {
+        max-width: 100%;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 def _to_float(text: str, label: str) -> float:
     try:
