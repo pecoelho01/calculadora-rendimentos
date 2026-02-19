@@ -1,10 +1,10 @@
 import os
 
+import google.generativeai as genai
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 import yfinance as yf
-from openai import OpenAI
 
 from logic import (
     process_ticket,
@@ -18,33 +18,35 @@ from logic import (
 def render_chatbot():
     """Pequeno chatbot para tirar dúvidas sobre a calculadora e conceitos básicos.
 
-    Usa o modelo da OpenAI. Necessita da variável de ambiente OPENAI_API_KEY configurada.
+    Usa o Gemini. Necessita da variável de ambiente GEMINI_API_KEY (ou GOOGLE_API_KEY).
     """
 
     st.title("🤖 Chatbot de Apoio")
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_API_KEY")
+        or st.secrets.get("GEMINI_API_KEY")
+        or st.secrets.get("GOOGLE_API_KEY")
+    )
 
     if not api_key:
-        st.info("Defina a variável de ambiente OPENAI_API_KEY para ativar o chatbot.")
+        st.info("Defina GEMINI_API_KEY (ou GOOGLE_API_KEY) para ativar o chatbot.")
         return
 
-    client = OpenAI(api_key=api_key)
+    genai.configure(api_key=api_key)
+
+    system_instruction = (
+        "Você é um assistente breve e educado. Explique a calculadora, conceitos "
+        "de ROI/ganhos e avise que não é recomendação financeira. Responda em português "
+        "e cite exemplos simples quando for útil."
+    )
 
     if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Você é um assistente breve e educado. Explique a calculadora, conceitos "
-                    "de ROI/ganhos e avise que não é recomendação financeira. Responda em português "
-                    "e cite exemplos simples quando for útil."
-                ),
-            }
-        ]
+        st.session_state.chat_messages = []
 
-    # Mostrar histórico (ignorando a mensagem de sistema na UI)
+    # Mostrar histórico
     for msg in st.session_state.chat_messages:
-        if msg["role"] == "system":
+        if msg["role"] not in {"user", "assistant"}:
             continue
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -55,13 +57,26 @@ def render_chatbot():
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("assistant"):
             try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=st.session_state.chat_messages,
-                    temperature=0.3,
-                    max_tokens=400,
+                model = genai.GenerativeModel(
+                    model_name="gemini-1.5-flash",
+                    system_instruction=system_instruction,
                 )
-                reply = completion.choices[0].message.content
+
+                history = []
+                for msg in st.session_state.chat_messages[:-1]:
+                    if msg["role"] == "user":
+                        history.append({"role": "user", "parts": [msg["content"]]})
+                    elif msg["role"] == "assistant":
+                        history.append({"role": "model", "parts": [msg["content"]]})
+
+                chat = model.start_chat(history=history)
+                response = chat.send_message(
+                    prompt,
+                    generation_config={"temperature": 0.3, "max_output_tokens": 400},
+                )
+                reply = (response.text or "").strip()
+                if not reply:
+                    reply = "Não consegui gerar resposta para essa pergunta. Tente reformular."
             except Exception as e:  # noqa: BLE001
                 reply = f"Não consegui responder agora: {e}"
 
