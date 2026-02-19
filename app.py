@@ -1,10 +1,8 @@
 import streamlit as st
 
 from components import (
-    render_chatbot,
     render_csv_calc,
     render_manual_calc,
-    render_ticker_lookup,
 )
 
 st.set_page_config(
@@ -39,8 +37,6 @@ choice = st.selectbox(
     (
         "Calcular ativos manualmente",
         "Importar dados - CSV",
-        "Chatbot de dúvidas",
-        "Descobrir ticker (Yahoo Finance)",
     ),
 )
 
@@ -49,9 +45,3 @@ if choice == "Calcular ativos manualmente":
 
 if choice == "Importar dados - CSV":
     render_csv_calc()
-
-if choice == "Chatbot de dúvidas":
-    render_chatbot()
-
-if choice == "Descobrir ticker (Yahoo Finance)":
-    render_ticker_lookup()
