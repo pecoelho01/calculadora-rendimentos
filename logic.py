@@ -1,7 +1,9 @@
+import os
+
+import pandas as pd
+import requests
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import os
 
 def _to_float(text: str, label: str) -> float:
     try:
@@ -48,3 +50,40 @@ def _to_float(text: str, label: str) -> float:
         return float(str(text).replace(",", "."))
     except ValueError:
         raise ValueError(f"{label} inválido: use número (ex: 123.45)")
+
+
+def search_yahoo_tickers(query: str, max_results: int = 8):
+    """Busca símbolos no Yahoo Finance por nome ou ISIN.
+
+    Usa o endpoint público de busca do Yahoo; não requer API key.
+    """
+    url = "https://query1.finance.yahoo.com/v1/finance/search"
+    params = {
+        "q": query.strip(),
+        "quotesCount": max_results,
+        "newsCount": 0,
+        "enableFuzzyQuery": True,
+    }
+
+    try:
+        res = requests.get(url, params=params, timeout=6)
+        res.raise_for_status()
+        data = res.json()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Erro ao consultar Yahoo Finance: {exc}") from exc
+
+    quotes = data.get("quotes", []) if isinstance(data, dict) else []
+    cleaned = []
+    for item in quotes:
+        cleaned.append(
+            {
+                "symbol": item.get("symbol"),
+                "nome": item.get("longname") or item.get("shortname"),
+                "tipo": item.get("quoteType"),
+                "bolsa": item.get("exchange"),
+                "moeda": item.get("currency"),
+                "score": item.get("score"),
+                "isin": item.get("isin"),
+            }
+        )
+    return cleaned
