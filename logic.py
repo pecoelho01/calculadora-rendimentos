@@ -1,8 +1,10 @@
 import os
+import time
 
 import pandas as pd
 import streamlit as st
 import yfinance as yf
+from yfinance.exceptions import YFRateLimitError
 
 def _to_float(text: str, label: str) -> float:
     try:
@@ -40,8 +42,41 @@ def csv_download_import():
     
     return st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
+@st.cache_data(ttl=1800, show_spinner=False)
 def type_ticket(ticket):
-    return yf.Ticker(ticket).info.get("quoteType")
+    ticker = str(ticket).strip().upper()
+    ticker_api = yf.Ticker(ticker)
+
+    # Tentativa leve (quando disponível no fast_info).
+    try:
+        fast_info = ticker_api.fast_info
+        if hasattr(fast_info, "get"):
+            for key in ("quoteType", "quote_type", "instrument_type", "type"):
+                value = fast_info.get(key)
+                if value:
+                    return str(value)
+    except Exception:
+        pass
+
+    # Fallback para .info com backoff para evitar bursts no Yahoo.
+    delay = 1.0
+    for attempt in range(3):
+        try:
+            value = ticker_api.info.get("quoteType")
+            return value or "N/A"
+        except Exception as exc:  # noqa: BLE001
+            msg = str(exc).lower()
+            is_rate_limit = (
+                isinstance(exc, YFRateLimitError)
+                or "rate limit" in msg
+                or "too many requests" in msg
+            )
+            if not is_rate_limit or attempt == 2:
+                return "N/A"
+            time.sleep(delay)
+            delay *= 2
+
+    return "N/A"
 
 
 def _to_float(text: str, label: str) -> float:

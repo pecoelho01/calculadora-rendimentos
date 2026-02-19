@@ -11,6 +11,21 @@ from logic import (
 )
 
 
+def _ticker_key(ticker):
+    return str(ticker).strip().upper()
+
+
+def _build_type_map(tickers):
+    type_map = {}
+    for ticker in tickers:
+        t = str(ticker).strip()
+        k = _ticker_key(ticker)
+        if not t or k in type_map:
+            continue
+        type_map[k] = type_ticket(t)
+    return type_map
+
+
 def render_manual_calc(my_tickers):
     st.title("Múltiplos ativos manualmente")
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=1)
@@ -36,11 +51,15 @@ def render_manual_calc(my_tickers):
         submit = st.form_submit_button("Calcular Todos")
 
     if submit:
+        type_by_ticker = {}
         for i in range(int(qnt_orders)):
             try:
                 ticker_final = st.session_state[f"man_{i}"] if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)" else st.session_state[f"sel_{i}"]
 
                 t_clean = ticker_final.split("-")[0].strip()
+                t_key = _ticker_key(t_clean)
+                if t_key not in type_by_ticker:
+                    type_by_ticker[t_key] = type_ticket(t_clean)
 
                 q = _to_float(st.session_state[f"q_{i}"], "Quantidade")
                 p = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
@@ -51,7 +70,7 @@ def render_manual_calc(my_tickers):
                 dados_ordens.append({
                     "Data Compra": d,
                     "Ticker": t_clean,
-                    "Tipo de ativo": type_ticket(t_clean),
+                    "Tipo de ativo": type_by_ticker.get(t_key, "N/A"),
                     "Qtd": q,
                     "Preço Compra": f"{p:.2f}",
                     "Preço Atual": f"{results[2]:.2f}",
@@ -81,7 +100,7 @@ def render_manual_calc(my_tickers):
 
                     combos.append({
                         "Ticker": ticker,
-                        "Tipo de ativo": type_ticket(ticker),
+                        "Tipo de ativo": type_by_ticker.get(_ticker_key(ticker), "N/A"),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
@@ -155,6 +174,7 @@ def render_csv_calc():
             dados_finais = []
 
             if st.button("Calcular share-to-share"):
+                type_by_ticker = _build_type_map(colunaTicker)
 
                 for i in range(len(colunaDate)):
 
@@ -164,7 +184,7 @@ def render_csv_calc():
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
                         "Name": colunaName[i] if colunaName is not None else "",
-                        "Tipo de ativo": type_ticket(colunaTicker[i]),
+                        "Tipo de ativo": type_by_ticker.get(_ticker_key(colunaTicker[i]), "N/A"),
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
                         "GAIN(euros)": round(results[0],2),
@@ -179,6 +199,7 @@ def render_csv_calc():
 
             if st.button("Calcular portfólio"):
                 combos = []
+                type_by_ticker = _build_type_map(colunaTicker.unique())
 
                 for ticker in colunaTicker.unique():
                     bloco = df[df["ticker"] == ticker]
@@ -202,7 +223,7 @@ def render_csv_calc():
                     combos.append({
                         "Ticker": ticker,
                         "Name": name_value,
-                        "Tipo de ativo": type_ticket(ticker),
+                        "Tipo de ativo": type_by_ticker.get(_ticker_key(ticker), "N/A"),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
