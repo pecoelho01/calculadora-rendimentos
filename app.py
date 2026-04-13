@@ -37,6 +37,7 @@ choice = st.selectbox(
     (
         "Calcular ativos manualmente",
         "Importar dados - CSV",
+        "Duvidas com ChatBOT - BREVEMENTE"
     ),
 )
 
@@ -45,3 +46,6 @@ if choice == "Calcular ativos manualmente":
 
 if choice == "Importar dados - CSV":
     render_csv_calc()
+
+#if choice == "Duvidas com ChatBOT":
+    

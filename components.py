@@ -26,6 +26,23 @@ def _build_type_map(tickers):
     return type_map
 
 
+def _append_today_point(df, date_col):
+    if df.empty:
+        return df
+
+    last_date = pd.to_datetime(df[date_col].iloc[-1], errors="coerce")
+    if pd.isna(last_date):
+        return df
+
+    today = pd.Timestamp.now().normalize()
+    if last_date.normalize() >= today:
+        return df
+
+    extra_row = df.iloc[[-1]].copy()
+    extra_row[date_col] = today
+    return pd.concat([df, extra_row], ignore_index=True)
+
+
 def render_manual_calc(my_tickers):
     st.title("Múltiplos ativos manualmente")
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=1)
@@ -132,6 +149,7 @@ def render_manual_calc(my_tickers):
                     df_roi["Custo Acum"] = df_roi["Custo"].cumsum()
                     df_roi["Valor Acum"] = df_roi["Valor Atual Linha"].cumsum()
                     df_roi["ROI Acum (%)"] = (df_roi["Valor Acum"] - df_roi["Custo Acum"]) / df_roi["Custo Acum"] * 100
+                    df_roi = _append_today_point(df_roi, "Data Compra")
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
                         st.line_chart(df_roi, x="Data Compra", y="ROI Acum (%)")
@@ -258,6 +276,7 @@ def render_csv_calc():
                     df_roi["custo_acum"] = df_roi["custo"].cumsum()
                     df_roi["valor_acum"] = df_roi["valor_atual_linha"].cumsum()
                     df_roi["roi_acum"] = round((df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100, 2)
+                    df_roi = _append_today_point(df_roi, "date")
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
                         st.line_chart(df_roi, x="date", y="roi_acum")
@@ -282,3 +301,7 @@ def render_csv_calc():
 
         except FileNotFoundError:
            st.error("Arquivo não compatível")
+
+
+#def render_chatbot_gemini():
+    
