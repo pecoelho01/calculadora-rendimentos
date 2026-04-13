@@ -26,61 +26,21 @@ def _build_type_map(tickers):
     return type_map
 
 
-def _build_daily_roi_series(df_orders, date_col, ticker_col, shares_col, buy_price_col, roi_col, dayfirst=False):
-    df_roi = df_orders.copy()
-    df_roi[date_col] = pd.to_datetime(df_roi[date_col], errors="coerce", dayfirst=dayfirst).dt.normalize()
-    df_roi = df_roi.dropna(subset=[date_col]).sort_values(date_col)
-    if df_roi.empty:
-        return pd.DataFrame(columns=[date_col, roi_col])
+def _append_today_point(df, date_col):
+    if df.empty:
+        return df
 
-    df_roi[shares_col] = pd.to_numeric(df_roi[shares_col], errors="coerce")
-    df_roi[buy_price_col] = pd.to_numeric(df_roi[buy_price_col], errors="coerce")
-    df_roi = df_roi.dropna(subset=[ticker_col, shares_col, buy_price_col])
-    if df_roi.empty:
-        return pd.DataFrame(columns=[date_col, roi_col])
+    last_date = pd.to_datetime(df[date_col].iloc[-1], errors="coerce")
+    if pd.isna(last_date):
+        return df
 
-    start_date = df_roi[date_col].min().normalize()
     today = pd.Timestamp.now().normalize()
-    if start_date > today:
-        return pd.DataFrame(columns=[date_col, roi_col])
+    if last_date.normalize() >= today:
+        return df
 
-    daily_index = pd.date_range(start=start_date, end=today, freq="D")
-    df_roi["cost"] = df_roi[shares_col] * df_roi[buy_price_col]
-    daily_cost = df_roi.groupby(date_col)["cost"].sum().reindex(daily_index, fill_value=0).cumsum()
-
-    daily_value = pd.Series(0.0, index=daily_index)
-    for ticker in df_roi[ticker_col].astype(str).str.strip().unique():
-        ticker_orders = df_roi[df_roi[ticker_col].astype(str).str.strip() == ticker]
-        shares_daily = ticker_orders.groupby(date_col)[shares_col].sum().reindex(daily_index, fill_value=0).cumsum()
-
-        try:
-            hist = yf.Ticker(ticker).history(
-                start=start_date.strftime("%Y-%m-%d"),
-                end=(today + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-                interval="1d",
-                auto_adjust=False,
-            )
-            prices = hist["Close"] if "Close" in hist.columns else pd.Series(dtype=float)
-        except Exception:
-            prices = pd.Series(dtype=float)
-
-        if prices.empty:
-            try:
-                last_price = float(yf.Ticker(ticker).fast_info.get("last_price"))
-                price_daily = pd.Series(last_price, index=daily_index, dtype=float)
-            except Exception:
-                st.error(f"Não foi possível obter histórico/preço atual para {ticker}.")
-                continue
-        else:
-            prices.index = pd.to_datetime(prices.index).normalize()
-            price_daily = pd.to_numeric(prices, errors="coerce").groupby(level=0).last().reindex(daily_index).ffill().bfill()
-
-        daily_value = daily_value.add(shares_daily * price_daily, fill_value=0)
-
-    roi_daily = ((daily_value - daily_cost) / daily_cost.replace(0, pd.NA)) * 100
-    roi_daily = roi_daily.fillna(0)
-
-    return pd.DataFrame({date_col: daily_index, roi_col: roi_daily.values})
+    extra_row = df.iloc[[-1]].copy()
+    extra_row[date_col] = today
+    return pd.concat([df, extra_row], ignore_index=True)
 
 
 def render_manual_calc(my_tickers):
@@ -180,16 +140,16 @@ def render_manual_calc(my_tickers):
                     st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
                     st.metric("Valor Atual (€)", f"{total_value:,.2f}")
 
-                    # Série diária real de ROI até hoje, com base no histórico de preços
-                    df_roi = _build_daily_roi_series(
-                        df_orders=df_final,
-                        date_col="Data Compra",
-                        ticker_col="Ticker",
-                        shares_col="Qtd",
-                        buy_price_col="Preço Compra",
-                        roi_col="ROI Acum (%)",
-                        dayfirst=True,
-                    )
+                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
+                    df_roi = df_final.copy()
+                    df_roi["Data Compra"] = pd.to_datetime(df_roi["Data Compra"], errors="coerce")
+                    df_roi = df_roi.sort_values("Data Compra").dropna(subset=["Data Compra"])
+                    df_roi["Custo"] = df_roi["Preço Compra"].astype(float) * df_roi["Qtd"].astype(float)
+                    df_roi["Valor Atual Linha"] = df_roi["Preço Atual"].astype(float) * df_roi["Qtd"].astype(float)
+                    df_roi["Custo Acum"] = df_roi["Custo"].cumsum()
+                    df_roi["Valor Acum"] = df_roi["Valor Atual Linha"].cumsum()
+                    df_roi["ROI Acum (%)"] = (df_roi["Valor Acum"] - df_roi["Custo Acum"]) / df_roi["Custo Acum"] * 100
+                    df_roi = _append_today_point(df_roi, "Data Compra")
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
                         st.line_chart(df_roi, x="Data Compra", y="ROI Acum (%)")
@@ -306,15 +266,17 @@ def render_csv_calc():
                     st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                     st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
-                    # Série diária real de ROI até hoje, com base no histórico de preços
-                    df_roi = _build_daily_roi_series(
-                        df_orders=df,
-                        date_col="date",
-                        ticker_col="ticker",
-                        shares_col="shares",
-                        buy_price_col="pricebuy",
-                        roi_col="roi_acum",
-                    )
+                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
+                    df_roi = df.copy()
+                    df_roi["date"] = pd.to_datetime(df_roi["date"], errors="coerce")
+                    df_roi = df_roi.sort_values("date").dropna(subset=["date"])
+                    df_roi["current_price"] = df_roi["ticker"].map(last_prices)
+                    df_roi["custo"] = df_roi["pricebuy"] * df_roi["shares"]
+                    df_roi["valor_atual_linha"] = df_roi["current_price"] * df_roi["shares"]
+                    df_roi["custo_acum"] = df_roi["custo"].cumsum()
+                    df_roi["valor_acum"] = df_roi["valor_atual_linha"].cumsum()
+                    df_roi["roi_acum"] = round((df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100, 2)
+                    df_roi = _append_today_point(df_roi, "date")
                     if not df_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (acumulado)")
                         st.line_chart(df_roi, x="date", y="roi_acum")
