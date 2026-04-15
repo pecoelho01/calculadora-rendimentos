@@ -69,7 +69,7 @@ def render_manual_calc(my_tickers):
                 price_buy = _to_float(st.session_state[f"p_{i}"])
                 date_buy = st.session_state[f"d_{i}"]
 
-                results = process_ticket(t_clean, p, q)
+                results = process_ticket(t_clean, price_buy, qntd)
 
                 dados_ordens.append({
                     "Data Compra": date_buy,
