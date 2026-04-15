@@ -3,7 +3,8 @@ import streamlit as st
 from components import (
     render_csv_calc,
     render_manual_calc,
-    summary
+    summary,
+    about,
 )
 
 st.set_page_config(
@@ -39,7 +40,8 @@ choice = st.selectbox(
         "Calcular ativos manualmente",
         "Importar dados - CSV",
         "Duvidas com ChatBOT - BREVEMENTE",
-        "Notas explicativas"
+        "Notas explicativas",
+        "Sobre mim"
     ),
 )
 
@@ -51,6 +53,9 @@ if choice == "Importar dados - CSV":
 
 if choice == "Notas explicativas":
     summary()
+
+if choice == "Sobre mim":
+    about()
 
 #if choice == "Duvidas com ChatBOT":
     

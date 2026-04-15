@@ -303,5 +303,13 @@ def summary():
     st.subheader("Evolução semanal do ROI")
     st.write("Para cada semana desde a primeira compra, é calculado o ROI acumulado do portfólio usando os preços históricos reais de fecho do Yahoo Finance, semana a semana.")
 
+def about():
+    st.header("Sobre mim")
+    st.write("Olá! Sou o **Pedro**, estudante de **Engenharia Informática**.")
+    st.write("Criei esta calculadora como projeto pessoal, com o objetivo de ter uma ferramenta simples e prática para acompanhar o desempenho de investimentos financeiros em tempo real.")
+    st.write("Se tiveres sugestões, encontrares bugs ou quiseres contribuir, estás à vontade para abrir uma issue ou um pull request no GitHub!")
+    st.markdown("🔗 [github.com/pecoelho01](https://github.com/pecoelho01)")
+
+
 #def render_chatbot_gemini():
     
