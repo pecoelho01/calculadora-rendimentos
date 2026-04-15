@@ -158,7 +158,18 @@ def render_manual_calc(my_tickers):
 # Trata da parte do CSV 
 def render_csv_calc():
     st.title("Dados via CSV")
-    st.text("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar")
+    st.write("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar.")
+
+    st.info(
+        "**Como preencher o CSV:**\n\n"
+        "O ficheiro deve ter as seguintes colunas, pela mesma ordem:\n\n"
+        "- **date** — data de compra no formato `YYYY-MM-DD` (ex: `2024-03-15`)\n"
+        "- **ticker** — símbolo do ativo no Yahoo Finance (ex: `SXR8.DE`, `TSLA`)\n"
+        "- **name** — nome do ativo (ex: `iShares S&P 500`)\n"
+        "- **pricebuy** — preço de compra por unidade (ex: `150.50`). Usa ponto ou vírgula como separador decimal\n"
+        "- **shares** — número de unidades compradas (ex: `10`)\n\n"
+        "Podes fazer o download do modelo abaixo para ver um exemplo preenchido."
+    )
 
     file = csv_download_import()
 
