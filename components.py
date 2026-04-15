@@ -8,10 +8,11 @@ from logic import (
     csv_download_import,
     type_ticket,
     _to_float,
+    calc_weekly_roi,
 )
 
 
-def _ticker_key(ticker):
+def ticker_key(ticker):
     return str(ticker).strip().upper()
 
 
@@ -19,7 +20,7 @@ def _build_type_map(tickers):
     type_map = {}
     for ticker in tickers:
         t = str(ticker).strip()
-        k = _ticker_key(ticker)
+        k = ticker_key(ticker)
         if not t or k in type_map:
             continue
         type_map[k] = type_ticket(t)
@@ -74,7 +75,7 @@ def render_manual_calc(my_tickers):
                 ticker_final = st.session_state[f"man_{i}"] if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)" else st.session_state[f"sel_{i}"]
 
                 t_clean = ticker_final.split("-")[0].strip()
-                t_key = _ticker_key(t_clean)
+                t_key = ticker_key(t_clean)
                 if t_key not in type_by_ticker:
                     type_by_ticker[t_key] = type_ticket(t_clean)
 
@@ -117,7 +118,7 @@ def render_manual_calc(my_tickers):
 
                     combos.append({
                         "Ticker": ticker,
-                        "Tipo de ativo": type_by_ticker.get(_ticker_key(ticker), "N/A"),
+                        "Tipo de ativo": type_by_ticker.get(ticker_key(ticker), "N/A"),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
@@ -140,19 +141,14 @@ def render_manual_calc(my_tickers):
                     st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
                     st.metric("Valor Atual (€)", f"{total_value:,.2f}")
 
-                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
-                    df_roi = df_final.copy()
-                    df_roi["Data Compra"] = pd.to_datetime(df_roi["Data Compra"], errors="coerce")
-                    df_roi = df_roi.sort_values("Data Compra").dropna(subset=["Data Compra"])
-                    df_roi["Custo"] = df_roi["Preço Compra"].astype(float) * df_roi["Qtd"].astype(float)
-                    df_roi["Valor Atual Linha"] = df_roi["Preço Atual"].astype(float) * df_roi["Qtd"].astype(float)
-                    df_roi["Custo Acum"] = df_roi["Custo"].cumsum()
-                    df_roi["Valor Acum"] = df_roi["Valor Atual Linha"].cumsum()
-                    df_roi["ROI Acum (%)"] = (df_roi["Valor Acum"] - df_roi["Custo Acum"]) / df_roi["Custo Acum"] * 100
-                    df_roi = _append_today_point(df_roi, "Data Compra")
-                    if not df_roi.empty:
-                        st.subheader("Evolução do ROI do portfólio (acumulado)")
-                        st.line_chart(df_roi, x="Data Compra", y="ROI Acum (%)")
+                    # Gráfico de ROI acumulado semana a semana com preços históricos reais
+                    with st.spinner("A carregar evolução semanal do ROI..."):
+                        df_weekly_roi = calc_weekly_roi(
+                            df_final, "Ticker", "Data Compra", "Preço Compra", "Qtd"
+                        )
+                    if not df_weekly_roi.empty:
+                        st.subheader("Evolução do ROI do portfólio (semana a semana)")
+                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
@@ -202,7 +198,7 @@ def render_csv_calc():
                         "Date": colunaDate[i],
                         "Ticker": colunaTicker[i],
                         "Name": colunaName[i] if colunaName is not None else "",
-                        "Tipo de ativo": type_by_ticker.get(_ticker_key(colunaTicker[i]), "N/A"),
+                        "Tipo de ativo": type_by_ticker.get(ticker_key(colunaTicker[i]), "N/A"),
                         "Price Buy": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
                         "GAIN(euros)": round(results[0],2),
@@ -241,7 +237,7 @@ def render_csv_calc():
                     combos.append({
                         "Ticker": ticker,
                         "Name": name_value,
-                        "Tipo de ativo": type_by_ticker.get(_ticker_key(ticker), "N/A"),
+                        "Tipo de ativo": type_by_ticker.get(ticker_key(ticker), "N/A"),
                         "Qtd Total": round(total_shares, 2),
                         "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
                         "Preço Atual": round(current_price, 4),
@@ -266,20 +262,14 @@ def render_csv_calc():
                     st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
                     st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
 
-                    # Linha de ROI acumulado ao longo das compras (usa preços atuais para o valor)
-                    df_roi = df.copy()
-                    df_roi["date"] = pd.to_datetime(df_roi["date"], errors="coerce")
-                    df_roi = df_roi.sort_values("date").dropna(subset=["date"])
-                    df_roi["current_price"] = df_roi["ticker"].map(last_prices)
-                    df_roi["custo"] = df_roi["pricebuy"] * df_roi["shares"]
-                    df_roi["valor_atual_linha"] = df_roi["current_price"] * df_roi["shares"]
-                    df_roi["custo_acum"] = df_roi["custo"].cumsum()
-                    df_roi["valor_acum"] = df_roi["valor_atual_linha"].cumsum()
-                    df_roi["roi_acum"] = round((df_roi["valor_acum"] - df_roi["custo_acum"]) / df_roi["custo_acum"] * 100, 2)
-                    df_roi = _append_today_point(df_roi, "date")
-                    if not df_roi.empty:
-                        st.subheader("Evolução do ROI do portfólio (acumulado)")
-                        st.line_chart(df_roi, x="date", y="roi_acum")
+                    # Gráfico de ROI acumulado semana a semana com preços históricos reais
+                    with st.spinner("A carregar evolução semanal do ROI..."):
+                        df_weekly_roi = calc_weekly_roi(
+                            df, "ticker", "date", "pricebuy", "shares"
+                        )
+                    if not df_weekly_roi.empty:
+                        st.subheader("Evolução do ROI do portfólio (semana a semana)")
+                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
