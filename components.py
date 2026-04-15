@@ -274,5 +274,15 @@ def render_csv_calc():
            st.error("Arquivo não compatível")
 
 
+def summary():
+    st.header("Notas explicativas")
+    st.write("Preço Atual — obtido em tempo real via Yahoo Finance (yfinance), com base no último preço de fecho disponível para o ticker introduzido.")
+    st.write("Ganho (€) — diferença entre o valor atual e o valor investido: (Preço Atual − Preço de Compra) × Quantidade")
+    st.write("OI (%) — retorno sobre o investimento em percentagem:((Preço Atual − Preço de Compra) / Preço de Compra) × 100")
+    st.write("Custo Total — valor total investido numa posição: Preço de Compra × Quantidade")
+    st.write("Valor Atual — valor atual de uma posição: Preço Atual × Quantidade")
+    st.write("ROI Total do Portfólio — calculado sobre o conjunto de todas as ordens: ((Valor Atual Total − Custo Total) / Custo Total) × 100")
+    st.write("Evolução semanal do ROI — para cada semana desde a primeira compra, é calculado o ROI acumulado do portfólio usando os preços históricos reais de fecho do Yahoo Finance, semana a semana.")
+
 #def render_chatbot_gemini():
     
