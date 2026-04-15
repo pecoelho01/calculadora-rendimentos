@@ -65,8 +65,8 @@ def render_manual_calc(my_tickers):
                 if t_key not in type_by_ticker:
                     type_by_ticker[t_key] = type_ticket(t_clean)
 
-                qntd = _to_float(st.session_state[f"q_{i}"], "Quantidade")
-                price_buy = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
+                qntd = _to_float(st.session_state[f"q_{i}"])
+                price_buy = _to_float(st.session_state[f"p_{i}"])
                 date_buy = st.session_state[f"d_{i}"]
 
                 results = process_ticket(t_clean, p, q)

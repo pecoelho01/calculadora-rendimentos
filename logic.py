@@ -7,6 +7,10 @@ import yfinance as yf
 from yfinance.exceptions import YFRateLimitError
 
 
+def _to_float(value):
+    return float(str(value).replace(",", ".").strip())
+    
+
 def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
     """Remove timezone info from a DatetimeIndex."""
     if idx.tz is not None:
