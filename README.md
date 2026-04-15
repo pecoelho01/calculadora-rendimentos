@@ -2,6 +2,8 @@
 
 Aplicação web para análise e acompanhamento de carteiras de investimento, com dados de mercado em tempo real.
 
+[URL](https://calculadora-rendimentos.streamlit.app/)
+
 ## Funcionalidades
 
 - **Cálculo manual**: Adicione posições manualmente com ticker, quantidade, preço de compra e data
