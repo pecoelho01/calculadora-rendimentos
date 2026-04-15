@@ -38,7 +38,7 @@ choice = st.selectbox(
     (
         "Calcular ativos manualmente",
         "Importar dados - CSV",
-        "Duvidas com ChatBOT - BREVEMENTE"
+        "Duvidas com ChatBOT - BREVEMENTE",
         "Notas explicativas"
     ),
 )
