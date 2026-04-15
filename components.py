@@ -11,11 +11,11 @@ from logic import (
     calc_weekly_roi,
 )
 
-
+# Limpar o ticket
 def ticker_key(ticker):
     return str(ticker).strip().upper()
 
-
+# Guardar os tipos de ativos de os determinados tickets, evitar múltiplas chamadas à API
 def _build_type_map(tickers):
     type_map = {}
     for ticker in tickers:
@@ -26,24 +26,7 @@ def _build_type_map(tickers):
         type_map[k] = type_ticket(t)
     return type_map
 
-
-def _append_today_point(df, date_col):
-    if df.empty:
-        return df
-
-    last_date = pd.to_datetime(df[date_col].iloc[-1], errors="coerce")
-    if pd.isna(last_date):
-        return df
-
-    today = pd.Timestamp.now().normalize()
-    if last_date.normalize() >= today:
-        return df
-
-    extra_row = df.iloc[[-1]].copy()
-    extra_row[date_col] = today
-    return pd.concat([df, extra_row], ignore_index=True)
-
-
+# Trata da parte manual
 def render_manual_calc(my_tickers):
     st.title("Múltiplos ativos manualmente")
     qnt_orders = st.number_input("Nº de ordens:", min_value=1, value=1)
@@ -72,28 +55,31 @@ def render_manual_calc(my_tickers):
         type_by_ticker = {}
         for i in range(int(qnt_orders)):
             try:
-                ticker_final = st.session_state[f"man_{i}"] if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)" else st.session_state[f"sel_{i}"]
+                if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)":
+                      ticker_final = st.session_state[f"man_{i}"] 
+                else:
+                    st.session_state[f"sel_{i}"]
 
                 t_clean = ticker_final.split("-")[0].strip()
                 t_key = ticker_key(t_clean)
                 if t_key not in type_by_ticker:
                     type_by_ticker[t_key] = type_ticket(t_clean)
 
-                q = _to_float(st.session_state[f"q_{i}"], "Quantidade")
-                p = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
-                d = st.session_state[f"d_{i}"]
+                qntd = _to_float(st.session_state[f"q_{i}"], "Quantidade")
+                price_buy = _to_float(st.session_state[f"p_{i}"], "Preço de compra")
+                date_buy = st.session_state[f"d_{i}"]
 
                 results = process_ticket(t_clean, p, q)
 
                 dados_ordens.append({
-                    "Data Compra": d,
+                    "Data Compra": date_buy,
                     "Ticker": t_clean,
                     "Tipo de ativo": type_by_ticker.get(t_key, "N/A"),
-                    "Qtd": q,
-                    "Preço Compra": f"{p:.2f}",
-                    "Preço Atual": f"{results[2]:.2f}",
+                    "Qtd": qntd,
+                    "Preço Compra": round(price_buy, 2) + "€",
+                    "Preço Atual": round(results[2], 2) + "€",
                     "Ganho": round(results[0], 2),
-                    "ROI (%)": f"{results[1]:.2f}%"
+                    "ROI (%)": round(results[1],2) + "%"
                 })
             except Exception as e:
                 st.error(f"Erro no ticker {i+1} ({t_clean}): {e}")
@@ -114,7 +100,11 @@ def render_manual_calc(my_tickers):
 
                     total_value = total_shares * current_price
                     gain = total_value - total_cost
-                    roi = (gain / total_cost) * 100 if total_cost else 0
+                    roi = (gain / total_cost) * 100 
+                    if total_cost:
+                         roi = (gain / total_cost) * 100 
+                    else:
+                        0
 
                     combos.append({
                         "Ticker": ticker,
@@ -165,7 +155,7 @@ def render_manual_calc(my_tickers):
                     fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
                     st.plotly_chart(fig)
 
-
+# Trata da parte do CSV 
 def render_csv_calc():
     st.title("Dados via CSV")
     st.text("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar")
@@ -194,9 +184,9 @@ def render_csv_calc():
 
                     results = process_ticket(colunaTicker[i], colunaPriceBuy[i], colunaShares[i])
 
-                    dados_finais.append({
+                    dados_finais.append({  
                         "Date": colunaDate[i],
-                        "Ticker": colunaTicker[i],
+                        "Ticker": colunaTicker[i], 
                         "Name": colunaName[i] if colunaName is not None else "",
                         "Tipo de ativo": type_by_ticker.get(ticker_key(colunaTicker[i]), "N/A"),
                         "Price Buy": colunaPriceBuy[i],
@@ -204,6 +194,7 @@ def render_csv_calc():
                         "GAIN(euros)": round(results[0],2),
                         "ROI %": round(results[1],2)
                     })
+
                 st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
@@ -221,15 +212,8 @@ def render_csv_calc():
                     total_shares = bloco["shares"].sum()
                     total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
 
-                    try:
-                        current_price = yf.Ticker(ticker).fast_info["last_price"]
-                    except Exception:
-                        current_price = None
-
-                    if current_price is None:
-                        st.error(f"Não foi possível obter preço atual para {ticker}.")
-                        continue
-
+                    current_price = yf.Ticker(ticker).fast_info["last_price"]
+                    
                     total_value = total_shares * current_price
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 if total_cost else 0
@@ -257,10 +241,10 @@ def render_csv_calc():
                     valor_investido = valor_atual - ganho_total
 
                     st.subheader("Rentabilidade total do portfólio")
-                    st.metric("ROI Total (%)", f"{roi_total:.2f}%")
-                    st.metric("Total investido (€)", f"{valor_investido:.2f}")
-                    st.metric("Ganho Total (€)", f"{ganho_total:,.2f}")
-                    st.metric("Valor Atual (€)", f"{valor_atual:,.2f}")
+                    st.metric("ROI Total (%)", round(roi_total, 2))
+                    st.metric("Total investido (€)", round(valor_investido, 2))
+                    st.metric("Ganho Total (€)", round(ganho_total, 2))
+                    st.metric("Valor Atual (€)", round(valor_atual, 2))
 
                     # Gráfico de ROI acumulado semana a semana com preços históricos reais
                     with st.spinner("A carregar evolução semanal do ROI..."):
@@ -286,9 +270,6 @@ def render_csv_calc():
                     fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
                     st.plotly_chart(fig)
             
-
-
-
         except FileNotFoundError:
            st.error("Arquivo não compatível")
 

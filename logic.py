@@ -6,12 +6,6 @@ import streamlit as st
 import yfinance as yf
 from yfinance.exceptions import YFRateLimitError
 
-def _to_float(text: str, label: str) -> float:
-    try:
-        return float(str(text).replace(",", "."))
-    except ValueError:
-        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
-
 
 def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
     """Remove timezone info from a DatetimeIndex."""
@@ -53,11 +47,9 @@ def calc_weekly_roi(
     pricebuy_col: str,
     shares_col: str,
 ) -> pd.DataFrame:
-    """Devolve um DataFrame com colunas ['date', 'roi_acum'] (semanal, sem timezone).
-
-    Para cada semana (desde a primeira compra até hoje) calcula o ROI acumulado
-    do portfólio usando o preço histórico real de fecho de cada ticker.
-    """
+    #Devolve um DataFrame com colunas ['date', 'roi_acum'] (semanal, sem timezone).x
+    #Para cada semana (desde a primeira compra até hoje) calcula o ROI acumulado
+    #do portfólio usando o preço histórico real de fecho de cada ticker.
     df = orders_df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
     df = df.dropna(subset=[date_col]).sort_values(date_col)
@@ -135,13 +127,13 @@ def csv_download_import():
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             st.download_button(
-                label="📥 Download do modelo CSV",
+                label="Download do modelo CSV",
                 data=f,
                 file_name="modelo_investimentos.csv",
                 mime="text/csv"
             )
     else:
-        st.warning("⚠️ Modelo CSV não encontrado no servidor.")
+        st.warning("Modelo CSV não encontrado no servidor.")
     
     return st.file_uploader("Carrega para aqui o seu ficheiro CSV", type="csv")
 
@@ -180,10 +172,3 @@ def type_ticket(ticket):
             delay *= 2
 
     return "N/A"
-
-
-def _to_float(text: str, label: str) -> float:
-    try:
-        return float(str(text).replace(",", "."))
-    except ValueError:
-        raise ValueError(f"{label} inválido: use número (ex: 123.45)")
