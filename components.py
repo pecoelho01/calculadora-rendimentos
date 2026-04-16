@@ -264,7 +264,7 @@ def render_csv_calc():
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        df_merge = df_weekly_roi.merge(evolutionSP500, on="date", how="left")
+                        df_merge = df_weekly_roi.merge(evolutionSP500(), on="date", how="left")
                         st.line_chart(df_merge, x="date", y=["roi_acum", "ROI SP500"])
 
                     st.subheader("Resumo consolidado por ticker")
@@ -328,10 +328,10 @@ def evolutionSP500():
 
     base_price = data["Close"].iloc[0]
 
-    data_final = pd.DataFrame [{
-        "Data": data['Data'],
+    data_final = pd.DataFrame ({
+        "Data": data['Date'],
         "ROI SP500": ((data["Close"] - base_price) / base_price * 100).round(2)
-    }]
+    })
 
     return data_final
 
