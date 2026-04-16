@@ -265,14 +265,7 @@ def render_csv_calc():
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        df_sp = evolutionSP500(str(pd.to_datetime(df["date"]).min().date()))
-                        df_merge = pd.merge_asof(
-                            df_weekly_roi.sort_values("date"),
-                            df_sp.sort_values("date"),
-                            on="date",
-                            tolerance=pd.Timedelta("3d")
-                        )
-                        st.line_chart(df_merge, x="date", y=["roi_acum", "ROI SP500"])
+                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
