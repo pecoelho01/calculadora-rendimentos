@@ -106,7 +106,7 @@ def calc_weekly_roi(
             total_value += shares * price
 
         roi = (total_value - total_cost) / total_cost * 100
-        roi_series.append({"date": week_ts, "roi_acum": round(roi, 2)})
+        roi_series.append({"date": week_ts, "ROI Acumulado": round(roi, 2)})
 
     return pd.DataFrame(roi_series)
 
