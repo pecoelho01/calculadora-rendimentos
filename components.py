@@ -329,7 +329,7 @@ def evolutionSP500():
     base_price = data["Close"].iloc[0]
 
     data_final = pd.DataFrame ({
-        "Data": data['Date'],
+        "Data": data.index,
         "ROI SP500": ((data["Close"] - base_price) / base_price * 100).round(2)
     })
 
