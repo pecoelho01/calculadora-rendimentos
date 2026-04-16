@@ -326,7 +326,7 @@ def about():
 
 def evolutionSP500():
     data = yf.Ticker("^GSPC").history(start="2023-01-01", interval="1wk")
-    data.index = _strip_tz(pd.DatetimeIndex(data.index))
+    data.index = data.index.normalize()
     base_price = data["Close"].iloc[0]
 
     data_final = pd.DataFrame({
