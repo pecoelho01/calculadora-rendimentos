@@ -264,7 +264,8 @@ def render_csv_calc():
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
+                        df_merge = df_weekly_roi.merge(evolutionSP500, on="date", how="left")
+                        st.line_chart(df_merge, x="date", y=["roi_acum", "ROI SP500"])
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
@@ -321,6 +322,18 @@ def about():
     st.write("Se tiveres sugestões, encontrares bugs ou quiseres contribuir, estás à vontade para abrir uma issue ou um pull request no GitHub!")
     st.markdown("🔗 [github.com/pecoelho01](https://github.com/pecoelho01)")
 
+
+def evolutionSP500():
+    data = yf.Ticker("^GSPC").history(start="2023-01-01", interval="1wk")
+
+    base_price = data["Close"].iloc[0]
+
+    data_final = pd.DataFrame [{
+        "Data": data['Data'],
+        "ROI SP500": ((data["Close"] - base_price) / base_price * 100).round(2)
+    }]
+
+    return data_final
 
 #def render_chatbot_gemini():
     
