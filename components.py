@@ -9,6 +9,7 @@ from logic import (
     type_ticket,
     _to_float,
     calc_weekly_roi,
+    _strip_tz
 )
 
 # Limpar o ticket
@@ -325,14 +326,13 @@ def about():
 
 def evolutionSP500():
     data = yf.Ticker("^GSPC").history(start="2023-01-01", interval="1wk")
-
+    data.index = _strip_tz(pd.DatetimeIndex(data.index))
     base_price = data["Close"].iloc[0]
 
-    data_final = pd.DataFrame ({
-        "Data": data.index,
+    data_final = pd.DataFrame({
+        "date": data.index,
         "ROI SP500": ((data["Close"] - base_price) / base_price * 100).round(2)
     })
-
     return data_final
 
 #def render_chatbot_gemini():
