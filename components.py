@@ -267,7 +267,7 @@ def render_csv_calc():
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
                       #  df_merge = df_weekly_roi.merge(evolutionSP500(), on="date", how="left")
                        # st.line_chart(df_merge, x="date", y=["roi_acum", "ROI SP500"])
-                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
+                        st.line_chart(df_weekly_roi, x="date", y="ROI Acumulado")
 
 
                     st.subheader("Resumo consolidado por ticker")
