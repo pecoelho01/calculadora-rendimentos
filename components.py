@@ -275,10 +275,10 @@ def render_csv_calc():
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        start_date = df_weekly_roi["date"].min()
-                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
-                        df_weekly_sorted = df_weekly_roi.copy()
-                        df_weekly_sorted["date"] = pd.to_datetime(df_weekly_sorted["date"]).dt.normalize().astype("datetime64[ns]")
+                        start_date = df_weekly_roi["date"].min() # buscar a data de início dos rendimentos
+                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date())) # o DataFrame com os dados do indice desde a data certa
+                        df_weekly_sorted = df_weekly_roi.copy() # Faz uma cópia do DataFrame dos dados 
+                        df_weekly_sorted["date"] = pd.to_datetime(df_weekly_sorted["date"]).dt.normalize().astype("datetime64[ns]") # Coloca a data num determinado tipo 
                         df_sp500_sorted = df_sp500.copy()
                         df_sp500_sorted["date"] = pd.to_datetime(df_sp500_sorted["date"]).dt.normalize().astype("datetime64[ns]")
                         df_weekly_sorted = df_weekly_sorted.sort_values("date")
