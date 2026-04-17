@@ -11,7 +11,7 @@ def _to_float(value):
     return float(str(value).replace(",", ".").strip())
     
 
-def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
+def _strip_tz(idx):
     if idx.tz is not None:
         return idx.tz_convert(None)
     return idx
@@ -129,12 +129,8 @@ def calc_portfolio_with_sells(df):
     result = []
 
     df = df.copy()
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["date"]).sort_values("date")
-
-    if "type" not in df.columns:
-        df["type"] = "buy"
-    df["type"] = df["type"].astype(str).str.strip().str.lower().fillna("buy")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce") #converte a string para um DataTime
+    df = df.dropna(subset=["date"]).sort_values("date") #deita fora as linhas com datas inválidas e ordena por ordem
 
     for ticker in df["ticker"].unique():
         bloco = df[df["ticker"] == ticker].sort_values("date")
@@ -146,17 +142,17 @@ def calc_portfolio_with_sells(df):
         total_received = 0.0
 
         for _, row in bloco.iterrows():
-            price = float(row["pricebuy"])
-            shares = float(row["shares"])
+            pricebuy = row["pricebuy"]
+            shares = row["shares"]
             order_type = str(row["type"])
 
             if order_type == "buy":
-                total_invested += price * shares
-                avg_cost = (avg_cost * open_shares + price * shares) / (open_shares + shares)
+                total_invested += pricebuy * shares
+                avg_cost = (avg_cost * open_shares + pricebuy * shares) / (open_shares + shares)
                 open_shares += shares
             elif order_type == "sell":
-                total_received += price * shares
-                realized_gain += (price - avg_cost) * shares
+                total_received += pricebuy * shares
+                realized_gain += (pricebuy - avg_cost) * shares
                 open_shares = max(open_shares - shares, 0.0)
 
         result.append({

@@ -55,7 +55,7 @@ if choice == "Calcular ativos manualmente":
 
 if choice == "Importar dados - CSV":
     render_csv_calc()
-
+    
 if choice == "Notas explicativas":
     summary()
 

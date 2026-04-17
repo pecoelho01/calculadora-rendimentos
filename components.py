@@ -45,11 +45,11 @@ def render_manual_calc(my_tickers):
                 man = st.text_input(f"Se 'Outro', digite:", key=f"man_{i}", help="Digite o ticker (ex: TSLA)")
 
             with col2:
-                st.text_input(f"Qtd {i+1}", value="1.0", key=f"q_{i}")
+                st.text_input(f"Qtd {i+1}", value="1.0", key=f"qntd_{i}")
             with col3:
-                st.text_input(f"Preço de compra {i+1}", value="150.0", key=f"p_{i}")
+                st.text_input(f"Preço de compra {i+1}", value="150.0", key=f"pricebuy_{i}")
             with col4:
-                st.text_input(f"Data {i+1}", value="25-10-2023", key=f"d_{i}")
+                st.text_input(f"Data {i+1}", value="25-10-2023", key=f"date_{i}")
             st.divider()
 
         submit = st.form_submit_button("Calcular Todos")
@@ -64,20 +64,22 @@ def render_manual_calc(my_tickers):
                 else:
                     ticker_final = st.session_state[f"sel_{i}"]
 
-                t_clean = ticker_final.split("-")[0].strip()
+                t_clean = ticker_final.split("-")[0].strip() 
+                t_name = ticker_final.split("-")[0].strip()
                 t_key = ticker_key(t_clean)
                 if t_key not in type_by_ticker:
                     type_by_ticker[t_key] = type_ticket(t_clean)
 
-                qntd = _to_float(st.session_state[f"q_{i}"])
-                price_buy = _to_float(st.session_state[f"p_{i}"])
-                date_buy = st.session_state[f"d_{i}"]
+                qntd = _to_float(st.session_state[f"qntd_{i}"])
+                price_buy = _to_float(st.session_state[f"pricebuy_{i}"])
+                date_buy = st.session_state[f"date{i}"]
 
                 results = process_ticket(t_clean, price_buy, qntd)
 
                 dados_ordens.append({
                     "Data Compra": date_buy,
                     "Ticker": t_clean,
+                    "Nome": t_name,
                     "Tipo de ativo": type_by_ticker.get(t_key, "N/A"),
                     "Qtd": qntd,
                     "Preço Compra": round(price_buy, 2),
@@ -100,11 +102,12 @@ def render_manual_calc(my_tickers):
                     bloco = df_final[df_final["Ticker"] == ticker]
                     total_shares = bloco["Qtd"].astype(float).sum()
                     total_cost = (bloco["Preço Compra"].astype(float) * bloco["Qtd"].astype(float)).sum()
-                    current_price = float(bloco["Preço Atual"].iloc[0])
+                    current_price = float(bloco["Preço Atual"])
 
                     total_value = total_shares * current_price
                     gain = total_value - total_cost
                     roi = (gain / total_cost) * 100 
+                    
                     if total_cost:
                          roi = (gain / total_cost) * 100 
                     else:
@@ -130,43 +133,12 @@ def render_manual_calc(my_tickers):
                     total_roi = (total_gain / total_cost) * 100 if total_cost else 0
 
                     st.subheader("Rentabilidade total do portfólio")
-                    st.metric("ROI Total (%)", f"{total_roi:.2f}%")
-                    st.metric("Total investido (€)", f"{total_cost:.2f}")
-                    st.metric("Ganho Total (€)", f"{total_gain:,.2f}")
-                    st.metric("Valor Atual (€)", f"{total_value:,.2f}")
+                    st.metric("ROI Total (%)", round(total_roi, 2))
+                    st.metric("Total investido (€)", round(total_cost, 2))
+                    st.metric("Ganho Total (€)", round(total_gain, 2))
+                    st.metric("Valor Atual (€)", round(total_value, 2))
 
-                    # Gráfico de ROI acumulado semana a semana com preços históricos reais
-                    with st.spinner("A carregar evolução semanal do ROI..."):
-                        df_weekly_roi = calc_weekly_roi(
-                            df_final, "Ticker", "Data Compra", "Preço Compra", "Qtd"
-                        )
-                    if not df_weekly_roi.empty:
-                        st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        start_date = df_weekly_roi["date"].min()
-                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
-                        df_weekly_sorted = df_weekly_roi.copy()
-                        df_weekly_sorted["date"] = pd.to_datetime(df_weekly_sorted["date"]).dt.normalize().astype("datetime64[ns]")
-                        df_sp500_sorted = df_sp500.copy()
-                        df_sp500_sorted["date"] = pd.to_datetime(df_sp500_sorted["date"]).dt.normalize().astype("datetime64[ns]")
-                        df_weekly_sorted = df_weekly_sorted.sort_values("date")
-                        df_sp500_sorted = df_sp500_sorted.sort_values("date")
-                        df_merge = pd.merge_asof(df_weekly_sorted, df_sp500_sorted, on="date", direction="nearest")
-                        st.line_chart(df_merge, x="date", y=["ROI Acumulado", "ROI SP500 (%)"])
-
-                    st.subheader("Resumo consolidado por ticker")
-                    st.dataframe(combos, use_container_width=True)
-                    st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
-
-                    st.subheader("Divisão do portfólio")
-                    df_combo = pd.DataFrame(combos)
-                    data = {
-                        "Categoria": df_combo["Ticker"],
-                        "Valores": df_combo["Valor Atual"]
-                    }
-                    df_pizza = pd.DataFrame(data)
-                    fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
-                    st.plotly_chart(fig)
+                    
 
 # Trata da parte do CSV 
 def render_csv_calc():
@@ -189,22 +161,21 @@ def render_csv_calc():
 
     if file is not None:
         try:
-            df = pd.read_csv(file, header=1, sep=',')
-            df.columns = df.columns.str.strip()
+            dados_brutos = pd.read_csv(file, header=1, sep=',')
 
-            df["pricebuy"] = df["pricebuy"].astype(str).str.replace(",", ".", regex=False).astype(float)
-            df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
-            if "type" in df.columns:
-                df["type"] = df["type"].astype(str).str.strip().str.lower().fillna("buy")
+            dados_brutos["pricebuy"] = dados_brutos["pricebuy"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            dados_brutos["shares"] = dados_brutos["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            if "type" in dados_brutos.columns:
+                dados_brutos["type"] = dados_brutos["type"].astype(str).str.strip().str.lower().fillna("buy")
             else:
-                df["type"] = "buy"
+                dados_brutos["type"] = "buy"
 
-            colunaDate = df["date"]
-            colunaTicker = df["ticker"]
-            colunaName = df.get("name")
-            colunaPriceBuy = df["pricebuy"]
-            colunaShares = df["shares"]
-            colunaType = df["type"]
+            colunaDate = dados_brutos["date"]
+            colunaTicker = dados_brutos["ticker"]
+            colunaName = dados_brutos.get("name")
+            colunaPriceBuy = dados_brutos["pricebuy"]
+            colunaShares = dados_brutos["shares"]
+            colunaType = dados_brutos["type"]
 
             dados_finais = []
 
@@ -213,7 +184,7 @@ def render_csv_calc():
 
                 for i in range(len(colunaDate)):
                     order_type = colunaType.iloc[i] if hasattr(colunaType, "iloc") else colunaType[i]
-                    if order_type == "sell":
+                    if order_type == "sell": # se for uma ordem de venda, faz isto 
                         dados_finais.append({
                             "Date": colunaDate[i],
                             "Ticker": colunaTicker[i],
@@ -227,7 +198,7 @@ def render_csv_calc():
                         })
                         continue
 
-                    results = process_ticket(colunaTicker[i], colunaPriceBuy[i], colunaShares[i])
+                    results = process_ticket(colunaTicker[i], colunaPriceBuy[i], colunaShares[i]) # busca a info à API do ticket
 
                     dados_finais.append({
                         "Date": colunaDate[i],
@@ -245,14 +216,9 @@ def render_csv_calc():
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
 
-                buys_only = df_final_[df_final_["Type"] == "BUY"].copy()
-                if not buys_only.empty:
-                    buys_only["ROI %"] = pd.to_numeric(buys_only["ROI %"], errors="coerce")
-                    st.subheader("ROI por ativos - comparação (compras)")
-                    st.bar_chart(data=buys_only, x="Date", y="ROI %", color="Ticker")
 
             if st.button("Calcular portfólio"):
-                portfolio_data = calc_portfolio_with_sells(df)
+                portfolio_data = calc_portfolio_with_sells(dados_brutos)
                 all_tickers = [p["ticker"] for p in portfolio_data]
                 open_tickers = [p["ticker"] for p in portfolio_data if p["open_shares"] > 0]
                 type_by_ticker = _build_type_map(all_tickers)
@@ -266,22 +232,21 @@ def render_csv_calc():
                     avg_cost = p["avg_cost"]
                     realized_gain = p["realized_gain"]
 
-                    bloco = df[df["ticker"] == ticker]
-                    name_value = bloco["name"].iloc[0] if "name" in bloco.columns else ""
+                    bloco = dados_brutos[dados_brutos["ticker"] == ticker]
+                    name_value = bloco["name"]
 
                     if open_shares > 0 and ticker in last_prices:
                         current_price = last_prices[ticker]
                         current_value = open_shares * current_price
-                        unrealized_gain = (current_price - avg_cost) * open_shares
-                        cost_open = avg_cost * open_shares
-                        roi_open = (unrealized_gain / cost_open) * 100 if cost_open else 0
+                        unrealized_gain = (current_price - avg_cost) * open_shares     
                     else:
                         current_price = 0.0
                         current_value = 0.0
                         unrealized_gain = 0.0
-                        roi_open = 0.0
+          
 
                     total_gain = realized_gain + unrealized_gain
+
                     roi_total_ticker = (total_gain / p["total_invested"]) * 100 if p["total_invested"] else 0
 
                     combos.append({
@@ -319,11 +284,11 @@ def render_csv_calc():
                         st.metric("Ganho Não Realizado (€)", round(total_unrealized, 2))
                     with col2:
                         st.metric("Valor Atual Posição Aberta (€)", round(total_current_value, 2))
-                        st.metric("ROI Total do Portfólio (%)", round(total_current_value, 2))
+                        st.metric("ROI Total do Portfólio (%)", round(roi_total_all, 2))
 
                     with st.spinner("A carregar evolução semanal do ROI..."):
                         df_weekly_roi = calc_weekly_roi(
-                            df, "ticker", "date", "pricebuy", "shares", type_col="type"
+                            dados_brutos, "ticker", "date", "pricebuy", "shares", type_col="type"
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
