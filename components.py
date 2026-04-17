@@ -9,6 +9,7 @@ from logic import (
     type_ticket,
     _to_float,
     calc_weekly_roi,
+    fetch_sp500_weekly_roi,
     _strip_tz
 )
 
@@ -139,7 +140,10 @@ def render_manual_calc(my_tickers):
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        st.line_chart(df_weekly_roi, x="date", y="roi_acum")
+                        start_date = df_weekly_roi["date"].min()
+                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
+                        df_merge = df_weekly_roi.merge(df_sp500, on="date", how="left")
+                        st.line_chart(df_merge, x="date", y=["ROI Acumulado", "ROI SP500 (%)"])
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
@@ -265,9 +269,10 @@ def render_csv_calc():
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                      #  df_merge = df_weekly_roi.merge(evolutionSP500(), on="date", how="left")
-                       # st.line_chart(df_merge, x="date", y=["roi_acum", "ROI SP500"])
-                        st.line_chart(df_weekly_roi, x="date", y="ROI Acumulado")
+                        start_date = df_weekly_roi["date"].min()
+                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
+                        df_merge = df_weekly_roi.merge(df_sp500, on="date", how="left")
+                        st.line_chart(df_merge, x="date", y=["ROI Acumulado", "ROI SP500 (%)"])
 
 
                     st.subheader("Resumo consolidado por ticker")
@@ -326,16 +331,6 @@ def about():
     st.markdown("🔗 [github.com/pecoelho01](https://github.com/pecoelho01)")
 
 
-def evolutionSP500():
-    data = yf.Ticker("^GSPC").history(start="2023-01-01", interval="1wk")
-    data.index = _strip_tz(pd.DatetimeIndex(data.index)).normalize()
-    base_price = data["Close"].iloc[0]
-
-    data_final = pd.DataFrame({
-        "date": data.index,
-        "ROI SP500": ((data["Close"] - base_price) / base_price * 100).round(2)
-    })
-    return data_final
 
 #def render_chatbot_gemini():
     

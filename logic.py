@@ -18,10 +18,7 @@ def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_weekly_history(tickers_tuple: tuple, start_str: str) -> pd.DataFrame:
-    """Download weekly Close prices para um tuple de tickers desde start_str.
-    Devolve um DataFrame indexado por datas sem timezone, uma coluna por ticker.
-    """
+def fetch_weekly_history(tickers_tuple, start_str):
     hist: dict = {}
     start = pd.Timestamp(start_str)
 
@@ -43,13 +40,7 @@ def fetch_weekly_history(tickers_tuple: tuple, start_str: str) -> pd.DataFrame:
     return df
 
 
-def calc_weekly_roi(
-    orders_df: pd.DataFrame,
-    ticker_col: str,
-    date_col: str,
-    pricebuy_col: str,
-    shares_col: str,
-) -> pd.DataFrame:
+def calc_weekly_roi(orders_df, ticker_col, date_col, pricebuy_col, shares_col):
     #Devolve um DataFrame com colunas ['date', 'roi_acum'] (semanal, sem timezone).x
     #Para cada semana (desde a primeira compra até hoje) calcula o ROI acumulado
     #do portfólio usando o preço histórico real de fecho de cada ticker.
@@ -109,6 +100,19 @@ def calc_weekly_roi(
         roi_series.append({"date": week_ts, "ROI Acumulado": round(roi, 2)})
 
     return pd.DataFrame(roi_series)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_sp500_weekly_roi(start_date_str):
+    data = yf.Ticker("^GSPC").history(start=start_date_str, interval="1wk", auto_adjust=True)
+    if data.empty or "Close" not in data.columns:
+        return pd.DataFrame(columns=["date", "ROI SP500 (%)"])
+    data.index = _strip_tz(pd.DatetimeIndex(data.index)).normalize() # Tornar Data - Hora em só Data
+    base_price = data["Close"].iloc[0]
+    return pd.DataFrame({
+        "date": data.index,
+        "ROI SP500 (%)": ((data["Close"] / base_price - 1) * 100).round(2)
+    })
+
 
 def process_ticket(ticket, buy_price, shares):
     ticker_api = yf.Ticker(ticket)
