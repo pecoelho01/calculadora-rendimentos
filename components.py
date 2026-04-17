@@ -72,7 +72,7 @@ def render_manual_calc(my_tickers):
 
                 qntd = _to_float(st.session_state[f"qntd_{i}"])
                 price_buy = _to_float(st.session_state[f"pricebuy_{i}"])
-                date_buy = st.session_state[f"date{i}"]
+                date_buy = st.session_state[f"date_{i}"]
 
                 results = process_ticket(t_clean, price_buy, qntd)
 
@@ -102,7 +102,7 @@ def render_manual_calc(my_tickers):
                     bloco = df_final[df_final["Ticker"] == ticker]
                     total_shares = bloco["Qtd"].astype(float).sum()
                     total_cost = (bloco["Preço Compra"].astype(float) * bloco["Qtd"].astype(float)).sum()
-                    current_price = float(bloco["Preço Atual"])
+                    current_price = float(bloco["Preço Atual"].iloc[0])
 
                     total_value = total_shares * current_price
                     gain = total_value - total_cost
@@ -233,7 +233,7 @@ def render_csv_calc():
                     realized_gain = p["realized_gain"]
 
                     bloco = dados_brutos[dados_brutos["ticker"] == ticker]
-                    name_value = bloco["name"]
+                    name_value = bloco["name"].iloc[0] if "name" in bloco.columns else ""
 
                     if open_shares > 0 and ticker in last_prices:
                         current_price = last_prices[ticker]
