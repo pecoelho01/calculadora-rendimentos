@@ -3,8 +3,6 @@ import streamlit as st
 from components import (
     render_csv_calc,
     render_manual_calc,
-    summary,
-    about,
 )
 
 from textonly import (
