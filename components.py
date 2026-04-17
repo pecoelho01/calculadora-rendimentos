@@ -161,7 +161,12 @@ def render_csv_calc():
 
     if file is not None:
         try:
-            dados_brutos = pd.read_csv(file, header=1, sep=',')
+            dados_brutos = pd.read_csv(file, header=0, sep=',')
+            dados_brutos.columns = dados_brutos.columns.str.strip()
+            if "pricebuy" not in dados_brutos.columns:
+                file.seek(0)
+                dados_brutos = pd.read_csv(file, header=1, sep=',')
+                dados_brutos.columns = dados_brutos.columns.str.strip()
 
             dados_brutos["pricebuy"] = dados_brutos["pricebuy"].astype(str).str.replace(",", ".", regex=False).astype(float)
             dados_brutos["shares"] = dados_brutos["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
