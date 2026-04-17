@@ -40,16 +40,23 @@ def fetch_weekly_history(tickers_tuple, start_str):
     return df
 
 
-def calc_weekly_roi(orders_df, ticker_col, date_col, pricebuy_col, shares_col):
-    #Devolve um DataFrame com colunas ['date', 'roi_acum'] (semanal, sem timezone).x
-    #Para cada semana (desde a primeira compra até hoje) calcula o ROI acumulado
-    #do portfólio usando o preço histórico real de fecho de cada ticker.
+def calc_weekly_roi(orders_df, ticker_col, date_col, pricebuy_col, shares_col, type_col):
+    # Devolve DataFrame com colunas ['date', 'ROI Acumulado'] (semanal, sem timezone).
+    # Suporta ordens de compra e venda via type_col ('buy'/'sell').
+    # ROI = (valor_atual + total_recebido_vendas - total_investido) / total_investido * 100
     df = orders_df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
     df = df.dropna(subset=[date_col]).sort_values(date_col)
 
+    has_types = type_col and type_col in df.columns
+    if has_types:
+        df[type_col] = df[type_col].astype(str).str.strip().str.lower().fillna("buy")
+    else:
+        df["_type"] = "buy"
+        type_col = "_type"
+
     if df.empty:
-        return pd.DataFrame(columns=["date", "roi_acum"])
+        return pd.DataFrame(columns=["date", "ROI Acumulado"])
 
     min_date = df[date_col].min()
     tickers = tuple(df[ticker_col].unique())
@@ -57,11 +64,10 @@ def calc_weekly_roi(orders_df, ticker_col, date_col, pricebuy_col, shares_col):
     hist = fetch_weekly_history(tickers, str(min_date.date()))
 
     if hist.empty:
-        return pd.DataFrame(columns=["date", "roi_acum"])
+        return pd.DataFrame(columns=["date", "ROI Acumulado"])
 
     today_ts = pd.Timestamp.now().normalize()
 
-    # Usar as datas de mercado do histórico; adicionar hoje se necessário
     market_dates = list(hist.index)
     if not market_dates or pd.Timestamp(market_dates[-1]).normalize() < today_ts:
         market_dates.append(today_ts)
@@ -70,36 +76,99 @@ def calc_weekly_roi(orders_df, ticker_col, date_col, pricebuy_col, shares_col):
     for week_date in market_dates:
         week_ts = pd.Timestamp(week_date).normalize()
 
-        orders_before = df[df[date_col].dt.normalize() <= week_ts]
+        orders_before = df[df[date_col].dt.normalize() <= week_ts].sort_values(date_col)
         if orders_before.empty:
             continue
 
-        total_cost = (
-            orders_before[pricebuy_col].astype(float)
-            * orders_before[shares_col].astype(float)
-        ).sum()
-        if total_cost <= 0:
-            continue
+        # Simular posições acumuladas até esta semana
+        total_invested = 0.0
+        total_received = 0.0
+        positions = {}  # ticker -> (open_shares, avg_cost)
 
-        total_value = 0.0
         for _, row in orders_before.iterrows():
             ticker = str(row[ticker_col])
             shares = float(row[shares_col])
-            buy_price = float(row[pricebuy_col])
+            price = float(row[pricebuy_col])
+            order_type = str(row[type_col])
 
+            cur_shares, cur_avg = positions.get(ticker, (0.0, 0.0))
+
+            if order_type == "buy":
+                total_invested += price * shares
+                new_avg = (cur_avg * cur_shares + price * shares) / (cur_shares + shares)
+                positions[ticker] = (cur_shares + shares, new_avg)
+            elif order_type == "sell":
+                total_received += price * shares
+                positions[ticker] = (max(cur_shares - shares, 0.0), cur_avg)
+
+        if total_invested <= 0:
+            continue
+
+        # Valor atual das posições abertas
+        total_value = 0.0
+        for ticker, (open_shares, avg_cost) in positions.items():
+            if open_shares <= 0:
+                continue
             if ticker in hist.columns:
                 col = hist[ticker].dropna()
                 valid = col[col.index <= week_ts]
-                price = float(valid.iloc[-1]) if not valid.empty else buy_price
+                price = float(valid.iloc[-1]) if not valid.empty else avg_cost
             else:
-                price = buy_price
+                price = avg_cost
+            total_value += open_shares * price
 
-            total_value += shares * price
-
-        roi = (total_value - total_cost) / total_cost * 100
+        roi = (total_value + total_received - total_invested) / total_invested * 100
         roi_series.append({"date": week_ts, "ROI Acumulado": round(roi, 2)})
 
     return pd.DataFrame(roi_series)
+
+
+def calc_portfolio_with_sells(df):
+    # Calcula posições abertas, custo médio ponderado e ganho realizado por ticker.
+    # Processa ordens cronologicamente: compras atualizam o custo médio, vendas realizam ganhos.
+    result = []
+
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"]).sort_values("date")
+
+    if "type" not in df.columns:
+        df["type"] = "buy"
+    df["type"] = df["type"].astype(str).str.strip().str.lower().fillna("buy")
+
+    for ticker in df["ticker"].unique():
+        bloco = df[df["ticker"] == ticker].sort_values("date")
+
+        avg_cost = 0.0
+        open_shares = 0.0
+        realized_gain = 0.0
+        total_invested = 0.0
+        total_received = 0.0
+
+        for _, row in bloco.iterrows():
+            price = float(row["pricebuy"])
+            shares = float(row["shares"])
+            order_type = str(row["type"])
+
+            if order_type == "buy":
+                total_invested += price * shares
+                avg_cost = (avg_cost * open_shares + price * shares) / (open_shares + shares)
+                open_shares += shares
+            elif order_type == "sell":
+                total_received += price * shares
+                realized_gain += (price - avg_cost) * shares
+                open_shares = max(open_shares - shares, 0.0)
+
+        result.append({
+            "ticker": ticker,
+            "open_shares": round(open_shares, 6),
+            "avg_cost": round(avg_cost, 4),
+            "realized_gain": round(realized_gain, 2),
+            "total_invested": round(total_invested, 2),
+            "total_received": round(total_received, 2),
+        })
+
+    return result
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_sp500_weekly_roi(start_date_str):

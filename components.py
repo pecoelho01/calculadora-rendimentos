@@ -10,7 +10,8 @@ from logic import (
     _to_float,
     calc_weekly_roi,
     fetch_sp500_weekly_roi,
-    _strip_tz
+    _strip_tz,
+    calc_portfolio_with_sells,
 )
 
 # Limpar o ticket
@@ -174,11 +175,12 @@ def render_csv_calc():
     st.info(
         "**Como preencher o CSV:**\n\n"
         "O ficheiro deve ter as seguintes colunas, pela mesma ordem:\n\n"
-        "- **date** — data de compra no formato `YYYY-MM-DD` (ex: `2024-03-15`)\n"
+        "- **date** — data da ordem no formato `YYYY-MM-DD` (ex: `2024-03-15`)\n"
         "- **ticker** — símbolo do ativo no Yahoo Finance (ex: `SXR8.DE`, `TSLA`)\n"
         "- **name** — nome do ativo (ex: `iShares S&P 500`)\n"
-        "- **pricebuy** — preço de compra por unidade (ex: `150.50`). Usa ponto ou vírgula como separador decimal\n"
-        "- **shares** — número de unidades compradas (ex: `10`)\n\n"
+        "- **pricebuy** — preço por unidade (ex: `150.50`). Nas vendas, representa o preço de venda. Usa ponto ou vírgula como separador decimal\n"
+        "- **shares** — número de unidades (ex: `10`)\n"
+        "- **type** — tipo de ordem: `buy` para compra ou `sell` para venda (omitir equivale a `buy`)\n\n"
         "Podes fazer o download do modelo abaixo para ver um exemplo preenchido."
     )
 
@@ -191,11 +193,17 @@ def render_csv_calc():
 
             df["pricebuy"] = df["pricebuy"].astype(str).str.replace(",", ".", regex=False).astype(float)
             df["shares"] = df["shares"].astype(str).str.replace(",", ".", regex=False).astype(float)
+            if "type" in df.columns:
+                df["type"] = df["type"].astype(str).str.strip().str.lower().fillna("buy")
+            else:
+                df["type"] = "buy"
+
             colunaDate = df["date"]
             colunaTicker = df["ticker"]
             colunaName = df.get("name")
             colunaPriceBuy = df["pricebuy"]
             colunaShares = df["shares"]
+            colunaType = df["type"]
 
             dados_finais = []
 
@@ -203,82 +211,125 @@ def render_csv_calc():
                 type_by_ticker = _build_type_map(colunaTicker)
 
                 for i in range(len(colunaDate)):
+                    order_type = colunaType.iloc[i] if hasattr(colunaType, "iloc") else colunaType[i]
+                    if order_type == "sell":
+                        dados_finais.append({
+                            "Date": colunaDate[i],
+                            "Ticker": colunaTicker[i],
+                            "Name": colunaName[i] if colunaName is not None else "",
+                            "Tipo de ativo": type_by_ticker.get(ticker_key(colunaTicker[i]), "N/A"),
+                            "Price": colunaPriceBuy[i],
+                            "Shares": colunaShares[i],
+                            "Type": "SELL",
+                            "GAIN(euros)": "-",
+                            "ROI %": "-",
+                        })
+                        continue
 
                     results = process_ticket(colunaTicker[i], colunaPriceBuy[i], colunaShares[i])
 
-                    dados_finais.append({  
+                    dados_finais.append({
                         "Date": colunaDate[i],
-                        "Ticker": colunaTicker[i], 
+                        "Ticker": colunaTicker[i],
                         "Name": colunaName[i] if colunaName is not None else "",
                         "Tipo de ativo": type_by_ticker.get(ticker_key(colunaTicker[i]), "N/A"),
-                        "Price Buy": colunaPriceBuy[i],
+                        "Price": colunaPriceBuy[i],
                         "Shares": colunaShares[i],
-                        "GAIN(euros)": round(results[0],2),
-                        "ROI %": round(results[1],2)
+                        "Type": "BUY",
+                        "GAIN(euros)": round(results[0], 2),
+                        "ROI %": round(results[1], 2),
                     })
 
                 st.subheader("Resumo do Portfólio")
                 df_final_ = pd.DataFrame(dados_finais)
                 st.dataframe(df_final_, use_container_width=True)
 
-                st.subheader("ROI por ativos - comparação")
-                st.bar_chart(data=df_final_, x="Date", y="ROI %", color="Ticker")
+                buys_only = df_final_[df_final_["Type"] == "BUY"].copy()
+                if not buys_only.empty:
+                    buys_only["ROI %"] = pd.to_numeric(buys_only["ROI %"], errors="coerce")
+                    st.subheader("ROI por ativos - comparação (compras)")
+                    st.bar_chart(data=buys_only, x="Date", y="ROI %", color="Ticker")
 
             if st.button("Calcular portfólio"):
-                combos = []
-                type_by_ticker = _build_type_map(colunaTicker.unique())
+                portfolio_data = calc_portfolio_with_sells(df)
+                all_tickers = [p["ticker"] for p in portfolio_data]
+                open_tickers = [p["ticker"] for p in portfolio_data if p["open_shares"] > 0]
+                type_by_ticker = _build_type_map(all_tickers)
 
-                for ticker in colunaTicker.unique():
+                last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in open_tickers}
+
+                combos = []
+                for p in portfolio_data:
+                    ticker = p["ticker"]
+                    open_shares = p["open_shares"]
+                    avg_cost = p["avg_cost"]
+                    realized_gain = p["realized_gain"]
+
                     bloco = df[df["ticker"] == ticker]
                     name_value = bloco["name"].iloc[0] if "name" in bloco.columns else ""
-                    total_shares = bloco["shares"].sum()
-                    total_cost = (bloco["pricebuy"] * bloco["shares"]).sum()
 
-                    current_price = yf.Ticker(ticker).fast_info["last_price"]
-                    
-                    total_value = total_shares * current_price
-                    gain = total_value - total_cost
-                    roi = (gain / total_cost) * 100 if total_cost else 0
+                    if open_shares > 0 and ticker in last_prices:
+                        current_price = last_prices[ticker]
+                        current_value = open_shares * current_price
+                        unrealized_gain = (current_price - avg_cost) * open_shares
+                        cost_open = avg_cost * open_shares
+                        roi_open = (unrealized_gain / cost_open) * 100 if cost_open else 0
+                    else:
+                        current_price = 0.0
+                        current_value = 0.0
+                        unrealized_gain = 0.0
+                        roi_open = 0.0
+
+                    total_gain = realized_gain + unrealized_gain
+                    roi_total_ticker = (total_gain / p["total_invested"]) * 100 if p["total_invested"] else 0
 
                     combos.append({
                         "Ticker": ticker,
                         "Name": name_value,
                         "Tipo de ativo": type_by_ticker.get(ticker_key(ticker), "N/A"),
-                        "Qtd Total": round(total_shares, 2),
-                        "Preço Médio": round(total_cost / total_shares, 4) if total_shares else 0,
-                        "Preço Atual": round(current_price, 4),
-                        "Custo Total": round(total_cost, 2),
-                        "Valor Atual": round(total_value, 2),
-                        "GAIN": round(gain, 2),
-                        "ROI %": round(roi, 2)
+                        "Qtd Aberta": round(open_shares, 2),
+                        "Custo Médio": round(avg_cost, 4),
+                        "Preço Atual": round(current_price, 4) if open_shares > 0 else "-",
+                        "Valor Atual": round(current_value, 2),
+                        "Ganho Realizado (€)": round(realized_gain, 2),
+                        "Ganho Não Realizado (€)": round(unrealized_gain, 2),
+                        "Ganho Total (€)": round(total_gain, 2),
+                        "ROI Total %": round(roi_total_ticker, 2),
                     })
 
                 if combos:
-                    last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in colunaTicker.unique()}
-
-                    custo_total = (df["pricebuy"] * df["shares"]).sum()
-                    valor_atual = sum(df.loc[i, "shares"] * last_prices[df.loc[i, "ticker"]] for i in df.index)
-                    ganho_total = valor_atual - custo_total
-                    roi_total = (ganho_total / custo_total) * 100 if custo_total else 0
-                    valor_investido = valor_atual - ganho_total
+                    total_realized = sum(p["realized_gain"] for p in portfolio_data)
+                    total_unrealized = sum(
+                        (last_prices.get(p["ticker"], p["avg_cost"]) - p["avg_cost"]) * p["open_shares"]
+                        for p in portfolio_data if p["open_shares"] > 0
+                    )
+                    total_current_value = sum(
+                        last_prices.get(p["ticker"], 0) * p["open_shares"]
+                        for p in portfolio_data if p["open_shares"] > 0
+                    )
+                    total_invested_all = sum(p["total_invested"] for p in portfolio_data)
+                    total_gain_all = total_realized + total_unrealized
+                    roi_total_all = (total_gain_all / total_invested_all) * 100 if total_invested_all else 0
 
                     st.subheader("Rentabilidade total do portfólio")
-                    st.metric("ROI Total (%)", round(roi_total, 2))
-                    st.metric("Total investido (€)", round(valor_investido, 2))
-                    st.metric("Ganho Total (€)", round(ganho_total, 2))
-                    st.metric("Valor Atual (€)", round(valor_atual, 2))
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Ganho Realizado (€)", f"{total_realized:,.2f}")
+                        st.metric("Ganho Não Realizado (€)", f"{total_unrealized:,.2f}")
+                    with col2:
+                        st.metric("Valor Atual Posição Aberta (€)", f"{total_current_value:,.2f}")
+                        st.metric("ROI Total do Portfólio (%)", f"{roi_total_all:.2f}%")
 
-                    # Gráfico de ROI acumulado semana a semana com preços históricos reais
                     with st.spinner("A carregar evolução semanal do ROI..."):
                         df_weekly_roi = calc_weekly_roi(
-                            df, "ticker", "date", "pricebuy", "shares"
+                            df, "ticker", "date", "pricebuy", "shares", type_col="type"
                         )
                     if not df_weekly_roi.empty:
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
-                        start_date = df_weekly_roi["date"].min() # buscar a data de início dos rendimentos
-                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date())) # o DataFrame com os dados do indice desde a data certa
-                        df_weekly_sorted = df_weekly_roi.copy() # Faz uma cópia do DataFrame dos dados 
-                        df_weekly_sorted["date"] = pd.to_datetime(df_weekly_sorted["date"]).dt.normalize().astype("datetime64[ns]") # Coloca a data num determinado tipo 
+                        start_date = df_weekly_roi["date"].min()
+                        df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
+                        df_weekly_sorted = df_weekly_roi.copy()
+                        df_weekly_sorted["date"] = pd.to_datetime(df_weekly_sorted["date"]).dt.normalize().astype("datetime64[ns]")
                         df_sp500_sorted = df_sp500.copy()
                         df_sp500_sorted["date"] = pd.to_datetime(df_sp500_sorted["date"]).dt.normalize().astype("datetime64[ns]")
                         df_weekly_sorted = df_weekly_sorted.sort_values("date")
@@ -288,18 +339,20 @@ def render_csv_calc():
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
-                    st.subheader("ROI consolidado por ticker")
-                    st.bar_chart(data=combos, x="Ticker", y="ROI %", color="Ticker")
 
-                    st.subheader("Divisão do portfólio")
-                    df_combo = pd.DataFrame(combos)
-                    data = {
-                        "Categoria": df_combo["Ticker"],
-                        "Valores": df_combo["Valor Atual"]
-                    }
-                    df_pizza = pd.DataFrame(data)
-                    fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
-                    st.plotly_chart(fig)
+                    open_combos = [c for c in combos if c["Qtd Aberta"] > 0]
+                    if open_combos:
+                        st.subheader("Ganho não realizado por ticker (posição aberta)")
+                        st.bar_chart(data=open_combos, x="Ticker", y="Ganho Não Realizado (€)", color="Ticker")
+
+                        st.subheader("Divisão do portfólio (posição aberta)")
+                        df_combo = pd.DataFrame(open_combos)
+                        df_pizza = pd.DataFrame({
+                            "Categoria": df_combo["Ticker"],
+                            "Valores": df_combo["Valor Atual"],
+                        })
+                        fig = px.pie(df_pizza, values="Valores", names="Categoria", hole=0.5)
+                        st.plotly_chart(fig)
             
         except FileNotFoundError:
            st.error("Arquivo não compatível")
