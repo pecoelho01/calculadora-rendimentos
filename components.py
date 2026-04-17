@@ -142,7 +142,9 @@ def render_manual_calc(my_tickers):
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
                         start_date = df_weekly_roi["date"].min()
                         df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
-                        df_merge = df_weekly_roi.merge(df_sp500, on="date", how="left")
+                        df_weekly_sorted = df_weekly_roi.sort_values("date")
+                        df_sp500_sorted = df_sp500.sort_values("date")
+                        df_merge = pd.merge_asof(df_weekly_sorted, df_sp500_sorted, on="date", direction="nearest")
                         st.line_chart(df_merge, x="date", y=["ROI Acumulado", "ROI SP500 (%)"])
 
                     st.subheader("Resumo consolidado por ticker")
@@ -271,9 +273,10 @@ def render_csv_calc():
                         st.subheader("Evolução do ROI do portfólio (semana a semana)")
                         start_date = df_weekly_roi["date"].min()
                         df_sp500 = fetch_sp500_weekly_roi(str(start_date.date()))
-                        df_merge = df_weekly_roi.merge(df_sp500, on="date", how="left")
+                        df_weekly_sorted = df_weekly_roi.sort_values("date")
+                        df_sp500_sorted = df_sp500.sort_values("date")
+                        df_merge = pd.merge_asof(df_weekly_sorted, df_sp500_sorted, on="date", direction="nearest")
                         st.line_chart(df_merge, x="date", y=["ROI Acumulado", "ROI SP500 (%)"])
-
 
                     st.subheader("Resumo consolidado por ticker")
                     st.dataframe(combos, use_container_width=True)
