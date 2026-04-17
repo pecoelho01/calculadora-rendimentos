@@ -228,7 +228,13 @@ def render_csv_calc():
                 open_tickers = [p["ticker"] for p in portfolio_data if p["open_shares"] > 0]
                 type_by_ticker = _build_type_map(all_tickers)
 
-                last_prices = {t: yf.Ticker(t).fast_info["last_price"] for t in open_tickers}
+                last_prices = {}
+                for t in open_tickers:
+                    try:
+                        last_prices[t] = yf.Ticker(t).fast_info["last_price"]
+                    except Exception:
+                        st.warning(f"Não foi possível obter o preço atual de {t}. A usar custo médio como fallback.")
+                        last_prices[t] = next(p["avg_cost"] for p in portfolio_data if p["ticker"] == t)
 
                 combos = []
                 for p in portfolio_data:
