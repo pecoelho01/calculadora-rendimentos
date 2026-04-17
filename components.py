@@ -57,11 +57,12 @@ def render_manual_calc(my_tickers):
     if submit:
         type_by_ticker = {}
         for i in range(int(qnt_orders)):
+            t_clean = ""
             try:
                 if st.session_state[f"sel_{i}"] == "Outro ativo (digite...)":
-                      ticker_final = st.session_state[f"man_{i}"] 
+                    ticker_final = st.session_state[f"man_{i}"]
                 else:
-                    st.session_state[f"sel_{i}"]
+                    ticker_final = st.session_state[f"sel_{i}"]
 
                 t_clean = ticker_final.split("-")[0].strip()
                 t_key = ticker_key(t_clean)
@@ -79,13 +80,13 @@ def render_manual_calc(my_tickers):
                     "Ticker": t_clean,
                     "Tipo de ativo": type_by_ticker.get(t_key, "N/A"),
                     "Qtd": qntd,
-                    "Preço Compra": round(price_buy, 2) + "€",
-                    "Preço Atual": round(results[2], 2) + "€",
+                    "Preço Compra": round(price_buy, 2),
+                    "Preço Atual": round(results[2], 2),
                     "Ganho": round(results[0], 2),
-                    "ROI (%)": round(results[1],2) + "%"
+                    "ROI (%)": round(results[1], 2),
                 })
             except Exception as e:
-                st.error(f"Erro no ticker {i+1} ({t_clean}): {e}")
+                st.error(f"Erro no ticker {i+1} ({t_clean or 'desconhecido'}): {e}")
 
         if dados_ordens:
             st.subheader("Resumo do Portfólio")
@@ -314,11 +315,11 @@ def render_csv_calc():
                     st.subheader("Rentabilidade total do portfólio")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Ganho Realizado (€)", f"{total_realized:,.2f}")
-                        st.metric("Ganho Não Realizado (€)", f"{total_unrealized:,.2f}")
+                        st.metric("Ganho Realizado (€)", round(total_realized, 2))
+                        st.metric("Ganho Não Realizado (€)", round(total_unrealized, 2))
                     with col2:
-                        st.metric("Valor Atual Posição Aberta (€)", f"{total_current_value:,.2f}")
-                        st.metric("ROI Total do Portfólio (%)", f"{roi_total_all:.2f}%")
+                        st.metric("Valor Atual Posição Aberta (€)", round(total_current_value, 2))
+                        st.metric("ROI Total do Portfólio (%)", round(total_current_value, 2))
 
                     with st.spinner("A carregar evolução semanal do ROI..."):
                         df_weekly_roi = calc_weekly_roi(
@@ -356,43 +357,6 @@ def render_csv_calc():
             
         except FileNotFoundError:
            st.error("Arquivo não compatível")
-
-
-def summary():
-    st.header("Notas explicativas")
-
-    st.subheader("Preço Atual")
-    st.write("Obtido em tempo real via Yahoo Finance, com base no último preço de fecho disponível para o ticker introduzido.")
-
-    st.subheader("Ganho (€)")
-    st.write("Diferença entre o valor atual e o valor investido:")
-    st.latex(r"Ganho = (Pre\c{c}o\ Atual - Pre\c{c}o\ Compra) \times Quantidade")
-
-    st.subheader("ROI (%)")
-    st.write("Retorno sobre o investimento em percentagem:")
-    st.latex(r"ROI\ (\%) = \frac{Pre\c{c}o\ Atual - Pre\c{c}o\ Compra}{Pre\c{c}o\ Compra} \times 100")
-
-    st.subheader("Custo Total")
-    st.write("Valor total investido numa posição:")
-    st.latex(r"Custo\ Total = Pre\c{c}o\ Compra \times Quantidade")
-
-    st.subheader("Valor Atual")
-    st.write("Valor atual de uma posição:")
-    st.latex(r"Valor\ Atual = Pre\c{c}o\ Atual \times Quantidade")
-
-    st.subheader("ROI Total do Portfólio")
-    st.write("Calculado sobre o conjunto de todas as ordens:")
-    st.latex(r"ROI\ Total\ (\%) = \frac{Valor\ Atual\ Total - Custo\ Total}{Custo\ Total} \times 100")
-
-    st.subheader("Evolução semanal do ROI")
-    st.write("Para cada semana desde a primeira compra, é calculado o ROI acumulado do portfólio usando os preços históricos reais de fecho do Yahoo Finance, semana a semana.")
-
-def about():
-    st.header("Sobre mim")
-    st.write("Olá! Sou o **Pedro**, estudante de **Engenharia Informática**.")
-    st.write("Criei esta calculadora como projeto pessoal, com o objetivo de ter uma ferramenta simples e prática para acompanhar o desempenho de investimentos financeiros em tempo real.")
-    st.write("Se tiveres sugestões, encontrares bugs ou quiseres contribuir, estás à vontade para abrir uma issue ou um pull request no GitHub!")
-    st.markdown("🔗 [github.com/pecoelho01](https://github.com/pecoelho01)")
 
 
 

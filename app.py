@@ -7,6 +7,11 @@ from components import (
     about,
 )
 
+from textonly import (
+    about,
+    summary
+)
+
 st.set_page_config(
     page_title="Calculadora de Rendimentos",
     page_icon="📈",
