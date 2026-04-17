@@ -7,28 +7,36 @@ def summary():
     st.subheader("Preço Atual")
     st.write("Obtido em tempo real via Yahoo Finance, com base no último preço de fecho disponível para o ticker introduzido.")
 
-    st.subheader("Ganho (€)")
-    st.write("Diferença entre o valor atual e o valor investido:")
-    st.latex(r"Ganho = (Pre\c{c}o\ Atual - Pre\c{c}o\ Compra) \times Quantidade")
+    st.subheader("Tipo de ordem (type)")
+    st.write("Cada linha do CSV deve ter um campo `type` com o valor `buy` (compra) ou `sell` (venda). Se omitido, é assumido `buy`. Nas linhas de venda, o campo `pricebuy` representa o preço a que vendeste.")
 
-    st.subheader("ROI (%)")
-    st.write("Retorno sobre o investimento em percentagem:")
-    st.latex(r"ROI\ (\%) = \frac{Pre\c{c}o\ Atual - Pre\c{c}o\ Compra}{Pre\c{c}o\ Compra} \times 100")
+    st.subheader("Custo Médio Ponderado")
+    st.write("Calculado apenas com as ordens de compra, ponderando o preço pela quantidade em cada ordem. Atualiza-se a cada nova compra:")
+    st.latex(r"Custo\ M\acute{e}dio = \frac{\sum (Pre\c{c}o\ Compra_i \times Qtd_i)}{\sum Qtd_i}")
 
-    st.subheader("Custo Total")
-    st.write("Valor total investido numa posição:")
-    st.latex(r"Custo\ Total = Pre\c{c}o\ Compra \times Quantidade")
+    st.subheader("Ganho Realizado (€)")
+    st.write("Lucro já concretizado ao vender. Calculado com base no custo médio ponderado no momento da venda:")
+    st.latex(r"Ganho\ Realizado = (Pre\c{c}o\ Venda - Custo\ M\acute{e}dio) \times Qtd\ Vendida")
 
-    st.subheader("Valor Atual")
-    st.write("Valor atual de uma posição:")
-    st.latex(r"Valor\ Atual = Pre\c{c}o\ Atual \times Quantidade")
+    st.subheader("Ganho Não Realizado (€)")
+    st.write("Lucro potencial das posições ainda em carteira. Só se torna real quando venderes:")
+    st.latex(r"Ganho\ N\~ao\ Realizado = (Pre\c{c}o\ Atual - Custo\ M\acute{e}dio) \times Qtd\ Aberta")
 
-    st.subheader("ROI Total do Portfólio")
-    st.write("Calculado sobre o conjunto de todas as ordens:")
-    st.latex(r"ROI\ Total\ (\%) = \frac{Valor\ Atual\ Total - Custo\ Total}{Custo\ Total} \times 100")
+    st.subheader("Ganho Total (€)")
+    st.write("Soma do ganho realizado com o ganho não realizado:")
+    st.latex(r"Ganho\ Total = Ganho\ Realizado + Ganho\ N\~ao\ Realizado")
+
+    st.subheader("Valor Atual da Posição Aberta (€)")
+    st.write("Valor de mercado atual das unidades que ainda tens em carteira:")
+    st.latex(r"Valor\ Atual = Pre\c{c}o\ Atual \times Qtd\ Aberta")
+
+    st.subheader("ROI Total do Portfólio (%)")
+    st.write("Retorno total sobre todo o capital alguma vez investido, incluindo ganhos realizados e não realizados:")
+    st.latex(r"ROI\ Total\ (\%) = \frac{Ganho\ Total}{Total\ Investido} \times 100")
 
     st.subheader("Evolução semanal do ROI")
-    st.write("Para cada semana desde a primeira compra, é calculado o ROI acumulado do portfólio usando os preços históricos reais de fecho do Yahoo Finance, semana a semana.")
+    st.write("Para cada semana desde a primeira ordem, é reconstruída a posição do portfólio (considerando compras e vendas até essa data) e calculado o ROI com os preços históricos reais do Yahoo Finance:")
+    st.latex(r"ROI\ Semanal\ (\%) = \frac{Valor\ Atual + Recebido\ Vendas - Total\ Investido}{Total\ Investido} \times 100")
 
 def about():
     st.header("Sobre mim")
