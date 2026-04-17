@@ -137,6 +137,7 @@ def render_manual_calc(my_tickers):
                     st.metric("Total investido (€)", round(total_cost, 2))
                     st.metric("Ganho Total (€)", round(total_gain, 2))
                     st.metric("Valor Atual (€)", round(total_value, 2))
+                    st.bar.chart(combos, x="ticker", y="ROI %")
 
                     
 
