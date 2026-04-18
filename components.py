@@ -359,7 +359,9 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.ln() 
 
     pdf.set_font("Helvetica", style="B", size=12)
-    pdf.cell(0,10, "Mais detalhes", ln=1)
+    pdf.cell(0,10, "Mais detalhes")
+
+    pdf.ln()
 
     pdf.set_font("Helvetica", style="B", size=8)
 
