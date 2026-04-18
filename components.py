@@ -287,7 +287,7 @@ def render_csv_calc():
 
                     st.subheader("Rentabilidade total do portfólio")
 
-                    file = bytes(generatePDF())
+                    file = bytes(generatePDF(total_realized, total_unrealized, total_current_value, roi_total_all))
 
                     st.download_button(
                         label="Donwload do relatório do Portfólio",
@@ -342,13 +342,13 @@ def render_csv_calc():
            st.error("Arquivo não compatível")
 
 
-def generatePDF():
+def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_all):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0,10,"Relatório da perfomance do portfólio", ln=1)
     pdf.set_font("Helvetica", size=12)
-    pdf.cell(0, 10,"olá a todos")
+    pdf.cell(0, 10,f"Rentabilidade ROI : {roi_total_all}%")
     return pdf.output()
     
 
