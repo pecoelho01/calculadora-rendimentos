@@ -349,9 +349,9 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0,10,"Relatório da perfomance do portfólio", ln=1)
     pdf.set_font("Helvetica", size=12)
     pdf.cell(0, 10,f"Rentabilidade ROI : {round(roi_total_all,2)}%", ln=1)
-    pdf.cell(0, 10,f"Valor atual do portfólio : {round(total_current_value, 2)}€", ln=1)
-    pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)}€", ln=1)
-    pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)}€", ln=1)
+    pdf.cell(0, 10,f"Valor atual do portfólio : {round(total_current_value, 2)}EUR", ln=1)
+    pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)}EUR", ln=1)
+    pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)}EUR", ln=1)
     return pdf.output()
     
 
