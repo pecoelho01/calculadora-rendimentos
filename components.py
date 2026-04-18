@@ -2,6 +2,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import yfinance as yf
+from fpdf import FPDF
+
 
 from logic import (
     process_ticket,
@@ -137,7 +139,7 @@ def render_manual_calc(my_tickers):
                     st.metric("Total investido (€)", round(total_cost, 2))
                     st.metric("Ganho Total (€)", round(total_gain, 2))
                     st.metric("Valor Atual (€)", round(total_value, 2))
-                    st.bar_chart(data=combos, x="ticker", y="ROI %", color="Ticker")
+                    st.bar_chart(combos, x="ticker", y="ROI %", color="Ticker")
 
                     
 
@@ -284,6 +286,16 @@ def render_csv_calc():
                     roi_total_all = (total_gain_all / total_invested_all) * 100 if total_invested_all else 0
 
                     st.subheader("Rentabilidade total do portfólio")
+
+                    file = bytes(generatePDF())
+
+                    st.download_button(
+                        label="Donwload do relatório do Portfólio",
+                        data=file,
+                        file_name="relatorioPortfolio.pdf",
+                        mime="application/pdf"
+                    )
+
                     col1, col2 = st.columns(2)
                     with col1:
                         st.metric("Ganho Realizado (€)", round(total_realized, 2))
@@ -330,6 +342,12 @@ def render_csv_calc():
            st.error("Arquivo não compatível")
 
 
+def generatePDF():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica")
+    pdf.cell("olá a todos")
+    return pdf.output()
 
 #def render_chatbot_gemini():
     
