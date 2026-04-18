@@ -357,15 +357,15 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     colunas = [
         ("Ticker", 18),
         ("Name", 25),
-        ("Tipo de ativo", 20),
+        ("Tipo", 20),
         ("Qtd Aberta", 15),
-        ("Custo Medio ", 18),
-        ("Preco Atual ", 18),
-        ("Valor Atual ", 18),
-        ("Ganho Realizado", 20),
-        ("Ganho Nao Realizado ", 20),
-        ("Ganho Total ", 18),
-        ("ROI Total (%)", 15),
+        ("Custo Medio", 18),
+        ("Preco Atual", 18),
+        ("Valor Atual", 18),
+        ("G. Realizado", 20),
+        ("G. Nao Real.", 20),
+        ("G. Total", 18),
+        ("ROI %", 15),
     ]
     df_combos = pd.DataFrame(combos)
 
