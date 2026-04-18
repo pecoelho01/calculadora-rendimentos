@@ -353,7 +353,7 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)} EUR", ln=1)
     pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
 
-    pdf.set_font("Helvetica", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
 
     df_combos = pd.DataFrame(combos)
     df_combos = df_combos.drop(columns=["Custo Médio", "Ticker"])
@@ -371,9 +371,10 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     ]
 
     for col, w in colunas:
-        pdf.cell(w, 8, col, border=1, ln=0, align="C")
+        pdf.cell(w, 8, col, border=1, ln=0, align="C", )
     pdf.ln()
 
+    pdf.set_font("Helvetica", size=8)
 
     for _, row in df_combos.iterrows():
         for (col, w), val in zip(colunas, row):
