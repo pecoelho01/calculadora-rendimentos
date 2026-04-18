@@ -345,8 +345,9 @@ def render_csv_calc():
 def generatePDF():
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica")
+    pdf.set_font("Helvetica", style="B", size=16)
     pdf.header("Relatório da perfomance do portfólio")
+    pdf.set_font("Helvetica", size=12)
     pdf.cell(0, 10,"olá a todos")
     return pdf.output()
     
