@@ -371,6 +371,11 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
         ("ROI %", 15),
     ]
 
+    for col, w in colunas:
+        pdf.cell(w, 8, col, border=1, ln=0, align="C")
+    pdf.ln()
+
+
     for _, row in df_combos.iterrows():
         for (col, w), val in zip(colunas, row):
             pdf.cell(w, 8, str(val), border=1, ln=0, align="C")
