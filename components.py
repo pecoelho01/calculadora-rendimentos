@@ -346,7 +346,7 @@ def generatePDF():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica")
-    pdf.cell("olá a todos")
+    pdf.cell(0, 10,"olá a todos")
     return pdf.output()
 
 #def render_chatbot_gemini():
