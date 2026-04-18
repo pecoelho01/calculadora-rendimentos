@@ -287,7 +287,7 @@ def render_csv_calc():
 
                     st.subheader("Rentabilidade total do portfólio")
 
-                    file = bytes(generatePDF(total_realized, total_unrealized, total_current_value, roi_total_all))
+                    file = bytes(generatePDF(total_realized, total_unrealized, total_current_value, roi_total_all, combos))
 
                     st.download_button(
                         label="Donwload do relatório do Portfólio",
@@ -342,16 +342,23 @@ def render_csv_calc():
            st.error("Arquivo não compatível")
 
 
-def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_all):
+def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_all, combos):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0,10,"Relatório da perfomance do portfólio", ln=1)
     pdf.set_font("Helvetica", size=10)
     pdf.cell(0, 10,f"Rentabilidade ROI : {round(roi_total_all,2)}%", ln=1)
-    pdf.cell(0, 10,f"Valor atual do portfólio : {round(total_current_value, 2)}EUR", ln=1)
-    pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)}EUR", ln=1)
-    pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)}EUR", ln=1)
+    pdf.cell(0, 10,f"Valor atual do portfólio : {round(total_current_value, 2)} EUR", ln=1)
+    pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)} EUR", ln=1)
+    pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
+
+    df_combos = combos
+    for col in df_combos.columns:
+        pdf.cell(40,10, col, border=1, ln=0)
+    pdf.ln()
+
+    
     return pdf.output()
     
 
