@@ -357,9 +357,24 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
 
     df_combos = pd.DataFrame(combos)
     df_combos = df_combos.drop(columns=["Custo Médio"])
+    colunas = [
+        ("Ticker", 18),
+        ("Name", 25),
+        ("Tipo", 20),
+        ("Qtd Aberta", 18),
+        ("Custo Medio", 18),
+        ("Preco Atual", 18),
+        ("Valor Atual", 18),
+        ("G. Realizado", 20),
+        ("G. Nao Real.", 20),
+        ("G. Total", 18),
+        ("ROI %", 15),
+    ]
 
-    for (_, row) in df_combos.iterrows():
-        pdf.cell(18,8, row, border=1, ln=0, align="C")
+    for _, row in df_combos.iterrows():
+        for (col, w), val in zip(colunas, row):
+            pdf.cell(w, 8, str(val), border=1, ln=0, align="C")
+        pdf.ln()
     
     return pdf.output()
     
