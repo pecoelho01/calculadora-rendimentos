@@ -347,6 +347,7 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.add_page()
     pdf.set_font("Helvetica", style="B", size=16)
     pdf.cell(0,10,"Relatório da perfomance do portfólio", ln=1)
+    pdf.ln()
     pdf.set_font("Helvetica", style="B", size=12)
     pdf.cell(0,10, "Dados principais", ln=1)
     pdf.set_font("Helvetica", size=10)
