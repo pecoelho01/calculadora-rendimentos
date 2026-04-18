@@ -260,14 +260,14 @@ def render_csv_calc():
                     combos.append({
                         "Ticker": ticker,
                         "Name": name_value,
-                        "Tipo de ativo": type_by_ticker.get(ticker_key(ticker), "N/A"),
+                        "Tipo": type_by_ticker.get(ticker_key(ticker), "N/A"),
                         "Qtd Aberta": round(open_shares, 2),
-                        "Custo Médio (EUR)": round(avg_cost, 4),
-                        "Preco Atual (EUR)": round(current_price, 4) if open_shares > 0 else "-",
-                        "Valor Atual (EUR)": round(current_value, 2),
-                        "Ganho Realizado (EUR)": round(realized_gain, 2),
-                        "Ganho Nao Realizado (EUR) ": round(unrealized_gain, 2),
-                        "Ganho Total (EUR)": round(total_gain, 2),
+                        "Custo Médio": round(avg_cost, 4),
+                        "Preco Atual": round(current_price, 4) if open_shares > 0 else "-",
+                        "Valor Atual": round(current_value, 2),
+                        "Ganho Realizado": round(realized_gain, 2),
+                        "Ganho Nao Realizado": round(unrealized_gain, 2),
+                        "Ganho Total": round(total_gain, 2),
                         "ROI Total (%)": round(roi_total_ticker, 2),
                     })
 
@@ -354,28 +354,12 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
 
     pdf.set_font("Helvetica", size=8)
-    colunas = [
-        ("Ticker", 18),
-        ("Name", 25),
-        ("Tipo", 20),
-        ("Qtd Aberta", 16),
-        ("Preco Atual", 18),
-        ("Valor Atual", 18),
-        ("G. Realizado", 20),
-        ("G. Nao Real.", 20),
-        ("G. Total", 18),
-        ("ROI %", 15),
-    ]
 
-    
     df_combos = pd.DataFrame(combos)
-    df_combos = df_combos.drop(columns=["Custo Médio (EUR)"])
-    for (col, w) in colunas:
-        pdf.cell(w,8, col, border=1, ln=0, align="C")
-    pdf.ln()
-    
-    #for  (_, row) in df_combos.iterrows():
-      #  pdf.cell()
+    df_combos = df_combos.drop(columns=["Custo Médio"])
+
+    for (_, row) in df_combos.iterrows():
+        pdf.cell(18,8, row, border=1, ln=0, align="C")
     
     return pdf.output()
     
