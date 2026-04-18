@@ -352,8 +352,8 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0, 10,f"Valor atual do portfólio : {round(total_current_value, 2)} EUR", ln=1)
     pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)} EUR", ln=1)
     pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
-    for i in range(3):
-        pdf.ln() 
+   
+    pdf.ln() 
 
     pdf.set_font("Helvetica", style="B", size=8)
 
