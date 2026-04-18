@@ -353,12 +353,28 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)} EUR", ln=1)
     pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
 
+    pdf.set_font("Helvetica", size=8)
+    colunas = [
+        ("Ticker", 18),
+        ("Name", 25),
+        ("Tipo de ativo", 20),
+        ("Qtd Aberta", 15),
+        ("Custo Medio (EUR)", 18),
+        ("Preco Atual (EUR)", 18),
+        ("Valor Atual (EUR)", 18),
+        ("Ganho Realizado (EUR)", 20),
+        ("Ganho Nao Realizado (EUR)", 20),
+        ("Ganho Total (EUR)", 18),
+        ("ROI Total (%)", 15),
+    ]
     df_combos = pd.DataFrame(combos)
-    for col in df_combos.columns:
-        pdf.cell(20,10, col, border=1, ln=0)
+
+    for (col, w) in colunas:
+        pdf.cell(w,8, col, border=1, ln=0, align="C")
     pdf.ln()
     
-
+    #for  (_, row) in df_combos.iterrows():
+      #  pdf.cell()
     
     return pdf.output()
     
