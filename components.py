@@ -327,7 +327,7 @@ def render_csv_calc():
                     open_combos = [c for c in combos if c["Qtd Aberta"] > 0]
                     if open_combos:
                         st.subheader("Ganho não realizado por ticker (posição aberta)")
-                        st.bar_chart(data=open_combos, x="Ticker", y="Ganho Não Realizado (€)", color="Ticker")
+                        st.bar_chart(data=open_combos, x="Ticker", y="Ganho Nao Realizado (EUR)", color="Ticker")
 
                         st.subheader("Divisão do portfólio (posição aberta)")
                         df_combo = pd.DataFrame(open_combos)
