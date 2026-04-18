@@ -362,7 +362,6 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
         ("Name", 25),
         ("Tipo", 20),
         ("Qtd Aberta", 18),
-        ("Custo Medio", 18),
         ("Preco Atual", 18),
         ("Valor Atual", 18),
         ("G. Realizado", 20),
