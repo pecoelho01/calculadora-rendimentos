@@ -359,8 +359,8 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     df_combos = df_combos.drop(columns=["Custo Médio"])
     colunas = [
         ("Ticker", 18),
-        ("Name", 27),
-        ("Tipo", 18),
+        ("Name", 30),
+        ("Tipo", 15),
         ("Qtd Aberta", 18),
         ("Preco Atual", 18),
         ("Valor Atual", 18),
