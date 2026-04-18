@@ -262,13 +262,13 @@ def render_csv_calc():
                         "Name": name_value,
                         "Tipo de ativo": type_by_ticker.get(ticker_key(ticker), "N/A"),
                         "Qtd Aberta": round(open_shares, 2),
-                        "Custo Médio": round(avg_cost, 4),
-                        "Preço Atual": round(current_price, 4) if open_shares > 0 else "-",
-                        "Valor Atual": round(current_value, 2),
-                        "Ganho Realizado (€)": round(realized_gain, 2),
-                        "Ganho Não Realizado (€)": round(unrealized_gain, 2),
-                        "Ganho Total (€)": round(total_gain, 2),
-                        "ROI Total %": round(roi_total_ticker, 2),
+                        "Custo Médio (EUR)": round(avg_cost, 4),
+                        "Preco Atual (EUR)": round(current_price, 4) if open_shares > 0 else "-",
+                        "Valor Atual (EUR)": round(current_value, 2),
+                        "Ganho Realizado (EUR)": round(realized_gain, 2),
+                        "Ganho Nao Realizado (EUR) ": round(unrealized_gain, 2),
+                        "Ganho Total (EUR)": round(total_gain, 2),
+                        "ROI Total (%)": round(roi_total_ticker, 2),
                     })
 
                 if combos:
