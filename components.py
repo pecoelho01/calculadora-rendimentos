@@ -353,10 +353,11 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.cell(0,10, f"Ganhos feitos (com vendas) : {round(total_realized,2)} EUR", ln=1)
     pdf.cell(0,10, f"Ganhos potenciais (lucro com posições abertas) : {round(total_unrealized, 2)} EUR", ln=1)
 
-    df_combos = combos
+    df_combos = pd.DataFrame(combos)
     for col in df_combos.columns:
         pdf.cell(40,10, col, border=1, ln=0)
     pdf.ln()
+    
 
     
     return pdf.output()
