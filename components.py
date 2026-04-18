@@ -356,9 +356,9 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
     pdf.set_font("Helvetica", size=8)
 
     df_combos = pd.DataFrame(combos)
-    df_combos = df_combos.drop(columns=["Custo Médio"])
+    df_combos = df_combos.drop(columns=["Custo Médio", "Ticker"])
     colunas = [
-        ("Ticker", 18),
+       # ("Ticker", 18),
         ("Name", 30),
         ("Tipo", 15),
         ("Qtd Aberta", 18),
