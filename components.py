@@ -355,7 +355,7 @@ def generatePDF(total_realized,total_unrealized,total_current_value,roi_total_al
 
     df_combos = pd.DataFrame(combos)
     for col in df_combos.columns:
-        pdf.cell(40,10, col, border=1, ln=0)
+        pdf.cell(20,10, col, border=1, ln=0)
     pdf.ln()
     
 
