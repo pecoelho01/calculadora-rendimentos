@@ -145,7 +145,7 @@ def render_manual_calc(my_tickers):
 
 # Trata da parte do CSV 
 def render_csv_calc():
-    st.title("Dados via CSV")
+    st.title("Upload do Portfólio - via CSV")
     st.write("Aqui está um modelo para colocar os dados dos seus ativos financeiros e depois importar.")
 
     st.info(
