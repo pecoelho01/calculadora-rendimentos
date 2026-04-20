@@ -41,7 +41,7 @@ choice = st.selectbox(
     "O que deseja fazer?",
     (
         "Calcular ativos manualmente",
-        "Importar dados - CSV",
+        "Upload Portfólio",
         "Duvidas com ChatBOT - BREVEMENTE",
         "Notas explicativas",
         "Sobre mim"
@@ -51,7 +51,7 @@ choice = st.selectbox(
 if choice == "Calcular ativos manualmente":
     render_manual_calc(my_tickers)
 
-if choice == "Importar dados - CSV":
+if choice == "Upload Portfólio":
     render_csv_calc()
     
 if choice == "Notas explicativas":
