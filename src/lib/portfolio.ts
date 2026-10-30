@@ -5,6 +5,7 @@ export type Position = {
   name: string;
   shares: number;
   average: number;
+  costBasis: number;
   invested: number;
   received: number;
   realized: number;
@@ -14,20 +15,28 @@ export type Position = {
   dayGain: number | null;
   issue: string | null;
 };
-export function calculatePortfolio(
+function calculateSnapshot(
   orders: Order[],
   market: MarketData,
   currency: Currency,
 ) {
   validateOrders(orders);
   const byTicker = new Map<string, Position>();
-  const units = new Map<string, bigint>();
+  const inventory = new Map<
+    string,
+    {
+      units: bigint;
+      lots: { units: bigint; price: number; date: string }[];
+      head: number;
+    }
+  >();
   for (const o of chronological(orders)) {
     const p = byTicker.get(o.ticker) ?? {
       ticker: o.ticker,
       name: o.name || o.ticker,
       shares: 0,
       average: 0,
+      costBasis: 0,
       invested: 0,
       received: 0,
       realized: 0,
@@ -37,23 +46,39 @@ export function calculatePortfolio(
       dayGain: null,
       issue: null,
     };
+    const stock = inventory.get(o.ticker) ?? { units: 0n, lots: [], head: 0 };
+    const quantity = shareUnits(o.shares);
     if (o.type === "buy") {
-      p.average =
-        (p.average * p.shares + o.pricebuy * o.shares) / (p.shares + o.shares);
-      units.set(o.ticker, (units.get(o.ticker) ?? 0n) + shareUnits(o.shares));
-      p.shares = Number(units.get(o.ticker)) / 1e8;
+      stock.lots.push({ units: quantity, price: o.pricebuy, date: o.date });
+      stock.units += quantity;
       p.invested += o.pricebuy * o.shares;
     } else {
-      p.realized += (o.pricebuy - p.average) * o.shares;
+      let remaining = quantity;
+      let soldCost = 0;
+      // Validation guarantees sufficient units; consume the oldest lots first.
+      while (remaining > 0n) {
+        const lot = stock.lots[stock.head];
+        const consumed = remaining < lot.units ? remaining : lot.units;
+        soldCost += (Number(consumed) / 1e8) * lot.price;
+        lot.units -= consumed;
+        remaining -= consumed;
+        if (lot.units === 0n) stock.head++;
+      }
+      p.realized += o.pricebuy * o.shares - soldCost;
       p.received += o.pricebuy * o.shares;
-      units.set(o.ticker, (units.get(o.ticker) ?? 0n) - shareUnits(o.shares));
-      p.shares = Number(units.get(o.ticker)) / 1e8;
-      if (units.get(o.ticker) === 0n) p.average = 0;
+      stock.units -= quantity;
     }
+    p.shares = Number(stock.units) / 1e8;
+    inventory.set(o.ticker, stock);
     byTicker.set(o.ticker, p);
   }
   const positions = [...byTicker.values()];
   for (const p of positions) {
+    const stock = inventory.get(p.ticker)!;
+    p.costBasis = stock.lots
+      .slice(stock.head)
+      .reduce((cost, lot) => cost + (Number(lot.units) / 1e8) * lot.price, 0);
+    p.average = p.shares > 0 ? p.costBasis / p.shares : 0;
     const q = market[p.ticker];
     p.price =
       q?.currency === currency &&
@@ -75,7 +100,7 @@ export function calculatePortfolio(
           : "Cotação indisponível";
     else {
       p.value = p.price * p.shares;
-      p.unrealized = (p.price - p.average) * p.shares;
+      p.unrealized = p.value - p.costBasis;
       p.dayGain =
         q?.previousClose != null
           ? (p.price - q.previousClose) * p.shares
@@ -93,18 +118,35 @@ export function calculatePortfolio(
   const unrealized = complete
     ? positions.reduce((n, p) => n + (p.unrealized ?? 0), 0)
     : null;
+  const openCost = positions.reduce((cost, p) => cost + p.costBasis, 0);
   const gain = unrealized === null ? null : realized + unrealized;
   return {
-    positions,
-    invested,
-    realized,
-    received: sum("received"),
-    value,
-    unrealized,
-    gain,
-    roi: gain === null ? null : invested ? (gain / invested) * 100 : 0,
+    inventory,
+    summary: {
+      positions,
+      invested,
+      realized,
+      received: sum("received"),
+      value,
+      unrealized,
+      openCost,
+      openRoi:
+        unrealized !== null && openCost > 0
+          ? (unrealized / openCost) * 100
+          : null,
+      gain,
+      roi: gain === null ? null : invested ? (gain / invested) * 100 : 0,
+    },
   };
 }
+export function calculatePortfolio(
+  orders: Order[],
+  market: MarketData,
+  currency: Currency,
+) {
+  return calculateSnapshot(orders, market, currency).summary;
+}
+
 export function priceAt(history: PricePoint[], date: string): number | null {
   // Histories are sorted ascending by the server. Never take a future observation.
   let value: number | null = null;
@@ -118,12 +160,17 @@ export function calculateHistory(
   orders: Order[],
   market: MarketData,
   currency: Currency,
+  end = new Date().toISOString().slice(0, 10),
 ) {
   if (!orders.length) return [];
   const first = chronological(orders)[0].date;
   const benchmark = market["^GSPC"]?.history ?? [];
   const dates = [
-    ...new Set(benchmark.filter((p) => p.date >= first).map((p) => p.date)),
+    ...new Set(
+      benchmark
+        .filter((p) => p.date >= first && p.date <= end)
+        .map((p) => p.date),
+    ),
   ].sort();
   const base = dates.length ? priceAt(benchmark, dates[0]) : null;
   // Last trading observation of each ISO week; all transactions up to that day are included.
@@ -147,6 +194,7 @@ export function calculateHistory(
     return {
       date,
       roi: p.roi,
+      openRoi: p.openRoi,
       benchmark: base && close !== null ? (close / base - 1) * 100 : null,
     };
   });
@@ -155,4 +203,193 @@ function weekKey(date: string) {
   const d = new Date(date + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
   return d.toISOString().slice(0, 10);
+}
+
+export type PerformancePoint = {
+  date: string;
+  roi: number | null;
+  openRoi: number | null;
+  benchmark: number | null;
+  current?: boolean;
+};
+export const performancePeriods = ["3M", "6M", "1A", "YTD", "Máximo"] as const;
+export type PerformancePeriod = (typeof performancePeriods)[number];
+
+export function performanceStart(
+  period: PerformancePeriod,
+  end: string,
+): string | null {
+  if (period === "Máximo") return null;
+  if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
+  const date = new Date(`${end}T00:00:00Z`);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() - { "3M": 3, "6M": 6, "1A": 12 }[period]);
+  const lastDay = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.toISOString().slice(0, 10);
+}
+
+function marketAt(market: MarketData, date: string): MarketData {
+  return Object.fromEntries(
+    Object.entries(market).map(([ticker, asset]) => [
+      ticker,
+      { ...asset, price: priceAt(asset.history, date) },
+    ]),
+  );
+}
+
+// Period returns are simple returns on opening capital plus purchases, not TWR.
+// Historic FIFO lots retain their acquisition dates so only surviving old units
+// need an opening price for the open-positions metric.
+export function calculatePerformance(
+  orders: Order[],
+  market: MarketData,
+  currency: Currency,
+  period: PerformancePeriod,
+  end = new Date().toISOString().slice(0, 10),
+) {
+  const applicable = chronological(orders.filter((o) => o.date <= end));
+  const current = calculateSnapshot(applicable, market, currency);
+  const requestedStart = performanceStart(period, end);
+  const first = applicable[0]?.date;
+  const start =
+    requestedStart && first
+      ? requestedStart > first
+        ? requestedStart
+        : first
+      : (requestedStart ?? first ?? end);
+  const boundaryDate = new Date(`${start}T00:00:00Z`);
+  boundaryDate.setUTCDate(boundaryDate.getUTCDate() - 1);
+  const boundary = boundaryDate.toISOString().slice(0, 10);
+  const benchmark = market["^GSPC"];
+
+  if (requestedStart === null) {
+    const data: PerformancePoint[] = calculateHistory(
+      applicable,
+      market,
+      currency,
+      end,
+    );
+    const firstIndexDate = benchmark?.history.find(
+      (p) => p.date >= start && p.date <= end,
+    )?.date;
+    const base = firstIndexDate
+      ? priceAt(benchmark?.history ?? [], firstIndexDate)
+      : null;
+    if (first) {
+      const point: PerformancePoint = {
+        date: end,
+        roi: current.summary.roi,
+        openRoi: current.summary.openRoi,
+        benchmark:
+          base !== null && base > 0 && benchmark?.price != null
+            ? (benchmark.price / base - 1) * 100
+            : null,
+        current: true,
+      };
+      if (data.at(-1)?.date === end) data[data.length - 1] = point;
+      else data.push(point);
+    }
+    return {
+      data,
+      roi: current.summary.roi,
+      openRoi: current.summary.openRoi,
+      start,
+      end,
+      boundary: null,
+    };
+  }
+
+  const openingMarket = marketAt(market, boundary);
+  const opening = calculatePortfolio(
+    applicable.filter((o) => o.date < start),
+    openingMarket,
+    currency,
+  );
+  const base = priceAt(benchmark?.history ?? [], boundary);
+  const evaluate = (
+    date: string,
+    prices: MarketData,
+    isCurrent = false,
+  ): PerformancePoint => {
+    const snapshot = isCurrent
+      ? current
+      : calculateSnapshot(
+          applicable.filter((o) => o.date <= date),
+          prices,
+          currency,
+        );
+    const flows = applicable.filter((o) => o.date >= start && o.date <= date);
+    const purchases = flows
+      .filter((o) => o.type === "buy")
+      .reduce((sum, o) => sum + o.pricebuy * o.shares, 0);
+    const proceeds = flows
+      .filter((o) => o.type === "sell")
+      .reduce((sum, o) => sum + o.pricebuy * o.shares, 0);
+    const capital = opening.value === null ? null : opening.value + purchases;
+    const roi =
+      snapshot.summary.value !== null && capital !== null && capital > 0
+        ? ((snapshot.summary.value + proceeds - capital) / capital) * 100
+        : null;
+    let openCost: number | null = 0;
+    for (const [ticker, stock] of snapshot.inventory) {
+      for (const lot of stock.lots.slice(stock.head)) {
+        const price =
+          lot.date < start ? (openingMarket[ticker]?.price ?? null) : lot.price;
+        if (price === null) {
+          openCost = null;
+          break;
+        }
+        openCost += (Number(lot.units) / 1e8) * price;
+      }
+      if (openCost === null) break;
+    }
+    const openRoi =
+      snapshot.summary.value !== null && openCost !== null && openCost > 0
+        ? ((snapshot.summary.value - openCost) / openCost) * 100
+        : null;
+    const indexPrice = isCurrent
+      ? (benchmark?.price ?? null)
+      : priceAt(benchmark?.history ?? [], date);
+    return {
+      date,
+      roi,
+      openRoi,
+      benchmark:
+        base !== null && base > 0 && indexPrice !== null
+          ? (indexPrice / base - 1) * 100
+          : null,
+      ...(isCurrent ? { current: true } : {}),
+    };
+  };
+  const dates = [
+    ...new Set(
+      (benchmark?.history ?? [])
+        .filter((p) => p.date >= start && p.date < end)
+        .map((p) => p.date),
+    ),
+  ].sort();
+  const weekly = dates.filter(
+    (date, i) =>
+      i === dates.length - 1 || weekKey(date) !== weekKey(dates[i + 1]),
+  );
+  const data: PerformancePoint[] = first
+    ? [
+        evaluate(boundary, openingMarket),
+        ...weekly.map((date) => evaluate(date, marketAt(market, date))),
+        evaluate(end, market, true),
+      ]
+    : [];
+  const latest = data.at(-1);
+  return {
+    data,
+    roi: latest?.roi ?? null,
+    openRoi: latest?.openRoi ?? null,
+    start,
+    end,
+    boundary,
+  };
 }

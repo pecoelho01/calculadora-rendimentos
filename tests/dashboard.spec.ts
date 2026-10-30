@@ -168,7 +168,8 @@ test("falha de mercado e CSV inválido não inventam valores nem perdem ordens",
     "indisponível",
   );
   await expect(page.locator(".metric").nth(0)).toContainText("—");
-  await expect(page.locator(".metric").nth(2)).toContainText("100,00");
+  await expect(page.locator(".performance-current")).toContainText("Indisponível");
+  await expect(page.locator(".metric").nth(2)).toContainText("150,00");
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -311,4 +312,165 @@ test("armazenamento corrompido preserva dados até reposição explícita", asyn
   await expect(
     page.getByRole("heading", { name: "A minha carteira" }),
   ).toBeVisible();
+});
+
+test("explorar rentabilidade por rato, toque e teclado sem confundir o histórico com o valor atual", async ({ page }, testInfo) => {
+  await page.route("**/api/market?*", (route) => route.fulfill({
+    json: { assets: { ...assets, TEST: { ...assets.TEST, price: 160 } } },
+  }));
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  const current = page.locator(".performance-current");
+  await expect(page.getByRole("button", { name: "Posições abertas", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(current).toContainText("+41,18%");
+  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await expect(current).toContainText("+38,64%");
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  const readout = page.locator(".chart-readout");
+  await chart.scrollIntoViewIfNeeded();
+  const last = await chart.locator("svg").evaluate((svg) => {
+    const point = new DOMPoint(920, 100).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
+    return { x: point.x, y: point.y };
+  });
+  if (testInfo.project.name === "mobile") await page.touchscreen.tap(last.x, last.y);
+  else await page.mouse.move(last.x, last.y);
+  await expect(readout).toContainText("Atual");
+  await expect(readout).toContainText("+38,64%");
+  await expect(readout).toContainText("+10%");
+  await chart.focus();
+  await chart.press("Home");
+  await expect(readout).toContainText("05/01/2024");
+  await expect(readout).toContainText("-2,27%");
+  await expect(readout).toContainText("+0%");
+  await chart.press("ArrowRight");
+  await expect(chart).toHaveAttribute("aria-valuetext", /12\/01\/2024.*\+25%/);
+  await page.locator(".performance").screenshot({ path: testInfo.outputPath("grafico-interativo.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(readout).toBeHidden();
+  await expect(page.locator(".chart-cursor")).toBeHidden();
+  await expect(current).toBeVisible();
+  await expect(chart.locator("svg")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Tipo de rentabilidade" })).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "3M", exact: true }).click();
+  await expect(chart).toBeVisible();
+  await expect(current).toContainText("+14,29%");
+  await page.getByRole("button", { name: "Máximo", exact: true }).click();
+  await expect(readout).toContainText("Seleciona uma data");
+});
+
+test("distinguir rentabilidade histórica indisponível de preços e retorno zero", async ({ page }) => {
+  await page.route("**/api/market?*", (route) => route.fulfill({
+    json: { assets: { ...assets, TEST: { ...assets.TEST, price: 100, history: [{ date: "2024-01-12", close: 0 }] } } },
+  }));
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-01,TEST,100,10,buy"),
+  });
+  await expect(page.locator(".performance-current")).toContainText("+0%");
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  await chart.focus();
+  await chart.press("Home");
+  await expect(page.locator(".chart-readout")).toContainText("Posições abertas Indisponível");
+  await expect(page.locator(".chart-readout")).toContainText("S&P 500 +0%");
+  await chart.press("End");
+  await expect(page.locator(".chart-readout")).toContainText("Posições abertas +0%");
+  await chart.press("ArrowLeft");
+  await expect(page.locator(".chart-readout")).toContainText("Posições abertas -100%");
+});
+
+test("alternar ROI total e posições abertas com FIFO no resumo, histórico e impressão", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await expect(page.locator(".performance-current")).toContainText("Indisponível");
+  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await expect(page.locator(".performance-current")).toContainText("+0%");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fifo.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  const current = page.locator(".performance-current");
+  await expect(current).toContainText("+25%");
+  await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
+  await expect(current).toContainText("+23,53%");
+  await expect(current).toContainText("custo FIFO");
+  await expect(page.locator(".metric").nth(2)).toContainText("150,00");
+  await expect(page.locator("tbody tr").first()).toContainText("113,33");
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  await chart.focus();
+  await chart.press("Home");
+  await expect(page.locator(".chart-readout")).toContainText("-11,76%");
+  await chart.press("End");
+  await expect(page.locator(".chart-readout")).toContainText("+23,53%");
+  await page.locator(".performance").screenshot({ path: testInfo.outputPath("fifo-posicoes-abertas.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(current).toContainText("Rentabilidade das posições abertas");
+  await expect(current).toBeVisible();
+  await expect(page.getByRole("group", { name: "Tipo de rentabilidade" })).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await expect(page.locator(".chart-readout")).toContainText("Seleciona uma data");
+  await chart.focus();
+  await chart.press("Home");
+  await expect(page.locator(".chart-readout")).toContainText("-2,27%");
+  await expect(current).toContainText("+25%");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fecho.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-15,TEST,140,15,sell") });
+  await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
+  await expect(current).toContainText("Indisponível");
+  // Existing historical points remain available after the current position closes.
+  await chart.focus();
+  await chart.press("End");
+  await expect(page.locator(".chart-readout")).toContainText("Indisponível");
+  await chart.press("ArrowLeft");
+  await expect(page.locator(".chart-readout")).toContainText("+23,53%");
+  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await expect(current).toContainText("+25%");
+});
+
+test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ page }, testInfo) => {
+  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
+  const history = [
+    { date: "2025-01-03", close: 100 },
+    { date: "2025-10-29", close: 105 },
+    { date: "2025-12-31", close: 110 },
+    { date: "2026-04-29", close: 120 },
+    { date: "2026-07-29", close: 130 },
+    { date: "2026-10-23", close: 140 },
+  ];
+  await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
+    TEST: { ...assets.TEST, price: 150, history },
+    "^GSPC": { ...assets["^GSPC"], price: 1500, history: history.map(p => ({ ...p, close: p.close * 10 })) },
+  } } }));
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
+  const current = page.locator(".performance-current");
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  const readout = page.locator(".chart-readout");
+  await expect(current).toContainText("+50%");
+  for (const mode of ["Posições abertas", "Rentabilidade total"]) {
+    await page.getByRole("button", { name: mode, exact: true }).click();
+    for (const [period, expected] of [["3M", "+15,38%"], ["6M", "+25%"], ["1A", "+42,86%"], ["YTD", "+36,36%"], ["Máximo", "+50%"]]) {
+      await page.getByRole("button", { name: period, exact: true }).click();
+      await expect(current).toContainText(expected);
+      await expect(current).toContainText(period);
+      await chart.focus();
+      await chart.press("End");
+      await expect(readout).toContainText(expected);
+      await expect(readout).toContainText(`S&P 500 ${expected}`);
+      await expect(readout).toContainText("Atual");
+      if (period !== "Máximo") {
+        await chart.press("Home");
+        await expect(readout).toContainText("+0%");
+      }
+    }
+  }
+  await page.getByRole("button", { name: "YTD", exact: true }).click();
+  await expect(current).toContainText("01/01/2026");
+  await expect(current).toContainText("30/10/2026");
+  await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-ytd.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(current).toContainText("YTD");
+  await expect(current).toContainText("+36,36%");
+  await expect(current).toBeVisible();
+  await expect(page.locator(".segments")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

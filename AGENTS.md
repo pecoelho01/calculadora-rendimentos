@@ -27,7 +27,7 @@ Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito 
 - A persistência atual é `localStorage`, sem autenticação ou sincronização. Validar esquema/versão antes de carregar ou restaurar e não sobrescrever dados corrompidos automaticamente.
 - Uma carteira tem uma moeda. Sem conversão cambial explícita, não somar cotações incompatíveis como se fossem da mesma moeda. Preservar a distinção entre preço zero e cotação ausente.
 - Validar vendas cronologicamente; não permitir vender mais do que a posição. Para ordens no mesmo dia, preservar a ordem de registo. Importações devem ser atómicas.
-- Manter custo médio móvel e ROI sobre todas as compras conforme o README. Não apresentar essa métrica como retorno anualizado, TWR ou XIRR.
+- Manter contabilização FIFO por lotes, rentabilidade das posições abertas e ROI sobre todas as compras conforme o README. Não apresentar essa métrica como retorno anualizado, TWR ou XIRR.
 - Reconstruir o histórico apenas com observações anteriores ou iguais à data de avaliação. Sem fallback silencioso para custo médio nem alinhamento do benchmark para o futuro.
 - A integração Yahoo é não oficial: limitar tickers/pedidos, validar respostas, usar timeout/cache e mostrar indisponibilidade sem inventar preços.
 - O relatório usa os mesmos valores do dashboard através da impressão do navegador. Verificar o CSS de impressão quando a tabela/métricas mudarem.

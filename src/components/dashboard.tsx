@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
-import { calculateHistory, calculatePortfolio } from "@/lib/portfolio";
+import { calculatePortfolio } from "@/lib/portfolio";
 import {
   chronological,
   validateOrder,
@@ -133,10 +133,6 @@ export function Dashboard() {
   const currency = portfolio?.currency ?? "EUR";
   const summary = useMemo(
     () => calculatePortfolio(orders, market, currency),
-    [orders, market, currency],
-  );
-  const history = useMemo(
-    () => calculateHistory(orders, market, currency),
     [orders, market, currency],
   );
   const money = (n: number | null) =>
@@ -494,27 +490,41 @@ export function Dashboard() {
             <section className="panel notes">
               <span className="eyebrow">TRANSPARÊNCIA PRIMEIRO</span>
               <h2>Como calculamos a rentabilidade</h2>
-              <h3>Custo médio ponderado</h3>
+              <h3>Custo de aquisição FIFO</h3>
               <p>
-                Cada compra atualiza o custo médio das unidades abertas. As
-                vendas mantêm esse custo e realizam o ganho: (preço de venda −
-                custo médio) × quantidade vendida.
+                Cada venda consome primeiro as unidades compradas há mais tempo.
+                O ganho realizado é a receita da venda menos o custo desses lotes.
+                O custo médio FIFO é a média dos lotes que continuam abertos.
+                No mesmo dia, preservamos a ordem de registo das transações.
               </p>
               <h3>Ganho e ROI total</h3>
               <p>
-                Ganho não realizado = (cotação − custo médio) × quantidade
-                aberta. Ganho total = realizado + não realizado. ROI = ganho
+                Ganho não realizado = valor das posições abertas − custo FIFO
+                dos lotes restantes. Ganho total = realizado + não realizado. ROI = ganho
                 total ÷ valor de todas as compras × 100. Não é uma taxa
                 anualizada nem uma rentabilidade ponderada pelo tempo.
+              </p>
+              <h3>Rentabilidade das posições abertas</h3>
+              <p>
+                Ganho não realizado ÷ custo FIFO das posições abertas × 100.
+                Sem posições abertas, a percentagem fica indisponível. O toggle
+                do gráfico permite consultar esta métrica ou o ROI total.
+                No histórico, consideramos as posições abertas em cada data;
+                as vendas podem alterar a percentagem sem alterar as cotações.
               </p>
               <h3>Histórico e S&P 500</h3>
               <p>
                 Reconstruímos a carteira até ao último dia de negociação de cada
                 semana, usando apenas preços desse dia ou anteriores. O S&P 500
-                é um índice de preços em USD, normalizado pelo primeiro fecho
-                disponível desde a primeira transação. Não é uma simulação dos
-                mesmos fluxos de caixa. Períodos filtrados mantêm a base
-                original.
+                é um índice de preços em USD e não simula os mesmos fluxos de
+                caixa. Em Máximo, usa o primeiro fecho disponível desde a
+                primeira transação, e a carteira mantém os custos originais.
+                Em 3M, 6M, 1A e YTD, as posições iniciais e o índice usam o
+                último fecho anterior ao início efetivo do intervalo. A
+                rentabilidade total inclui as compras e vendas do período;
+                nas posições abertas, só contam os lotes ainda detidos, desde
+                o início do intervalo ou a aquisição. YTD começa em 1 de janeiro.
+                As compras entram integralmente na base, sem ponderação temporal.
               </p>
               <h3>Moedas, preços e limites</h3>
               <p>
@@ -566,7 +576,7 @@ export function Dashboard() {
                 <Metric
                   label="Ganho total"
                   value={money(summary.gain)}
-                  detail={`${pct(summary.roi)} de rentabilidade`}
+                  detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
                   positive={summary.gain !== null && summary.gain >= 0}
                 />
                 <Metric
@@ -576,14 +586,19 @@ export function Dashboard() {
                   positive={summary.realized >= 0}
                 />
                 <Metric
-                  label="Total investido"
+                  label="Compras acumuladas"
                   value={money(summary.invested)}
                   detail="Valor acumulado das compras"
                 />
               </div>
               {tab === "overview" ? (
                 <div className="charts-grid">
-                  <PerformanceChart data={history} />
+                  <PerformanceChart
+                    key={portfolio.id}
+                    orders={orders}
+                    market={market}
+                    currency={currency}
+                  />
                   <section className="panel allocation">
                     <div className="panel-heading">
                       <div>
@@ -798,7 +813,7 @@ export function Dashboard() {
                           <tr>
                             <th>Ativo</th>
                             <th>Quantidade</th>
-                            <th>Custo médio</th>
+                            <th>Custo médio FIFO</th>
                             <th>Último preço</th>
                             <th>Valor de mercado</th>
                             <th>Ganho não realizado</th>

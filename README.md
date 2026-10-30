@@ -24,9 +24,9 @@ Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
 
 - Várias carteiras, com moeda EUR, USD ou GBP por carteira.
 - Compras e vendas manuais, histórico de transações e remoção com validação da posição disponível.
-- Custo médio móvel, ganhos realizados/não realizados, valor das posições e ROI sobre todas as compras.
+- Custo FIFO por lotes, ganhos realizados/não realizados, valor das posições, ROI sobre todas as compras e rentabilidade das posições abertas.
 - Preços e histórico Yahoo Finance no servidor, com cache de cinco minutos e indicação de timestamp/indisponibilidade.
-- Evolução semanal do ROI e comparação com o S&P 500, usando observações até à data de avaliação.
+- Gráfico interativo com toggle «Rentabilidade total» / «Posições abertas» (predefinição), percentagem atual, consulta por rato, toque ou teclado (setas, Home e End) e comparação com o S&P 500. O histórico semanal pode diferir da cotação atual.
 - Tabela de posições abertas e fechadas, pesquisa e alocação por valor de mercado.
 - Importação/exportação de CSV compatível com a aplicação anterior.
 - Persistência local no navegador e cópia de segurança/restauro de todas as carteiras em JSON.
@@ -69,13 +69,29 @@ Aceita separador de colunas vírgula ou ponto e vírgula, UTF-8 com BOM, aspas e
 
 ## Cálculos e limites financeiros
 
-As compras atualizam o custo médio ponderado das unidades abertas; as vendas realizam `(preço de venda − custo médio) × quantidade`. Vendas superiores à posição são rejeitadas. Após fecho total, uma nova compra inicia um novo custo médio.
+Cada compra cria um lote FIFO. As vendas consomem primeiro as unidades dos lotes mais antigos e realizam `receita da venda − custo FIFO das unidades vendidas`. O custo médio FIFO apresentado é o custo dos lotes restantes dividido pelas unidades abertas. Vendas superiores à posição são rejeitadas; no mesmo dia preserva-se a ordem de registo. Após fecho total, uma nova compra inicia novos lotes.
 
 `Ganho total = ganho realizado + ganho não realizado`.
 
-`ROI = ganho total ÷ total de todas as compras × 100`.
+`Rentabilidade total (ROI) = ganho total ÷ total de todas as compras × 100`.
 
-No histórico, `ROI = (valor aberto + receitas das vendas − compras acumuladas) ÷ compras acumuladas × 100` (equivalente à fórmula do ganho). O gráfico amostra o último dia de negociação de cada semana disponível no benchmark. As datas de mercado são normalizadas no fuso da respetiva bolsa. Nunca seleciona preços futuros; sem preços anteriores, deixa uma lacuna. O S&P 500 usa o primeiro fecho disponível desde a primeira transação, em USD; filtrar um período não altera a base das séries.
+`Rentabilidade das posições abertas = ganho não realizado ÷ custo FIFO dos lotes abertos × 100`.
+
+O toggle muda a série, a percentagem em destaque e os valores consultados no gráfico. Os períodos 3M, 6M, 1A e YTD recalculam a rentabilidade do intervalo; «Máximo» mantém o cálculo desde a primeira compra. YTD começa em 1 de janeiro do ano atual. Os meses usam datas UTC e o último dia válido do mês de destino. «Posições abertas» considera as posições que estavam abertas em cada data, incluindo ativos que tenham sido vendidos posteriormente. Sem posições abertas ou com custo aberto zero, esta percentagem é indisponível, não zero. Uma cotação válida a zero, com custo positivo, representa −100%. Vendas podem alterar a rentabilidade das posições abertas mesmo sem alteração dos preços de mercado.
+
+A adoção de FIFO substitui o custo médio móvel das versões anteriores e recalcula ganhos realizados/não realizados e custo das posições. O ganho total e o ROI sobre todas as compras mantêm-se para as mesmas ordens e cotações. Não há migração do JSON/localStorage ou do CSV: estes formatos guardam as transações originais, não os resultados derivados.
+
+Em «Máximo», no histórico, `ROI = (valor aberto + receitas das vendas − compras acumuladas) ÷ compras acumuladas × 100` (equivalente à fórmula do ganho). Para cada período, a série e a percentagem em destaque usam a mesma lógica partilhada. O gráfico amostra o último dia de negociação de cada semana disponível no benchmark. As datas de mercado são normalizadas no fuso da respetiva bolsa. Nunca seleciona preços futuros; sem preços anteriores, deixa uma lacuna. Em «Máximo», o S&P 500 usa o primeiro fecho disponível desde a primeira transação, em USD.
+
+Nos outros períodos, a base das posições existentes é o valor no dia anterior ao início, usando apenas preços já disponíveis nessa data. Ordens na data inicial pertencem ao período. Se a carteira começar depois do início solicitado, o intervalo efetivo começa na primeira transação. O benchmark usa o último fecho disponível antes desse início efetivo; sem esse preço, fica indisponível, sem procurar uma observação futura.
+
+`Retorno total do período = (valor final + vendas do intervalo − compras do intervalo − valor inicial) ÷ (valor inicial + compras do intervalo) × 100`.
+
+Para posições abertas, os lotes FIFO ainda detidos são avaliados desde o preço inicial (lotes anteriores ao intervalo) ou desde o seu preço de aquisição (novas compras). O retorno é o ganho dessas unidades dividido pela respetiva base. Lotes vendidos são excluídos dessa métrica; vendas podem mudar a composição e a percentagem.
+
+Sem capital inicial nem compras no intervalo, o retorno do período é indisponível. Se faltar um preço inicial necessário, a métrica fica indisponível: nunca se usa custo de compra ou um preço futuro como substituto. No modo aberto só é exigido o preço inicial dos lotes antigos ainda detidos. Um preço zero é válido; uma base nula ou zero não permite calcular a percentagem.
+
+A série, o hover e o valor em destaque usam a mesma base do período. O ponto final «Atual» usa a cotação atual; os outros pontos usam fechos históricos semanais. Este retorno é simples: as compras entram integralmente na base, independentemente da sua data. Não é TWR nem XIRR e o índice não simula os fluxos da carteira.
 
 Esta versão não faz conversão cambial. Todos os preços de transação de uma carteira devem ser introduzidos na moeda escolhida. Uma cotação aberta noutra moeda ou ausente impede valor, ganho não realizado e ROI globais; os custos e ganhos já realizados continuam disponíveis. Carteiras totalmente fechadas dispensam cotações. Zero é um preço válido, distinto de indisponibilidade.
 
