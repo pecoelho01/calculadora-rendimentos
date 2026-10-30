@@ -1,7 +1,6 @@
 "use client";
 import {
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -66,7 +65,6 @@ export function PerformanceChart({
     return () => observer.disconnect();
   }, []);
   const plotWidth = Math.max(1, chartWidth - 85);
-  const instructionsId = useId();
   const points = data.map((p) => ({
     ...p,
     roi: mode === "total" ? p.roi : p.openRoi,
@@ -181,17 +179,9 @@ export function PerformanceChart({
           {percent(displayedRoi)}
         </strong>
         <small>{explanation}</small>
-        <small className="performance-dates">
-          {dateLabel(performance.start)} — {dateLabel(performance.end)} · até à
-          cotação atual
-        </small>
       </div>
       {values.length > 0 && points.some((p) => p.roi !== null) ? (
         <>
-          <p id={instructionsId} className="chart-instructions no-print">
-            Passa o rato ou toca no gráfico. Usa ← e → para explorar por
-            teclado.
-          </p>
           <div
             className="chart-readout no-print"
             aria-live="polite"
@@ -221,7 +211,6 @@ export function PerformanceChart({
             role="slider"
             tabIndex={0}
             aria-label="Data da rentabilidade"
-            aria-describedby={instructionsId}
             aria-valuemin={0}
             aria-valuemax={points.length - 1}
             aria-valuenow={activeIndex ?? points.length - 1}
