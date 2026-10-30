@@ -40,28 +40,33 @@ const quote = (price: number | null, currency = "EUR"): MarketData => ({
 });
 const almost = (a: number | null, b: number) =>
   assert.ok(a !== null && Math.abs(a - b) < 1e-8, `${a} ≠ ${b}`);
-test("compras múltiplas, venda parcial e ROI conhecido", () => {
+test("FIFO com compras múltiplas, venda parcial e ROI conhecido", () => {
   const p = calculatePortfolio(
     [buy(10, 100), buy(10, 120), sell(5, 130)],
     quote(140),
     "EUR",
   );
-  almost(p.positions[0].average, 110);
+  almost(p.positions[0].average, 1700 / 15);
+  almost(p.positions[0].costBasis, 1700);
+  almost(p.openCost, 1700);
+  almost(p.openRoi, 400 / 1700 * 100);
   almost(p.positions[0].shares, 15);
   almost(p.invested, 2200);
   almost(p.received, 650);
-  almost(p.realized, 100);
+  almost(p.realized, 150);
   almost(p.value, 2100);
-  almost(p.unrealized, 450);
+  almost(p.unrealized, 400);
   almost(p.gain, 550);
   almost(p.roi, 25);
 });
-test("venda total não exige cotação e recompra reinicia custo médio", () => {
+test("venda total não exige cotação e recompra inicia novos lotes FIFO", () => {
   const orders = [buy(10, 100), buy(10, 120), sell(5, 130), sell(15, 140)];
   const p = calculatePortfolio(orders, {}, "EUR");
   almost(p.realized, 550);
   almost(p.value, 0);
   almost(p.roi, 25);
+  almost(p.openCost, 0);
+  assert.equal(p.openRoi, null);
   const reopened = calculatePortfolio(
     [...orders, buy(2, 50, "2024-01-03")],
     quote(60),
@@ -69,6 +74,7 @@ test("venda total não exige cotação e recompra reinicia custo médio", () => 
   );
   almost(reopened.positions[0].average, 50);
   almost(reopened.unrealized, 20);
+  almost(reopened.openRoi, 20);
 });
 test("ordenação cronológica estável e carteira vazia", () => {
   const p = calculatePortfolio(
@@ -80,6 +86,7 @@ test("ordenação cronológica estável e carteira vazia", () => {
   const empty = calculatePortfolio([], {}, "EUR");
   almost(empty.value, 0);
   almost(empty.roi, 0);
+  assert.equal(empty.openRoi, null);
   assert.throws(
     () =>
       calculatePortfolio([sell(1, 10, "2024-01-01"), buy(1, 10)], {}, "EUR"),
@@ -96,11 +103,14 @@ test("preço zero é válido; falha de preço e moeda incompatível não são ze
     const p = calculatePortfolio(orders, market, "EUR");
     assert.equal(p.value, null);
     assert.equal(p.roi, null);
+    assert.equal(p.openRoi, null);
+    almost(p.openCost, 100);
     almost(p.realized, 20);
   }
   const zero = calculatePortfolio([buy(2, 100)], quote(0), "EUR");
   almost(zero.value, 0);
   almost(zero.roi, -100);
+  almost(zero.openRoi, -100);
 });
 test("validar números, datas, ticker e tipo", () => {
   for (const field of ["shares", "pricebuy"])
@@ -178,7 +188,9 @@ test("histórico sem antecipação, fim de semana, fusos UTC e benchmark alinhad
     ["2024-01-05", "2024-01-12"],
   );
   almost(points[0].roi, 0);
+  almost(points[0].openRoi, 0);
   almost(points[1].roi, (60 / 220) * 100);
+  almost(points[1].openRoi, (60 / 220) * 100);
   almost(points[1].benchmark, 10);
   market.TEST.history = [];
   assert.equal(calculateHistory([buy(1, 100)], market, "EUR")[0].roi, null);
@@ -241,4 +253,62 @@ test("datas da bolsa preservam sessão local e transições de hora", async () =
   );
   assert.equal(tradingDate(new Date("invalid"), "UTC"), null);
   assert.equal(tradingDate(new Date(), "invalid-zone"), null);
+});
+
+test("FIFO atravessa lotes e separa os dois retornos sem alterar o ganho total", () => {
+  const p = calculatePortfolio([buy(2, 100), buy(3, 200), sell(4, 250)], quote(220), "EUR");
+  almost(p.positions[0].costBasis, 200);
+  almost(p.positions[0].average, 200);
+  almost(p.realized, 400);
+  almost(p.unrealized, 20);
+  almost(p.gain, 420);
+  almost(p.roi, 52.5);
+  almost(p.openRoi, 10);
+  almost(p.gain, p.value! + p.received - p.invested);
+});
+
+test("FIFO preserva ordem de registo no mesmo dia e separa lotes por ticker", () => {
+  const orders = [buy(1, 100), buy(1, 200), sell(1, 300, "2024-01-01")];
+  const a = calculatePortfolio(orders, quote(250), "EUR");
+  const b = calculatePortfolio([orders[1], orders[0], orders[2]], quote(250), "EUR");
+  almost(a.realized, 200);
+  almost(a.positions[0].costBasis, 200);
+  almost(b.realized, 100);
+  almost(b.positions[0].costBasis, 100);
+  almost(a.gain, b.gain!);
+  const other = { ...buy(2, 50), ticker: "OTHER" };
+  const mixed = calculatePortfolio([...orders, other], { ...quote(250), OTHER: { ...quote(60).TEST } }, "EUR");
+  almost(mixed.openCost, 300);
+  almost(mixed.unrealized, 70);
+  almost(mixed.openRoi, 70 / 300 * 100);
+});
+
+test("FIFO mantém custo exato das frações restantes após consumir um lote grande", () => {
+  const p = calculatePortfolio([buy(1, 1e12), buy(1e-8, 1), sell(1, 1e12)], quote(2), "EUR");
+  almost(p.positions[0].shares, 1e-8);
+  assert.equal(p.positions[0].costBasis, 1e-8);
+  almost(p.positions[0].average, 1);
+  almost(p.openRoi, 100);
+  almost(p.realized, 0);
+});
+
+test("histórico FIFO distingue venda parcial, fecho e recompra sem antecipar preços", () => {
+  const orders = [buy(2, 100), buy(3, 200), sell(4, 250, "2024-01-08"), sell(1, 220, "2024-01-15"), buy(1, 50, "2024-01-22")];
+  const market = quote(60);
+  market.TEST.history = [{ date: "2024-01-05", close: 160 }, { date: "2024-01-12", close: 220 }, { date: "2024-01-26", close: 60 }];
+  market["^GSPC"] = { ...quote(4000).TEST, history: ["2024-01-05", "2024-01-12", "2024-01-19", "2024-01-26"].map(date => ({ date, close: 4000 })) };
+  const history = calculateHistory(orders, market, "EUR");
+  almost(history[0].roi, 0);
+  almost(history[0].openRoi, 0);
+  almost(history[1].roi, 52.5);
+  almost(history[1].openRoi, 10);
+  almost(history[2].roi, 52.5);
+  assert.equal(history[2].openRoi, null);
+  almost(history[3].roi, 430 / 850 * 100);
+  almost(history[3].openRoi, 20);
+  market.TEST.history = [{ date: "2024-01-26", close: 60 }];
+  const missing = calculateHistory(orders, market, "EUR");
+  assert.equal(missing[0].openRoi, null);
+  assert.equal(missing[1].openRoi, null);
+  almost(missing[2].roi, 52.5);
 });

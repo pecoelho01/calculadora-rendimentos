@@ -494,18 +494,27 @@ export function Dashboard() {
             <section className="panel notes">
               <span className="eyebrow">TRANSPARÊNCIA PRIMEIRO</span>
               <h2>Como calculamos a rentabilidade</h2>
-              <h3>Custo médio ponderado</h3>
+              <h3>Custo de aquisição FIFO</h3>
               <p>
-                Cada compra atualiza o custo médio das unidades abertas. As
-                vendas mantêm esse custo e realizam o ganho: (preço de venda −
-                custo médio) × quantidade vendida.
+                Cada venda consome primeiro as unidades compradas há mais tempo.
+                O ganho realizado é a receita da venda menos o custo desses lotes.
+                O custo médio FIFO é a média dos lotes que continuam abertos.
+                No mesmo dia, preservamos a ordem de registo das transações.
               </p>
               <h3>Ganho e ROI total</h3>
               <p>
-                Ganho não realizado = (cotação − custo médio) × quantidade
-                aberta. Ganho total = realizado + não realizado. ROI = ganho
+                Ganho não realizado = valor das posições abertas − custo FIFO
+                dos lotes restantes. Ganho total = realizado + não realizado. ROI = ganho
                 total ÷ valor de todas as compras × 100. Não é uma taxa
                 anualizada nem uma rentabilidade ponderada pelo tempo.
+              </p>
+              <h3>Rentabilidade das posições abertas</h3>
+              <p>
+                Ganho não realizado ÷ custo FIFO das posições abertas × 100.
+                Sem posições abertas, a percentagem fica indisponível. O toggle
+                do gráfico permite consultar esta métrica ou o ROI total.
+                No histórico, consideramos as posições abertas em cada data;
+                as vendas podem alterar a percentagem sem alterar as cotações.
               </p>
               <h3>Histórico e S&P 500</h3>
               <p>
@@ -566,7 +575,7 @@ export function Dashboard() {
                 <Metric
                   label="Ganho total"
                   value={money(summary.gain)}
-                  detail={`${pct(summary.roi)} de rentabilidade`}
+                  detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
                   positive={summary.gain !== null && summary.gain >= 0}
                 />
                 <Metric
@@ -576,14 +585,19 @@ export function Dashboard() {
                   positive={summary.realized >= 0}
                 />
                 <Metric
-                  label="Total investido"
+                  label="Compras acumuladas"
                   value={money(summary.invested)}
                   detail="Valor acumulado das compras"
                 />
               </div>
               {tab === "overview" ? (
                 <div className="charts-grid">
-                  <PerformanceChart data={history} />
+                  <PerformanceChart
+                    key={portfolio.id}
+                    data={history}
+                    currentRoi={summary.roi}
+                    currentOpenRoi={summary.openRoi}
+                  />
                   <section className="panel allocation">
                     <div className="panel-heading">
                       <div>
@@ -798,7 +812,7 @@ export function Dashboard() {
                           <tr>
                             <th>Ativo</th>
                             <th>Quantidade</th>
-                            <th>Custo médio</th>
+                            <th>Custo médio FIFO</th>
                             <th>Último preço</th>
                             <th>Valor de mercado</th>
                             <th>Ganho não realizado</th>

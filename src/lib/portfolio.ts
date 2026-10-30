@@ -5,6 +5,7 @@ export type Position = {
   name: string;
   shares: number;
   average: number;
+  costBasis: number;
   invested: number;
   received: number;
   realized: number;
@@ -21,13 +22,21 @@ export function calculatePortfolio(
 ) {
   validateOrders(orders);
   const byTicker = new Map<string, Position>();
-  const units = new Map<string, bigint>();
+  const inventory = new Map<
+    string,
+    {
+      units: bigint;
+      lots: { units: bigint; price: number }[];
+      head: number;
+    }
+  >();
   for (const o of chronological(orders)) {
     const p = byTicker.get(o.ticker) ?? {
       ticker: o.ticker,
       name: o.name || o.ticker,
       shares: 0,
       average: 0,
+      costBasis: 0,
       invested: 0,
       received: 0,
       realized: 0,
@@ -37,23 +46,39 @@ export function calculatePortfolio(
       dayGain: null,
       issue: null,
     };
+    const stock = inventory.get(o.ticker) ?? { units: 0n, lots: [], head: 0 };
+    const quantity = shareUnits(o.shares);
     if (o.type === "buy") {
-      p.average =
-        (p.average * p.shares + o.pricebuy * o.shares) / (p.shares + o.shares);
-      units.set(o.ticker, (units.get(o.ticker) ?? 0n) + shareUnits(o.shares));
-      p.shares = Number(units.get(o.ticker)) / 1e8;
+      stock.lots.push({ units: quantity, price: o.pricebuy });
+      stock.units += quantity;
       p.invested += o.pricebuy * o.shares;
     } else {
-      p.realized += (o.pricebuy - p.average) * o.shares;
+      let remaining = quantity;
+      let soldCost = 0;
+      // Validation guarantees sufficient units; consume the oldest lots first.
+      while (remaining > 0n) {
+        const lot = stock.lots[stock.head];
+        const consumed = remaining < lot.units ? remaining : lot.units;
+        soldCost += (Number(consumed) / 1e8) * lot.price;
+        lot.units -= consumed;
+        remaining -= consumed;
+        if (lot.units === 0n) stock.head++;
+      }
+      p.realized += o.pricebuy * o.shares - soldCost;
       p.received += o.pricebuy * o.shares;
-      units.set(o.ticker, (units.get(o.ticker) ?? 0n) - shareUnits(o.shares));
-      p.shares = Number(units.get(o.ticker)) / 1e8;
-      if (units.get(o.ticker) === 0n) p.average = 0;
+      stock.units -= quantity;
     }
+    p.shares = Number(stock.units) / 1e8;
+    inventory.set(o.ticker, stock);
     byTicker.set(o.ticker, p);
   }
   const positions = [...byTicker.values()];
   for (const p of positions) {
+    const stock = inventory.get(p.ticker)!;
+    p.costBasis = stock.lots
+      .slice(stock.head)
+      .reduce((cost, lot) => cost + (Number(lot.units) / 1e8) * lot.price, 0);
+    p.average = p.shares > 0 ? p.costBasis / p.shares : 0;
     const q = market[p.ticker];
     p.price =
       q?.currency === currency &&
@@ -75,7 +100,7 @@ export function calculatePortfolio(
           : "Cotação indisponível";
     else {
       p.value = p.price * p.shares;
-      p.unrealized = (p.price - p.average) * p.shares;
+      p.unrealized = p.value - p.costBasis;
       p.dayGain =
         q?.previousClose != null
           ? (p.price - q.previousClose) * p.shares
@@ -93,6 +118,7 @@ export function calculatePortfolio(
   const unrealized = complete
     ? positions.reduce((n, p) => n + (p.unrealized ?? 0), 0)
     : null;
+  const openCost = positions.reduce((cost, p) => cost + p.costBasis, 0);
   const gain = unrealized === null ? null : realized + unrealized;
   return {
     positions,
@@ -101,6 +127,11 @@ export function calculatePortfolio(
     received: sum("received"),
     value,
     unrealized,
+    openCost,
+    openRoi:
+      unrealized !== null && openCost > 0
+        ? (unrealized / openCost) * 100
+        : null,
     gain,
     roi: gain === null ? null : invested ? (gain / invested) * 100 : 0,
   };
@@ -147,6 +178,7 @@ export function calculateHistory(
     return {
       date,
       roi: p.roi,
+      openRoi: p.openRoi,
       benchmark: base && close !== null ? (close / base - 1) * 100 : null,
     };
   });
@@ -156,3 +188,5 @@ function weekKey(date: string) {
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
   return d.toISOString().slice(0, 10);
 }
+
+export type PerformancePoint = ReturnType<typeof calculateHistory>[number];
