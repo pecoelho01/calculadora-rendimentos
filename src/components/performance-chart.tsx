@@ -301,19 +301,16 @@ export function PerformanceChart({
                     stroke="#a8b1c2"
                     strokeDasharray="4 4"
                   />
-                  {(["roi", "benchmark"] as const).map((key) =>
-                    active[key] !== null ? (
-                      <circle
-                        key={key}
-                        cx={x(activeIndex)}
-                        cy={y(active[key])}
-                        r="5"
-                        fill={key === "roi" ? "#7047eb" : "#a8b1c2"}
-                        stroke="white"
-                        strokeWidth="2"
-                      />
-                    ) : null,
-                  )}
+                  {active.roi !== null ? (
+                    <circle
+                      cx={x(activeIndex)}
+                      cy={y(active.roi)}
+                      r="5"
+                      fill="#7047eb"
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                  ) : null}
                 </g>
               ) : null}
               {[0, Math.floor((points.length - 1) / 2), points.length - 1]
