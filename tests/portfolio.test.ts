@@ -42,6 +42,66 @@ const quote = (price: number | null, currency = "EUR"): MarketData => ({
 });
 const almost = (a: number | null, b: number) =>
   assert.ok(a !== null && Math.abs(a - b) < 1e-8, `${a} ≠ ${b}`);
+test("ganhos por compra incluem vendas FIFO e valorização apenas das unidades restantes", () => {
+  const first = buy(10, 100);
+  const second = buy(10, 120);
+  const sale = sell(5, 130);
+  const p = calculatePortfolio([first, second, sale], quote(140), "EUR");
+  assert.deepEqual(p.orderGains.get(first.id), { gain: 350, percent: 35, shares: 5 });
+  almost(p.orderGains.get(second.id)!.gain, 200);
+  almost(p.orderGains.get(second.id)!.percent, 100 / 6);
+  assert.deepEqual(p.orderGains.get(sale.id), { gain: 150, percent: 30, shares: 5 });
+  almost(p.positions[0].unrealizedPercent, 400 / 1700 * 100);
+  almost(p.positions[0].realizedPercent, 30);
+  almost(p.orderGains.get(first.id)!.gain! + p.orderGains.get(second.id)!.gain!, p.gain!);
+});
+test("vendas que atravessam lotes, fecho e recompra preservam a atribuição por compra", () => {
+  const first = buy(10, 100);
+  const second = buy(10, 120);
+  const sale = sell(15, 130);
+  const close = sell(5, 110, "2024-01-03");
+  const reopen = buy(2, 50, "2024-01-04");
+  // Input is intentionally unsorted; equal-date purchases keep registration order.
+  const orders = [close, first, second, sale, reopen];
+  const p = calculatePortfolio(orders, quote(60), "EUR");
+  assert.deepEqual(p.orderGains.get(first.id), { gain: 300, percent: 30, shares: 0 });
+  assert.deepEqual(p.orderGains.get(second.id), { gain: 0, percent: 0, shares: 0 });
+  almost(p.orderGains.get(sale.id)!.gain, 350);
+  almost(p.orderGains.get(sale.id)!.percent, 350 / 1600 * 100);
+  almost(p.orderGains.get(close.id)!.gain, -50);
+  almost(p.orderGains.get(close.id)!.percent, -50 / 600 * 100);
+  assert.deepEqual(p.orderGains.get(reopen.id), { gain: 20, percent: 20, shares: 2 });
+  for (const market of [{}, quote(null), quote(60, "USD")]) {
+    const missing = calculatePortfolio(orders, market, "EUR");
+    almost(missing.orderGains.get(first.id)!.gain, 300);
+    almost(missing.orderGains.get(second.id)!.gain, 0);
+    almost(missing.orderGains.get(sale.id)!.gain, 350);
+    assert.equal(missing.orderGains.get(reopen.id)!.gain, null);
+    assert.equal(missing.orderGains.get(reopen.id)!.percent, null);
+  }
+});
+test("ganhos distinguem cotação ausente, zero, base gratuita e frações", () => {
+  const purchase = buy(2, 100);
+  const partial = sell(1, 120);
+  const zero = calculatePortfolio([purchase, partial], quote(0), "EUR");
+  assert.deepEqual(zero.orderGains.get(purchase.id), { gain: -80, percent: -40, shares: 1 });
+  almost(zero.positions[0].unrealizedPercent, -100);
+  const missing = calculatePortfolio([purchase, partial], {}, "EUR");
+  assert.equal(missing.orderGains.get(purchase.id)!.gain, null);
+  almost(missing.orderGains.get(partial.id)!.gain, 20);
+  const free = buy(2, 0);
+  const freeSale = sell(1, 10);
+  const freeResult = calculatePortfolio([free, freeSale], quote(5), "EUR");
+  assert.deepEqual(freeResult.orderGains.get(free.id), { gain: 15, percent: null, shares: 1 });
+  assert.deepEqual(freeResult.orderGains.get(freeSale.id), { gain: 10, percent: null, shares: 1 });
+  const fractional = buy(0.00000003, 100);
+  const tinySale = sell(0.00000001, 130);
+  const tiny = calculatePortfolio([fractional, tinySale], quote(140), "EUR");
+  almost(tiny.orderGains.get(fractional.id)!.gain, 0.0000011);
+  almost(tiny.orderGains.get(fractional.id)!.percent, 110 / 3);
+  almost(tiny.orderGains.get(tinySale.id)!.percent, 30);
+  assert.equal(calculatePortfolio([], {}, "EUR").orderGains.size, 0);
+});
 test("FIFO com compras múltiplas, venda parcial e ROI conhecido", () => {
   const p = calculatePortfolio(
     [buy(10, 100), buy(10, 120), sell(5, 130)],
