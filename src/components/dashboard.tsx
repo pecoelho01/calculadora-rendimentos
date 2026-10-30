@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
 import { calculatePortfolio } from "@/lib/portfolio";
@@ -15,6 +14,7 @@ import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
+import { WorkspaceShell } from "./workspace-shell";
 
 function download(text: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -37,7 +37,7 @@ const initialPortfolio = (): Portfolio => ({
   orders: [],
 });
 type Tab = "overview" | "positions" | "transactions" | "notes";
-type Modal = "order" | "portfolio" | "import" | null;
+type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
@@ -49,6 +49,7 @@ export function Dashboard() {
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [modal, setModal] = useState<Modal>(null);
+  const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [search, setSearch] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -200,6 +201,37 @@ export function Dashboard() {
       setFormError((e as Error).message);
     }
   }
+  function startRename(id: string) {
+    setRenameId(id);
+    openModal("rename");
+  }
+  function renamePortfolio(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const target = portfolios.find((p) => p.id === renameId);
+    if (!target) {
+      setFormError(
+        "Esta carteira já não está disponível. Fecha este diálogo e escolhe outra carteira.",
+      );
+      return;
+    }
+    try {
+      const name = String(new FormData(event.currentTarget).get("name")).trim();
+      if (!name) {
+        setFormError("Introduz um nome para a carteira.");
+        return;
+      }
+      const renamed = validatePortfolio({ ...target, name });
+      if (persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))) {
+        setModal(null);
+      } else {
+        setFormError(
+          "Não foi possível guardar o nome. Fecha este diálogo e consulta o aviso na página antes de tentar novamente.",
+        );
+      }
+    } catch (error) {
+      setFormError((error as Error).message);
+    }
+  }
   function addPortfolio(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -313,82 +345,109 @@ export function Dashboard() {
       </main>
     );
   return (
-    <div className="app-shell">
-      <aside className="sidebar no-print">
-        <Link className="brand" href="/" aria-label="Rendimentos, início">
-          <span className="brand-mark">
-            <Icon name="trend" />
-          </span>
-          rendimentos<span className="brand-dot">.</span>
-        </Link>
-        <span className="workspace-label">O TEU ESPAÇO</span>
-        <nav aria-label="Navegação principal">
-          {(
-            [
-              { key: "overview", icon: "overview", text: "Visão geral" },
-              { key: "positions", icon: "positions", text: "Posições" },
-              { key: "transactions", icon: "transactions", text: "Transações" },
-              { key: "notes", icon: "info", text: "Notas explicativas" },
-            ] as const
-          ).map((n) => (
-            <button
-              key={n.key}
-              className={tab === n.key ? "nav-item active" : "nav-item"}
-              aria-current={tab === n.key ? "page" : undefined}
-              onClick={() => setTab(n.key)}
-            >
-              <Icon name={n.icon} />
-              {n.text}
-              {n.key === "positions" ? (
-                <small>
-                  {summary.positions.filter((p) => p.shares > 0).length}
-                </small>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-portfolios">
-          <div className="side-heading">
-            <span>AS TUAS CARTEIRAS</span>
-            <button
-              aria-label="Criar carteira"
-              onClick={() => openModal("portfolio")}
-            >
-              <Icon name="plus" />
-            </button>
-          </div>
-          {portfolios.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                setSelected(p.id);
-                setSearch("");
-              }}
-              className={`portfolio-link ${portfolio?.id === p.id ? "selected" : ""}`}
-            >
-              <i className="portfolio-dot" />
-              {p.name}
-              <small>{p.currency}</small>
-            </button>
-          ))}
-        </div>
-        <div className="sidebar-bottom">
-          <div className="local-badge">
-            <Icon name="shield" />
-            <div>
-              <strong>Guardado neste navegador</strong>
-              <small>Sem conta · os teus dados, contigo</small>
+    <WorkspaceShell
+      sidebar={
+        <>
+          <span className="workspace-label">O TEU ESPAÇO</span>
+          <nav aria-label="Navegação principal">
+            {(
+              [
+                { key: "overview", icon: "overview", text: "Visão geral" },
+                { key: "positions", icon: "positions", text: "Posições" },
+                {
+                  key: "transactions",
+                  icon: "transactions",
+                  text: "Transações",
+                },
+                { key: "notes", icon: "info", text: "Notas explicativas" },
+              ] as const
+            ).map((n) => (
+              <button
+                key={n.key}
+                className={tab === n.key ? "nav-item active" : "nav-item"}
+                aria-current={tab === n.key ? "page" : undefined}
+                onClick={() => setTab(n.key)}
+              >
+                <Icon name={n.icon} />
+                {n.text}
+                {n.key === "positions" ? (
+                  <small>
+                    {summary.positions.filter((p) => p.shares > 0).length}
+                  </small>
+                ) : null}
+              </button>
+            ))}
+          </nav>
+          <div className="sidebar-portfolios">
+            <div className="side-heading">
+              <span>AS TUAS CARTEIRAS</span>
+              <button
+                aria-label="Criar carteira"
+                onClick={() => openModal("portfolio")}
+              >
+                <Icon name="plus" />
+              </button>
             </div>
+            {portfolios.map((p) => (
+              <div
+                className={`portfolio-row ${portfolio?.id === p.id ? "selected" : ""}`}
+                key={p.id}
+              >
+                <button
+                  onClick={() => {
+                    setSelected(p.id);
+                    setSearch("");
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    startRename(p.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "ContextMenu" ||
+                      (event.shiftKey && event.key === "F10")
+                    ) {
+                      event.preventDefault();
+                      startRename(p.id);
+                    }
+                  }}
+                  className={`portfolio-link ${portfolio?.id === p.id ? "selected" : ""}`}
+                  aria-current={portfolio?.id === p.id ? "true" : undefined}
+                  title="Botão direito para renomear"
+                >
+                  <i className="portfolio-dot" />
+                  <span className="portfolio-name">{p.name}</span>
+                  <small>{p.currency}</small>
+                </button>
+                <button
+                  className="portfolio-rename icon-button"
+                  aria-label={`Renomear carteira ${p.name}`}
+                  onClick={() => startRename(p.id)}
+                >
+                  <Icon name="edit" />
+                </button>
+              </div>
+            ))}
           </div>
-          <a
-            href="https://github.com/pecoelho01"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Feito por Pedro <Icon name="external" />
-          </a>
-        </div>
-      </aside>
+          <div className="sidebar-bottom">
+            <div className="local-badge">
+              <Icon name="shield" />
+              <div>
+                <strong>Guardado neste navegador</strong>
+                <small>Sem conta · os teus dados, contigo</small>
+              </div>
+            </div>
+            <a
+              href="https://github.com/pecoelho01"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Feito por Pedro <Icon name="external" />
+            </a>
+          </div>
+        </>
+      }
+    >
       <div className="main-area">
         <header className="topbar no-print">
           <div className="breadcrumb">
@@ -942,6 +1001,38 @@ export function Dashboard() {
           </footer>
         </main>
       </div>
+      {modal === "rename" ? (
+        <Dialog title="Renomear carteira" onClose={() => setModal(null)}>
+          <form onSubmit={renamePortfolio}>
+            <label>
+              Nome da carteira
+              <input
+                name="name"
+                required
+                maxLength={60}
+                defaultValue={portfolios.find((p) => p.id === renameId)?.name}
+              />
+            </label>
+            {formError ? (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            ) : null}
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setModal(null)}
+              >
+                Cancelar
+              </button>
+              <button className="button primary" type="submit">
+                Guardar nome
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      ) : null}
       {modal === "import" ? (
         <Dialog title="Importar CSV" onClose={() => setModal(null)}>
           <p className="import-help">
@@ -1120,7 +1211,7 @@ export function Dashboard() {
           </form>
         </Dialog>
       ) : null}
-    </div>
+    </WorkspaceShell>
   );
 }
 const colors = [

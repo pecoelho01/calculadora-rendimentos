@@ -79,7 +79,7 @@ h3 {
   min-height: 100vh;
 }
 .sidebar {
-  width: 216px;
+  width: var(--sidebar-width);
   background: #fff;
   border-right: 1px solid var(--line);
   padding: 30px 16px 22px;
@@ -87,8 +87,109 @@ h3 {
   flex-direction: column;
   position: fixed;
   inset: 0 auto 0 0;
-  overflow-y: auto;
   z-index: 10;
+}
+.sidebar[hidden],
+.sidebar-reopen[hidden] {
+  display: none;
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 32px;
+}
+.sidebar-header .brand {
+  margin-bottom: 0;
+  font-size: 17px;
+}
+.sidebar-header .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+.sidebar-header .sidebar-toggle {
+  width: 30px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 11;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 3px;
+  background: transparent;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.sidebar-dragging .sidebar-resizer::after {
+  background: var(--accent);
+}
+.sidebar-resizer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.sidebar-dragging {
+  user-select: none;
+  cursor: col-resize;
+}
+.sidebar-reopen {
+  position: fixed;
+  top: 10px;
+  left: 16px;
+  z-index: 12;
+}
+.sidebar-closed .main-area {
+  margin-left: 0;
+}
+.sidebar-closed .topbar {
+  padding-left: 190px;
+}
+.portfolio-row {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.portfolio-row.selected {
+  background: var(--bg);
+}
+.portfolio-row .portfolio-link {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+}
+.portfolio-name {
+  flex: 1;
+  min-width: 0;
+}
+.portfolio-rename.icon-button {
+  width: 30px;
+  height: 36px;
+  flex-shrink: 0;
+  border-color: transparent;
+}
+.portfolio-rename .icon {
+  width: 15px;
+  height: 15px;
 }
 .brand {
   display: flex;
@@ -240,17 +341,19 @@ h3 {
   height: 13px;
 }
 .main-area {
-  margin-left: 216px;
+  margin-left: var(--sidebar-width);
   min-width: 0;
   flex: 1;
 }
 .topbar {
-  height: 64px;
+  min-height: 64px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 36px;
+  padding: 12px 36px;
   font-size: 12px;
 }
 .breadcrumb {
@@ -309,7 +412,8 @@ h3 {
   display: flex;
   gap: 10px;
   align-items: center;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-wrap: wrap;
 }
 .button {
   border-radius: 8px;
@@ -1237,6 +1341,38 @@ ul.import-help {
   }
 }
 @media (max-width: 800px) {
+  .sidebar-header {
+    margin-bottom: 16px;
+  }
+  .sidebar-header .brand {
+    font-size: 20px;
+  }
+  .sidebar-header .sidebar-toggle {
+    width: 40px;
+    height: 40px;
+  }
+  .sidebar-content {
+    overflow: visible;
+  }
+  .sidebar-resizer {
+    display: none;
+  }
+  .sidebar-reopen {
+    position: static;
+    margin: 16px 16px 0;
+  }
+  .portfolio-row {
+    flex-shrink: 0;
+    max-width: calc(100vw - 90px);
+  }
+  .portfolio-name {
+    white-space: normal;
+  }
+  .portfolio-rename.icon-button {
+    width: 40px;
+    height: 44px;
+  }
+
   .app-shell {
     display: block;
   }
@@ -1514,6 +1650,7 @@ ul.import-help {
     color: #111;
   }
   .no-print,
+  .sidebar-resizer,
   .sidebar,
   .topbar,
   .bottom-actions,

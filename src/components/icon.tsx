@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
 const paths = {
+  panel: "M3 4h18v16H3z M9 4v16 M5.5 8h1 M5.5 12h1",
+  edit: "M14 5l5 5 M4 20l5-1L21 7l-5-5L4 14z",
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   positions: "M4 20V10 M10 20V4 M16 20v-7 M22 20H2",
   transactions: "M3 7h17l-4-4 M21 17H4l4 4",
