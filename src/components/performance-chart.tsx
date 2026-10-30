@@ -1,7 +1,12 @@
 "use client";
-import { useId, useRef, useState, type PointerEvent } from "react";
-import type { PerformancePoint as Point } from "@/lib/portfolio";
-const periods = ["3M", "6M", "1A", "Tudo"] as const;
+import { useId, useMemo, useRef, useState, type PointerEvent } from "react";
+import {
+  calculatePerformance,
+  performancePeriods as periods,
+  type PerformancePoint as Point,
+  type PerformancePeriod,
+} from "@/lib/portfolio";
+import type { Currency, MarketData, Order } from "@/lib/types";
 const percent = (value: number | null) =>
   value === null
     ? "Indisponível"
@@ -11,36 +16,43 @@ const dateLabel = (date: string) =>
     timeZone: "UTC",
   });
 export function PerformanceChart({
-  data,
-  currentRoi,
-  currentOpenRoi,
+  orders,
+  market,
+  currency,
 }: {
-  data: Point[];
-  currentRoi: number | null;
-  currentOpenRoi: number | null;
+  orders: Order[];
+  market: MarketData;
+  currency: Currency;
 }) {
   const [selection, setSelection] = useState<{
     data: Point[];
     index: number;
   } | null>(null);
+  const [period, setPeriod] = useState<PerformancePeriod>("Máximo");
+  const endDate = new Date().toISOString().slice(0, 10);
+  const performance = useMemo(
+    () => calculatePerformance(orders, market, currency, period, endDate),
+    [orders, market, currency, period, endDate],
+  );
+  const { data, roi: currentRoi, openRoi: currentOpenRoi } = performance;
   const [mode, setMode] = useState<"total" | "open">("open");
   const displayedRoi = mode === "total" ? currentRoi : currentOpenRoi;
   const modeLabel =
     mode === "total" ? "Rentabilidade total" : "Posições abertas";
   const explanation =
-    mode === "total"
-      ? "ROI acumulado: ganho total sobre todas as compras"
-      : "Ganho não realizado sobre o custo FIFO das posições abertas";
+    period === "Máximo"
+      ? mode === "total"
+        ? "ROI acumulado: ganho total sobre todas as compras"
+        : "Ganho não realizado sobre o custo FIFO das posições abertas"
+      : mode === "total"
+        ? "Ganho do período sobre o valor inicial e as compras do intervalo"
+        : "Ganho das posições abertas desde o início do período ou a aquisição";
   const svgRef = useRef<SVGSVGElement>(null);
   const instructionsId = useId();
-  const [period, setPeriod] = useState<(typeof periods)[number]>("Tudo");
-  const cutoff = new Date();
-  cutoff.setUTCMonth(
-    cutoff.getUTCMonth() - { "3M": 3, "6M": 6, "1A": 12, Tudo: 1200 }[period],
-  );
-  const points = data
-    .filter((p) => p.date >= cutoff.toISOString().slice(0, 10))
-    .map((p) => ({ ...p, roi: mode === "total" ? p.roi : p.openRoi }));
+  const points = data.map((p) => ({
+    ...p,
+    roi: mode === "total" ? p.roi : p.openRoi,
+  }));
   const activeIndex = selection?.data === data ? selection.index : null;
   const active = activeIndex === null ? null : points[activeIndex];
   const values = points
@@ -49,7 +61,13 @@ export function PerformanceChart({
   const min = Math.min(0, ...values),
     max = Math.max(1, ...values),
     span = max - min || 1;
-  const x = (i: number) => 55 + (i / Math.max(1, points.length - 1)) * 865;
+  const firstTime = points.length ? Date.parse(points[0].date) : 0;
+  const timeSpan = points.length
+    ? Date.parse(points[points.length - 1].date) - firstTime
+    : 0;
+  const x = (i: number) =>
+    55 +
+    (timeSpan ? (Date.parse(points[i].date) - firstTime) / timeSpan : 0) * 865;
   const y = (v: number) => 195 - ((v - min) / span) * 160;
   const path = (key: "roi" | "benchmark") => {
     let connected = false;
@@ -72,12 +90,15 @@ export function PerformanceChart({
     const position = new DOMPoint(event.clientX, event.clientY).matrixTransform(
       matrix.inverse(),
     );
-    const index = Math.max(
+    const targetTime =
+      firstTime + Math.max(0, Math.min(1, (position.x - 55) / 865)) * timeSpan;
+    const index = points.reduce(
+      (nearest, point, i) =>
+        Math.abs(Date.parse(point.date) - targetTime) <
+        Math.abs(Date.parse(points[nearest].date) - targetTime)
+          ? i
+          : nearest,
       0,
-      Math.min(
-        points.length - 1,
-        Math.round(((position.x - 55) / 865) * (points.length - 1)),
-      ),
     );
     setSelection({ data, index });
   };
@@ -125,7 +146,8 @@ export function PerformanceChart({
         <span>
           {mode === "total"
             ? "Rentabilidade total atual"
-            : "Rentabilidade das posições abertas"}
+            : "Rentabilidade das posições abertas"}{" "}
+          · {period}
         </span>
         <strong
           className={
@@ -139,6 +161,10 @@ export function PerformanceChart({
           {percent(displayedRoi)}
         </strong>
         <small>{explanation}</small>
+        <small className="performance-dates">
+          {dateLabel(performance.start)} — {dateLabel(performance.end)} · até à
+          cotação atual
+        </small>
       </div>
       {values.length > 0 && points.some((p) => p.roi !== null) ? (
         <>
@@ -153,7 +179,10 @@ export function PerformanceChart({
           >
             {active ? (
               <>
-                <time dateTime={active.date}>{dateLabel(active.date)}</time>
+                <time dateTime={active.date}>
+                  {dateLabel(active.date)}
+                  {active.current ? " · Atual" : ""}
+                </time>
                 <span>
                   {modeLabel} <strong>{percent(active.roi)}</strong>
                 </span>
@@ -312,12 +341,16 @@ export function PerformanceChart({
           </div>
           <p className="fine-print">
             {mode === "total"
-              ? "Inclui ganhos realizados e não realizados sobre todas as compras."
+              ? period === "Máximo"
+                ? "Inclui ganhos realizados e não realizados sobre todas as compras."
+                : "Inclui ganhos realizados e não realizados apenas no período selecionado."
               : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
-            O índice usa o primeiro fecho disponível e não replica os fluxos da
-            carteira. Os períodos filtram datas sem alterar a base; não é TWR
-            nem retorno anualizado. Sem dividendos, comissões ou conversão
-            cambial. As falhas de preços aparecem como interrupções.
+            {period === "Máximo"
+              ? "O índice usa o primeiro fecho disponível desde a primeira transação."
+              : "As posições iniciais e o índice usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
+            O índice não replica os fluxos da carteira. Retorno simples; não é
+            TWR nem anualizado. Sem dividendos, comissões ou conversão cambial.
+            As falhas de preços aparecem como interrupções.
           </p>
         </>
       ) : (
@@ -326,8 +359,8 @@ export function PerformanceChart({
           <h3>O teu percurso começa aqui</h3>
           <p>
             {mode === "open"
-              ? "A evolução aparece quando existirem posições abertas com custo FIFO positivo e preços históricos compatíveis."
-              : "A evolução aparece quando existirem transações e preços históricos compatíveis."}
+              ? "Sem rentabilidade disponível para as posições abertas neste intervalo. Verifica as posições e os preços históricos necessários."
+              : "Sem rentabilidade disponível neste intervalo. Verifica as transações e os preços históricos necessários."}
           </p>
         </div>
       )}

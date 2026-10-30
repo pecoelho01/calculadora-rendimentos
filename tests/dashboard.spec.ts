@@ -336,8 +336,8 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   });
   if (testInfo.project.name === "mobile") await page.touchscreen.tap(last.x, last.y);
   else await page.mouse.move(last.x, last.y);
-  await expect(readout).toContainText("12/01/2024");
-  await expect(readout).toContainText("+25%");
+  await expect(readout).toContainText("Atual");
+  await expect(readout).toContainText("+38,64%");
   await expect(readout).toContainText("+10%");
   await chart.focus();
   await chart.press("Home");
@@ -355,9 +355,9 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await expect(page.getByRole("group", { name: "Tipo de rentabilidade" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   await page.getByRole("button", { name: "3M", exact: true }).click();
-  await expect(chart).toBeHidden();
-  await expect(current).toContainText("+38,64%");
-  await page.getByRole("button", { name: "Tudo", exact: true }).click();
+  await expect(chart).toBeVisible();
+  await expect(current).toContainText("+14,29%");
+  await page.getByRole("button", { name: "Máximo", exact: true }).click();
   await expect(readout).toContainText("Seleciona uma data");
 });
 
@@ -376,6 +376,8 @@ test("distinguir rentabilidade histórica indisponível de preços e retorno zer
   await expect(page.locator(".chart-readout")).toContainText("Posições abertas Indisponível");
   await expect(page.locator(".chart-readout")).toContainText("S&P 500 +0%");
   await chart.press("End");
+  await expect(page.locator(".chart-readout")).toContainText("Posições abertas +0%");
+  await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText("Posições abertas -100%");
 });
 
@@ -416,7 +418,59 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   // Existing historical points remain available after the current position closes.
   await chart.focus();
   await chart.press("End");
+  await expect(page.locator(".chart-readout")).toContainText("Indisponível");
+  await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText("+23,53%");
   await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
   await expect(current).toContainText("+25%");
+});
+
+test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ page }, testInfo) => {
+  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
+  const history = [
+    { date: "2025-01-03", close: 100 },
+    { date: "2025-10-29", close: 105 },
+    { date: "2025-12-31", close: 110 },
+    { date: "2026-04-29", close: 120 },
+    { date: "2026-07-29", close: 130 },
+    { date: "2026-10-23", close: 140 },
+  ];
+  await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
+    TEST: { ...assets.TEST, price: 150, history },
+    "^GSPC": { ...assets["^GSPC"], price: 1500, history: history.map(p => ({ ...p, close: p.close * 10 })) },
+  } } }));
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
+  const current = page.locator(".performance-current");
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  const readout = page.locator(".chart-readout");
+  await expect(current).toContainText("+50%");
+  for (const mode of ["Posições abertas", "Rentabilidade total"]) {
+    await page.getByRole("button", { name: mode, exact: true }).click();
+    for (const [period, expected] of [["3M", "+15,38%"], ["6M", "+25%"], ["1A", "+42,86%"], ["YTD", "+36,36%"], ["Máximo", "+50%"]]) {
+      await page.getByRole("button", { name: period, exact: true }).click();
+      await expect(current).toContainText(expected);
+      await expect(current).toContainText(period);
+      await chart.focus();
+      await chart.press("End");
+      await expect(readout).toContainText(expected);
+      await expect(readout).toContainText(`S&P 500 ${expected}`);
+      await expect(readout).toContainText("Atual");
+      if (period !== "Máximo") {
+        await chart.press("Home");
+        await expect(readout).toContainText("+0%");
+      }
+    }
+  }
+  await page.getByRole("button", { name: "YTD", exact: true }).click();
+  await expect(current).toContainText("01/01/2026");
+  await expect(current).toContainText("30/10/2026");
+  await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-ytd.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(current).toContainText("YTD");
+  await expect(current).toContainText("+36,36%");
+  await expect(current).toBeVisible();
+  await expect(page.locator(".segments")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

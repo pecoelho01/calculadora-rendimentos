@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
-import { calculateHistory, calculatePortfolio } from "@/lib/portfolio";
+import { calculatePortfolio } from "@/lib/portfolio";
 import {
   chronological,
   validateOrder,
@@ -133,10 +133,6 @@ export function Dashboard() {
   const currency = portfolio?.currency ?? "EUR";
   const summary = useMemo(
     () => calculatePortfolio(orders, market, currency),
-    [orders, market, currency],
-  );
-  const history = useMemo(
-    () => calculateHistory(orders, market, currency),
     [orders, market, currency],
   );
   const money = (n: number | null) =>
@@ -520,10 +516,15 @@ export function Dashboard() {
               <p>
                 Reconstruímos a carteira até ao último dia de negociação de cada
                 semana, usando apenas preços desse dia ou anteriores. O S&P 500
-                é um índice de preços em USD, normalizado pelo primeiro fecho
-                disponível desde a primeira transação. Não é uma simulação dos
-                mesmos fluxos de caixa. Períodos filtrados mantêm a base
-                original.
+                é um índice de preços em USD e não simula os mesmos fluxos de
+                caixa. Em Máximo, usa o primeiro fecho disponível desde a
+                primeira transação, e a carteira mantém os custos originais.
+                Em 3M, 6M, 1A e YTD, as posições iniciais e o índice usam o
+                último fecho anterior ao início efetivo do intervalo. A
+                rentabilidade total inclui as compras e vendas do período;
+                nas posições abertas, só contam os lotes ainda detidos, desde
+                o início do intervalo ou a aquisição. YTD começa em 1 de janeiro.
+                As compras entram integralmente na base, sem ponderação temporal.
               </p>
               <h3>Moedas, preços e limites</h3>
               <p>
@@ -594,9 +595,9 @@ export function Dashboard() {
                 <div className="charts-grid">
                   <PerformanceChart
                     key={portfolio.id}
-                    data={history}
-                    currentRoi={summary.roi}
-                    currentOpenRoi={summary.openRoi}
+                    orders={orders}
+                    market={market}
+                    currency={currency}
                   />
                   <section className="panel allocation">
                     <div className="panel-heading">
