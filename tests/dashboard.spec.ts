@@ -33,6 +33,7 @@ test.beforeEach(async ({ page }) => {
 });
 test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
   await page.goto("/");
+  await page.locator(".data-actions summary").click();
   await page.getByRole("button", { name: "Importar CSV" }).click();
   const dialog = page.getByRole("dialog", { name: "Importar CSV", exact: true });
   await expect(dialog).toBeVisible();
@@ -47,6 +48,7 @@ test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.locator(".metric").first()).toContainText("0,00");
+  await page.locator(".data-actions summary").click();
   await page.getByRole("button", { name: "Importar CSV" }).click();
   const chooserPromise = page.waitForEvent("filechooser");
   await dialog.getByRole("button", { name: "Escolher ficheiro CSV" }).click();
@@ -141,6 +143,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   await expect(
     page.getByRole("heading", { name: "Longo prazo", exact: true }),
   ).toBeVisible();
+  await page.locator(".data-actions summary").click();
   await expect(
     page.getByRole("button", { name: "Exportar backup JSON", exact: true }),
   ).toBeVisible();
@@ -331,7 +334,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   const readout = page.locator(".chart-readout");
   await chart.scrollIntoViewIfNeeded();
   const last = await chart.locator("svg").evaluate((svg) => {
-    const point = new DOMPoint(920, 100).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
+    const point = new DOMPoint((svg as SVGSVGElement).viewBox.baseVal.width - 30, 100).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
     return { x: point.x, y: point.y };
   });
   if (testInfo.project.name === "mobile") await page.touchscreen.tap(last.x, last.y);
@@ -473,4 +476,45 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
   await expect(page.locator(".segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+
+test("ações agrupadas acessíveis por teclado e metodologia completa na impressão", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const actions = page.locator(".data-actions");
+  const toggle = actions.locator("summary");
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Restaurar cópia de segurança", exact: true })).toBeVisible();
+  await toggle.press("Escape");
+  await expect(toggle).toBeFocused();
+  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeHidden();
+  await toggle.press("Enter");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar transações CSV", exact: true }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("transacoes.csv");
+  await expect(actions).not.toHaveAttribute("open");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  const methodology = page.locator(".chart-methodology");
+  const explanation = methodology.locator(".fine-print");
+  await expect(page.locator(".chart-limitations")).toBeVisible();
+  const labels = await page.locator(".chart-date").evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, right: bounds.right };
+  }));
+  for (let index = 1; index < labels.length; index++) {
+    expect(labels[index].left).toBeGreaterThan(labels[index - 1].right);
+  }
+  await expect(explanation).toBeHidden();
+  await methodology.locator("summary").click();
+  await expect(explanation).toBeVisible();
+  await methodology.locator("summary").click();
+  await page.emulateMedia({ media: "print" });
+  await expect(explanation).toBeVisible();
+  await expect(explanation).toContainText("não é TWR nem anualizado");
+  await expect(page.locator(".heading-actions")).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("relatorio.png"), fullPage: true });
 });

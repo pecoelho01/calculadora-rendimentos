@@ -1,11 +1,19 @@
 "use client";
-import { useId, useMemo, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 import {
   calculatePerformance,
   performancePeriods as periods,
   type PerformancePoint as Point,
   type PerformancePeriod,
 } from "@/lib/portfolio";
+import { Icon } from "./icon";
 import type { Currency, MarketData, Order } from "@/lib/types";
 const percent = (value: number | null) =>
   value === null
@@ -48,6 +56,16 @@ export function PerformanceChart({
         ? "Ganho do período sobre o valor inicial e as compras do intervalo"
         : "Ganho das posições abertas desde o início do período ou a aquisição";
   const svgRef = useRef<SVGSVGElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const [chartWidth, setChartWidth] = useState(950);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const observer = new ResizeObserver(() => setChartWidth(panel.clientWidth));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
+  const plotWidth = Math.max(1, chartWidth - 85);
   const instructionsId = useId();
   const points = data.map((p) => ({
     ...p,
@@ -67,7 +85,8 @@ export function PerformanceChart({
     : 0;
   const x = (i: number) =>
     55 +
-    (timeSpan ? (Date.parse(points[i].date) - firstTime) / timeSpan : 0) * 865;
+    (timeSpan ? (Date.parse(points[i].date) - firstTime) / timeSpan : 0) *
+      plotWidth;
   const y = (v: number) => 195 - ((v - min) / span) * 160;
   const path = (key: "roi" | "benchmark") => {
     let connected = false;
@@ -91,7 +110,8 @@ export function PerformanceChart({
       matrix.inverse(),
     );
     const targetTime =
-      firstTime + Math.max(0, Math.min(1, (position.x - 55) / 865)) * timeSpan;
+      firstTime +
+      Math.max(0, Math.min(1, (position.x - 55) / plotWidth)) * timeSpan;
     const index = points.reduce(
       (nearest, point, i) =>
         Math.abs(Date.parse(point.date) - targetTime) <
@@ -103,7 +123,7 @@ export function PerformanceChart({
     setSelection({ data, index });
   };
   return (
-    <section className="panel performance">
+    <section ref={panelRef} className="panel performance">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">O TEU PERCURSO</span>
@@ -236,7 +256,7 @@ export function PerformanceChart({
           >
             <svg
               ref={svgRef}
-              viewBox="0 0 950 235"
+              viewBox={`0 0 ${chartWidth} 235`}
               role="img"
               aria-label={`${modeLabel} e rentabilidade do S&P 500 por semana`}
             >
@@ -247,7 +267,7 @@ export function PerformanceChart({
                   <g key={i}>
                     <line
                       x1="55"
-                      x2="920"
+                      x2={chartWidth - 30}
                       y1={y(v)}
                       y2={y(v)}
                       stroke="#e9edf2"
@@ -273,7 +293,7 @@ export function PerformanceChart({
               />
               <path
                 d={path("roi")}
-                stroke="#7047eb"
+                stroke="var(--accent)"
                 strokeWidth="3"
                 fill="none"
                 strokeLinejoin="round"
@@ -287,7 +307,7 @@ export function PerformanceChart({
                     cx={x(i)}
                     cy={y(point.roi)}
                     r="4"
-                    fill="#7047eb"
+                    fill="var(--accent)"
                   />
                 ) : null,
               )}
@@ -306,53 +326,71 @@ export function PerformanceChart({
                       cx={x(activeIndex)}
                       cy={y(active.roi)}
                       r="5"
-                      fill="#7047eb"
+                      fill="var(--accent)"
                       stroke="white"
                       strokeWidth="2"
                     />
                   ) : null}
                 </g>
               ) : null}
-              {[0, Math.floor((points.length - 1) / 2), points.length - 1]
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .map((i) => (
-                  <text
-                    key={i}
-                    x={x(i)}
-                    y="225"
-                    textAnchor="middle"
-                    className="chart-label"
-                  >
-                    {points[i].date}
-                  </text>
-                ))}
+              {(timeSpan ? [0, 0.5, 1] : [0]).map((fraction) => (
+                <text
+                  key={fraction}
+                  x={55 + fraction * plotWidth}
+                  y="225"
+                  textAnchor={
+                    fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"
+                  }
+                  className="chart-label chart-date"
+                >
+                  {new Date(firstTime + fraction * timeSpan).toLocaleDateString(
+                    "pt-PT",
+                    {
+                      month: "short",
+                      year: "2-digit",
+                      timeZone: "UTC",
+                    },
+                  )}
+                </text>
+              ))}
             </svg>
           </div>
           <div className="legend">
             <span>
-              <i className="dot purple" /> {modeLabel}
+              <i className="dot accent" /> {modeLabel}
             </span>
             <span>
               <i className="dot gray" /> S&P 500 · índice em USD
             </span>
           </div>
-          <p className="fine-print">
-            {mode === "total"
-              ? period === "Máximo"
-                ? "Inclui ganhos realizados e não realizados sobre todas as compras."
-                : "Inclui ganhos realizados e não realizados apenas no período selecionado."
-              : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
-            {period === "Máximo"
-              ? "O índice usa o primeiro fecho disponível desde a primeira transação."
-              : "As posições iniciais e o índice usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
-            O índice não replica os fluxos da carteira. Retorno simples; não é
-            TWR nem anualizado. Sem dividendos, comissões ou conversão cambial.
-            As falhas de preços aparecem como interrupções.
+          <p className="chart-limitations">
+            Retorno simples · Sem dividendos, comissões ou câmbio. O S&amp;P 500
+            é um índice em USD e não replica os fluxos da carteira.
           </p>
+          <details className="chart-methodology">
+            <summary>
+              Como interpretar o gráfico <Icon name="chevron" />
+            </summary>
+            <p className="fine-print">
+              {mode === "total"
+                ? period === "Máximo"
+                  ? "Inclui ganhos realizados e não realizados sobre todas as compras."
+                  : "Inclui ganhos realizados e não realizados apenas no período selecionado."
+                : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
+              {period === "Máximo"
+                ? "O índice usa o primeiro fecho disponível desde a primeira transação."
+                : "As posições iniciais e o índice usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
+              O índice não replica os fluxos da carteira. Retorno simples; não é
+              TWR nem anualizado. Sem dividendos, comissões ou conversão
+              cambial. As falhas de preços aparecem como interrupções.
+            </p>
+          </details>
         </>
       ) : (
         <div className="chart-empty">
-          <span className="empty-symbol">↗</span>
+          <span className="empty-symbol">
+            <Icon name="trend" />
+          </span>
           <h3>O teu percurso começa aqui</h3>
           <p>
             {mode === "open"

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { Icon } from "./icon";
 export function Dialog({
   title,
   onClose,
@@ -18,7 +19,7 @@ export function Dialog({
       <div className="dialog-heading">
         <h2 id="dialog-title">{title}</h2>
         <button className="icon-button" aria-label="Fechar" onClick={onClose}>
-          ×
+          <Icon name="close" />
         </button>
       </div>
       {children}
