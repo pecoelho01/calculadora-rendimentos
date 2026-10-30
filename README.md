@@ -32,6 +32,8 @@ Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
 - Persistência local no navegador e cópia de segurança/restauro de todas as carteiras em JSON.
 - Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador.
 - Layout responsivo e notas com as fórmulas e limitações.
+- Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita; no telemóvel ocupa a largura disponível.
+- Renomeação de carteiras pelo botão direito, Shift+F10 ou botão de edição, preservando transações e moeda. A largura e abertura da sidebar mantêm-se durante a sessão da página.
 
 A aplicação inicia vazia. «Explorar uma carteira de exemplo» cria uma carteira USD com transações fictícias, mas procura preços reais; não apresenta cotações simuladas.
 

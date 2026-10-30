@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
 import { calculatePortfolio } from "@/lib/portfolio";
@@ -14,6 +13,8 @@ import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
 import { Dialog } from "./dialog";
+import { Icon } from "./icon";
+import { WorkspaceShell } from "./workspace-shell";
 
 function download(text: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -36,7 +37,7 @@ const initialPortfolio = (): Portfolio => ({
   orders: [],
 });
 type Tab = "overview" | "positions" | "transactions" | "notes";
-type Modal = "order" | "portfolio" | "import" | null;
+type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
@@ -48,6 +49,7 @@ export function Dashboard() {
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [modal, setModal] = useState<Modal>(null);
+  const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [search, setSearch] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -199,6 +201,37 @@ export function Dashboard() {
       setFormError((e as Error).message);
     }
   }
+  function startRename(id: string) {
+    setRenameId(id);
+    openModal("rename");
+  }
+  function renamePortfolio(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const target = portfolios.find((p) => p.id === renameId);
+    if (!target) {
+      setFormError(
+        "Esta carteira já não está disponível. Fecha este diálogo e escolhe outra carteira.",
+      );
+      return;
+    }
+    try {
+      const name = String(new FormData(event.currentTarget).get("name")).trim();
+      if (!name) {
+        setFormError("Introduz um nome para a carteira.");
+        return;
+      }
+      const renamed = validatePortfolio({ ...target, name });
+      if (persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))) {
+        setModal(null);
+      } else {
+        setFormError(
+          "Não foi possível guardar o nome. Fecha este diálogo e consulta o aviso na página antes de tentar novamente.",
+        );
+      }
+    } catch (error) {
+      setFormError((error as Error).message);
+    }
+  }
   function addPortfolio(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -312,132 +345,194 @@ export function Dashboard() {
       </main>
     );
   return (
-    <div className="app-shell">
-      <aside className="sidebar no-print">
-        <Link className="brand" href="/" aria-label="Rendimentos, início">
-          <span className="brand-mark">
-            r<span>↗</span>
-          </span>
-          rendimentos<span className="brand-dot">.</span>
-        </Link>
-        <span className="workspace-label">O TEU ESPAÇO</span>
-        <nav aria-label="Navegação principal">
-          {(
-            [
-              { key: "overview", icon: "◫", text: "Visão geral" },
-              { key: "positions", icon: "▦", text: "Posições" },
-              { key: "transactions", icon: "⇄", text: "Transações" },
-              { key: "notes", icon: "ⓘ", text: "Notas explicativas" },
-            ] as const
-          ).map((n) => (
-            <button
-              key={n.key}
-              className={tab === n.key ? "nav-item active" : "nav-item"}
-              onClick={() => setTab(n.key)}
-            >
-              <span aria-hidden="true">{n.icon}</span>
-              {n.text}
-              {n.key === "positions" ? (
-                <small>
-                  {summary.positions.filter((p) => p.shares > 0).length}
-                </small>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-portfolios">
-          <div className="side-heading">
-            <span>AS TUAS CARTEIRAS</span>
-            <button
-              aria-label="Criar carteira"
-              onClick={() => openModal("portfolio")}
-            >
-              +
-            </button>
-          </div>
-          {portfolios.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                setSelected(p.id);
-                setSearch("");
-              }}
-              className={`portfolio-link ${portfolio?.id === p.id ? "selected" : ""}`}
-            >
-              <i className="portfolio-dot" />
-              {p.name}
-              <small>{p.currency}</small>
-            </button>
-          ))}
-        </div>
-        <div className="sidebar-bottom">
-          <div className="local-badge">
-            <span>◉</span>
-            <div>
-              <strong>Guardado neste navegador</strong>
-              <small>Sem conta · os teus dados, contigo</small>
+    <WorkspaceShell
+      sidebar={
+        <>
+          <span className="workspace-label">O TEU ESPAÇO</span>
+          <nav aria-label="Navegação principal">
+            {(
+              [
+                { key: "overview", icon: "overview", text: "Visão geral" },
+                { key: "positions", icon: "positions", text: "Posições" },
+                {
+                  key: "transactions",
+                  icon: "transactions",
+                  text: "Transações",
+                },
+                { key: "notes", icon: "info", text: "Notas explicativas" },
+              ] as const
+            ).map((n) => (
+              <button
+                key={n.key}
+                className={tab === n.key ? "nav-item active" : "nav-item"}
+                aria-current={tab === n.key ? "page" : undefined}
+                onClick={() => setTab(n.key)}
+              >
+                <Icon name={n.icon} />
+                {n.text}
+                {n.key === "positions" ? (
+                  <small>
+                    {summary.positions.filter((p) => p.shares > 0).length}
+                  </small>
+                ) : null}
+              </button>
+            ))}
+          </nav>
+          <div className="sidebar-portfolios">
+            <div className="side-heading">
+              <span>AS TUAS CARTEIRAS</span>
+              <button
+                aria-label="Criar carteira"
+                onClick={() => openModal("portfolio")}
+              >
+                <Icon name="plus" />
+              </button>
             </div>
+            {portfolios.map((p) => (
+              <div
+                className={`portfolio-row ${portfolio?.id === p.id ? "selected" : ""}`}
+                key={p.id}
+              >
+                <button
+                  onClick={() => {
+                    setSelected(p.id);
+                    setSearch("");
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    startRename(p.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "ContextMenu" ||
+                      (event.shiftKey && event.key === "F10")
+                    ) {
+                      event.preventDefault();
+                      startRename(p.id);
+                    }
+                  }}
+                  className={`portfolio-link ${portfolio?.id === p.id ? "selected" : ""}`}
+                  aria-current={portfolio?.id === p.id ? "true" : undefined}
+                  title="Botão direito para renomear"
+                >
+                  <i className="portfolio-dot" />
+                  <span className="portfolio-name">{p.name}</span>
+                  <small>{p.currency}</small>
+                </button>
+                <button
+                  className="portfolio-rename icon-button"
+                  aria-label={`Renomear carteira ${p.name}`}
+                  onClick={() => startRename(p.id)}
+                >
+                  <Icon name="edit" />
+                </button>
+              </div>
+            ))}
           </div>
-          <button
-            className="backup-link"
-            onClick={() =>
-              download(
-                encodeStorage(portfolios),
-                "carteiras.json",
-                "application/json",
-              )
-            }
-          >
-            ↧ Exportar cópia de segurança
-          </button>
-          <button
-            className="backup-link"
-            onClick={() => backupRef.current?.click()}
-          >
-            ↥ Restaurar cópia de segurança
-          </button>
-          <a
-            href="https://github.com/pecoelho01"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Feito por Pedro ↗
-          </a>
-        </div>
-      </aside>
+          <div className="sidebar-bottom">
+            <div className="local-badge">
+              <Icon name="shield" />
+              <div>
+                <strong>Guardado neste navegador</strong>
+                <small>Sem conta · os teus dados, contigo</small>
+              </div>
+            </div>
+            <a
+              href="https://github.com/pecoelho01"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Feito por Pedro <Icon name="external" />
+            </a>
+          </div>
+        </>
+      }
+    >
       <div className="main-area">
         <header className="topbar no-print">
           <div className="breadcrumb">
-            Espaço pessoal <span>/</span> <strong>Portfólio</strong>
+            Espaço pessoal <span>/</span> <strong>As tuas carteiras</strong>
           </div>
           <div className="topbar-right">
-            <span className="status-dot" />
-            Dados via Yahoo Finance <span className="avatar">P</span>
+            <Icon name="shield" />
+            Dados locais · Mercado via Yahoo Finance
           </div>
         </header>
         <main className="content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">CADA INVESTIMENTO CONTA</div>
+              <div className="eyebrow">PAINEL DE INVESTIMENTOS</div>
               <h1>
                 {tab === "notes" ? "Conhece os teus números" : portfolio?.name}
               </h1>
               <p>
-                A tua carteira, em perspetiva. Todas as decisões começam aqui.
+                Acompanha o valor, os resultados e a evolução dos teus
+                investimentos.
               </p>
             </div>
             <div className="heading-actions no-print">
-              <button
-                className="button secondary"
-                onClick={() => openModal("import")}
+              <details
+                className="data-actions"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.currentTarget.open = false;
+                    event.currentTarget.querySelector("summary")?.focus();
+                  }
+                }}
               >
-                ↥ Importar CSV
-              </button>
+                <summary className="button secondary">
+                  <Icon name="file" /> Dados e exportação{" "}
+                  <Icon name="chevron" />
+                </summary>
+                <div
+                  className="data-actions-panel"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("button, a")) {
+                      event.currentTarget
+                        .closest("details")
+                        ?.removeAttribute("open");
+                    }
+                  }}
+                >
+                  <span className="action-group-label">Carteira atual</span>
+                  <button onClick={() => openModal("import")}>
+                    <Icon name="upload" /> Importar CSV
+                  </button>
+                  <button
+                    onClick={() =>
+                      download(exportCsv(orders), "transacoes.csv", "text/csv")
+                    }
+                  >
+                    <Icon name="download" /> Exportar transações CSV
+                  </button>
+                  <button onClick={() => window.print()}>
+                    <Icon name="file" /> Relatório PDF
+                  </button>
+                  <a href="/modelo_site_ativos.csv" download>
+                    <Icon name="download" /> Modelo de importação CSV
+                  </a>
+                  <span className="action-group-label">Todas as carteiras</span>
+                  <button
+                    onClick={() =>
+                      download(
+                        encodeStorage(portfolios),
+                        "carteiras.json",
+                        "application/json",
+                      )
+                    }
+                  >
+                    <Icon name="download" /> Exportar backup JSON
+                  </button>
+                  <button onClick={() => backupRef.current?.click()}>
+                    <Icon name="upload" /> Restaurar cópia de segurança
+                  </button>
+                </div>
+              </details>
               <button
                 className="button primary"
                 onClick={() => openModal("order")}
               >
-                + Nova transação
+                <Icon name="plus" /> Nova transação
               </button>
             </div>
           </div>
@@ -467,7 +562,7 @@ export function Dashboard() {
             <div className="notice" role="status">
               {message}
               <button aria-label="Fechar aviso" onClick={() => setMessage("")}>
-                ×
+                <Icon name="close" />
               </button>
             </div>
           ) : null}
@@ -493,24 +588,25 @@ export function Dashboard() {
               <h3>Custo de aquisição FIFO</h3>
               <p>
                 Cada venda consome primeiro as unidades compradas há mais tempo.
-                O ganho realizado é a receita da venda menos o custo desses lotes.
-                O custo médio FIFO é a média dos lotes que continuam abertos.
-                No mesmo dia, preservamos a ordem de registo das transações.
+                O ganho realizado é a receita da venda menos o custo desses
+                lotes. O custo médio FIFO é a média dos lotes que continuam
+                abertos. No mesmo dia, preservamos a ordem de registo das
+                transações.
               </p>
               <h3>Ganho e ROI total</h3>
               <p>
                 Ganho não realizado = valor das posições abertas − custo FIFO
-                dos lotes restantes. Ganho total = realizado + não realizado. ROI = ganho
-                total ÷ valor de todas as compras × 100. Não é uma taxa
-                anualizada nem uma rentabilidade ponderada pelo tempo.
+                dos lotes restantes. Ganho total = realizado + não realizado.
+                ROI = ganho total ÷ valor de todas as compras × 100. Não é uma
+                taxa anualizada nem uma rentabilidade ponderada pelo tempo.
               </p>
               <h3>Rentabilidade das posições abertas</h3>
               <p>
-                Ganho não realizado ÷ custo FIFO das posições abertas × 100.
-                Sem posições abertas, a percentagem fica indisponível. O toggle
-                do gráfico permite consultar esta métrica ou o ROI total.
-                No histórico, consideramos as posições abertas em cada data;
-                as vendas podem alterar a percentagem sem alterar as cotações.
+                Ganho não realizado ÷ custo FIFO das posições abertas × 100. Sem
+                posições abertas, a percentagem fica indisponível. O toggle do
+                gráfico permite consultar esta métrica ou o ROI total. No
+                histórico, consideramos as posições abertas em cada data; as
+                vendas podem alterar a percentagem sem alterar as cotações.
               </p>
               <h3>Histórico e S&P 500</h3>
               <p>
@@ -518,13 +614,13 @@ export function Dashboard() {
                 semana, usando apenas preços desse dia ou anteriores. O S&P 500
                 é um índice de preços em USD e não simula os mesmos fluxos de
                 caixa. Em Máximo, usa o primeiro fecho disponível desde a
-                primeira transação, e a carteira mantém os custos originais.
-                Em 3M, 6M, 1A e YTD, as posições iniciais e o índice usam o
-                último fecho anterior ao início efetivo do intervalo. A
-                rentabilidade total inclui as compras e vendas do período;
-                nas posições abertas, só contam os lotes ainda detidos, desde
-                o início do intervalo ou a aquisição. YTD começa em 1 de janeiro.
-                As compras entram integralmente na base, sem ponderação temporal.
+                primeira transação, e a carteira mantém os custos originais. Em
+                3M, 6M, 1A e YTD, as posições iniciais e o índice usam o último
+                fecho anterior ao início efetivo do intervalo. A rentabilidade
+                total inclui as compras e vendas do período; nas posições
+                abertas, só contam os lotes ainda detidos, desde o início do
+                intervalo ou a aquisição. YTD começa em 1 de janeiro. As compras
+                entram integralmente na base, sem ponderação temporal.
               </p>
               <h3>Moedas, preços e limites</h3>
               <p>
@@ -563,7 +659,8 @@ export function Dashboard() {
                   disabled={loading || !orders.length}
                   onClick={() => setRefresh((n) => n + 1)}
                 >
-                  {loading ? "A obter cotações…" : "↻ Atualizar preços"}
+                  <Icon name="refresh" />
+                  {loading ? "A obter cotações…" : "Atualizar preços"}
                 </button>
               </div>
               <div className="metrics">
@@ -577,13 +674,13 @@ export function Dashboard() {
                   label="Ganho total"
                   value={money(summary.gain)}
                   detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
-                  positive={summary.gain !== null && summary.gain >= 0}
+                  trend={summary.gain}
                 />
                 <Metric
                   label="Ganho realizado"
                   value={money(summary.realized)}
                   detail="Resultado das tuas vendas"
-                  positive={summary.realized >= 0}
+                  trend={summary.realized}
                 />
                 <Metric
                   label="Compras acumuladas"
@@ -693,7 +790,7 @@ export function Dashboard() {
                   </div>
                   <div className="table-actions no-print">
                     <label className="search">
-                      <span>⌕</span>
+                      <Icon name="search" />
                       <input
                         aria-label="Pesquisar ativo"
                         placeholder="Pesquisar ativo…"
@@ -701,20 +798,6 @@ export function Dashboard() {
                         onChange={(e) => setSearch(e.target.value)}
                       />
                     </label>
-                    <button
-                      className="icon-button"
-                      aria-label="Exportar transações CSV"
-                      title="Exportar CSV"
-                      onClick={() =>
-                        download(
-                          exportCsv(orders),
-                          "transacoes.csv",
-                          "text/csv",
-                        )
-                      }
-                    >
-                      ↧
-                    </button>
                   </div>
                 </div>
                 {tab === "overview" ? (
@@ -733,7 +816,7 @@ export function Dashboard() {
                 {!orders.length ? (
                   <div className="empty-state">
                     <div className="empty-illustration">
-                      ▥<span>+</span>
+                      <Icon name="positions" />
                     </div>
                     <h3>Um novo capítulo para os teus investimentos</h3>
                     <p>
@@ -746,13 +829,14 @@ export function Dashboard() {
                         className="button primary no-print"
                         onClick={() => openModal("order")}
                       >
-                        + Adicionar transação
+                        <Icon name="plus" /> Adicionar transação
                       </button>
                       <button
                         className="text-button no-print"
                         onClick={loadDemo}
                       >
-                        Explorar uma carteira de exemplo ↗
+                        Explorar uma carteira de exemplo{" "}
+                        <Icon name="external" />
                       </button>
                     </div>
                     <a
@@ -837,7 +921,7 @@ export function Dashboard() {
                                       target="_blank"
                                       rel="noreferrer"
                                     >
-                                      {p.ticker} ↗
+                                      {p.ticker} <Icon name="external" />
                                     </a>
                                     <small>
                                       {p.name}
@@ -866,9 +950,11 @@ export function Dashboard() {
                               </td>
                               <td
                                 className={
-                                  p.unrealized !== null && p.unrealized >= 0
-                                    ? "positive"
-                                    : "negative"
+                                  p.unrealized === null
+                                    ? ""
+                                    : p.unrealized >= 0
+                                      ? "positive"
+                                      : "negative"
                                 }
                               >
                                 {money(p.unrealized)}
@@ -896,60 +982,88 @@ export function Dashboard() {
                     Valores em {currency} · Preços sujeitos a atraso · Cache de
                     5 minutos
                   </span>
-                  <button
-                    className="text-button no-print"
-                    onClick={() => window.print()}
-                  >
-                    ↗ Relatório PDF
-                  </button>
                 </div>
               </section>
               <div className="bottom-actions no-print">
-                <button
-                  onClick={() =>
-                    download(
-                      encodeStorage(portfolios),
-                      "carteiras.json",
-                      "application/json",
-                    )
-                  }
-                >
-                  Exportar backup JSON
-                </button>
-                <button onClick={() => backupRef.current?.click()}>
-                  Restaurar backup JSON
-                </button>
-                <a href="/modelo_site_ativos.csv" download>
-                  ↓ Modelo de importação CSV
-                </a>
+                <span>
+                  <Icon name="shield" /> Guardado apenas neste navegador.
+                  Exporta uma cópia regularmente.
+                </span>
                 <button onClick={removePortfolio}>Eliminar carteira</button>
               </div>
             </>
           )}
           <footer className="page-footer">
             <span>
-              <span className="mini-mark">↗</span> Um olhar mais claro sobre o
-              teu futuro.
+              <Icon name="trend" /> Um olhar mais claro sobre o teu futuro.
             </span>
             <span>rendimentos · Projeto pessoal</span>
           </footer>
         </main>
       </div>
+      {modal === "rename" ? (
+        <Dialog title="Renomear carteira" onClose={() => setModal(null)}>
+          <form onSubmit={renamePortfolio}>
+            <label>
+              Nome da carteira
+              <input
+                name="name"
+                required
+                maxLength={60}
+                defaultValue={portfolios.find((p) => p.id === renameId)?.name}
+              />
+            </label>
+            {formError ? (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            ) : null}
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setModal(null)}
+              >
+                Cancelar
+              </button>
+              <button className="button primary" type="submit">
+                Guardar nome
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      ) : null}
       {modal === "import" ? (
         <Dialog title="Importar CSV" onClose={() => setModal(null)}>
           <p className="import-help">
             Prepara o teu ficheiro com uma transação por linha, como neste
-            exemplo. Podes descarregar o modelo e substituir os dados pelos teus.
+            exemplo. Podes descarregar o modelo e substituir os dados pelos
+            teus.
           </p>
-          <pre className="csv-example" aria-label="Exemplo de CSV"><code>{`date,ticker,name,pricebuy,shares,type
+          <pre className="csv-example" aria-label="Exemplo de CSV">
+            <code>{`date,ticker,name,pricebuy,shares,type
 2024-01-10,SXR8.DE,iShares Core S&P 500,60,5,buy
-2024-11-01,SXR8.DE,iShares Core S&P 500,75,2,sell`}</code></pre>
+2024-11-01,SXR8.DE,iShares Core S&P 500,75,2,sell`}</code>
+          </pre>
           <ul className="import-help">
-            <li><code>date</code>: data no formato AAAA-MM-DD.</li>
-            <li><code>ticker</code>: símbolo do ativo no Yahoo Finance.</li>
-            <li><code>pricebuy</code>: preço por unidade na moeda da carteira, também nas vendas.</li>
-            <li><code>shares</code>: quantidade positiva.</li>
-            <li><code>name</code> e <code>type</code> são opcionais. Usa <code>buy</code> para compras ou <code>sell</code> para vendas; se omitido, assume compra.</li>
+            <li>
+              <code>date</code>: data no formato AAAA-MM-DD.
+            </li>
+            <li>
+              <code>ticker</code>: símbolo do ativo no Yahoo Finance.
+            </li>
+            <li>
+              <code>pricebuy</code>: preço por unidade na moeda da carteira,
+              também nas vendas.
+            </li>
+            <li>
+              <code>shares</code>: quantidade positiva.
+            </li>
+            <li>
+              <code>name</code> e <code>type</code> são opcionais. Usa{" "}
+              <code>buy</code> para compras ou <code>sell</code> para vendas; se
+              omitido, assume compra.
+            </li>
           </ul>
           <p className="import-help">
             Separa as colunas por vírgulas ou ponto e vírgula. Usa ponto nos
@@ -958,7 +1072,11 @@ export function Dashboard() {
             mesmo ficheiro novamente duplica-as.
           </p>
           <div className="dialog-actions import-actions">
-            <a className="button secondary" href="/modelo_site_ativos.csv" download>
+            <a
+              className="button secondary"
+              href="/modelo_site_ativos.csv"
+              download
+            >
               Descarregar modelo CSV
             </a>
             <button
@@ -1093,11 +1211,11 @@ export function Dashboard() {
           </form>
         </Dialog>
       ) : null}
-    </div>
+    </WorkspaceShell>
   );
 }
 const colors = [
-  "#7750e6",
+  "#2563eb",
   "#398cf2",
   "#27b5a0",
   "#efa749",
@@ -1109,21 +1227,25 @@ function Metric({
   value,
   detail,
   featured = false,
-  positive = false,
+  trend,
 }: {
   label: string;
   value: string;
   detail: string;
   featured?: boolean;
-  positive?: boolean;
+  trend?: number | null;
 }) {
   return (
     <section className={`metric ${featured ? "featured" : ""}`}>
       <div className="metric-label">
         {label}
-        <span>{featured ? "◫" : "↗"}</span>
+        <Icon name={featured ? "wallet" : "trend"} />
       </div>
-      <strong className={positive ? "positive" : ""}>{value}</strong>
+      <strong
+        className={trend == null ? "" : trend >= 0 ? "positive" : "negative"}
+      >
+        {value}
+      </strong>
       <small>{detail}</small>
     </section>
   );

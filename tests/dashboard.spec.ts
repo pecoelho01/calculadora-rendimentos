@@ -33,6 +33,7 @@ test.beforeEach(async ({ page }) => {
 });
 test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
   await page.goto("/");
+  await page.locator(".data-actions summary").click();
   await page.getByRole("button", { name: "Importar CSV" }).click();
   const dialog = page.getByRole("dialog", { name: "Importar CSV", exact: true });
   await expect(dialog).toBeVisible();
@@ -47,6 +48,7 @@ test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.locator(".metric").first()).toContainText("0,00");
+  await page.locator(".data-actions summary").click();
   await page.getByRole("button", { name: "Importar CSV" }).click();
   const chooserPromise = page.waitForEvent("filechooser");
   await dialog.getByRole("button", { name: "Escolher ficheiro CSV" }).click();
@@ -141,6 +143,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   await expect(
     page.getByRole("heading", { name: "Longo prazo", exact: true }),
   ).toBeVisible();
+  await page.locator(".data-actions summary").click();
   await expect(
     page.getByRole("button", { name: "Exportar backup JSON", exact: true }),
   ).toBeVisible();
@@ -331,7 +334,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   const readout = page.locator(".chart-readout");
   await chart.scrollIntoViewIfNeeded();
   const last = await chart.locator("svg").evaluate((svg) => {
-    const point = new DOMPoint(920, 100).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
+    const point = new DOMPoint((svg as SVGSVGElement).viewBox.baseVal.width - 30, 100).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
     return { x: point.x, y: point.y };
   });
   if (testInfo.project.name === "mobile") await page.touchscreen.tap(last.x, last.y);
@@ -473,4 +476,170 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
   await expect(page.locator(".segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+
+test("ações agrupadas acessíveis por teclado e metodologia completa na impressão", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const actions = page.locator(".data-actions");
+  const toggle = actions.locator("summary");
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Restaurar cópia de segurança", exact: true })).toBeVisible();
+  await toggle.press("Escape");
+  await expect(toggle).toBeFocused();
+  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeHidden();
+  await toggle.press("Enter");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar transações CSV", exact: true }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("transacoes.csv");
+  await expect(actions).not.toHaveAttribute("open");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  const methodology = page.locator(".chart-methodology");
+  const explanation = methodology.locator(".fine-print");
+  await expect(page.locator(".chart-limitations")).toBeVisible();
+  const labels = await page.locator(".chart-date").evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, right: bounds.right };
+  }));
+  for (let index = 1; index < labels.length; index++) {
+    expect(labels[index].left).toBeGreaterThan(labels[index - 1].right);
+  }
+  await expect(explanation).toBeHidden();
+  await methodology.locator("summary").click();
+  await expect(explanation).toBeVisible();
+  await methodology.locator("summary").click();
+  await page.emulateMedia({ media: "print" });
+  await expect(explanation).toBeVisible();
+  await expect(explanation).toContainText("não é TWR nem anualizado");
+  await expect(page.locator(".heading-actions")).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("relatorio.png"), fullPage: true });
+});
+
+test("fechar e reabrir sidebar mantém foco, carteira e conteúdo", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const sidebar = page.locator("#workspace-sidebar");
+  await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
+  await expect(sidebar).toBeHidden();
+  const reopen = page.getByRole("button", { name: "Abrir sidebar", exact: true });
+  await expect(reopen).toBeFocused();
+  await expect(reopen).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("heading", { name: "A minha carteira" })).toBeVisible();
+  expect(await page.locator(".main-area").evaluate((element) => getComputedStyle(element).marginLeft)).toBe("0px");
+  await reopen.press("Enter");
+  await expect(sidebar).toBeVisible();
+  const close = page.getByRole("button", { name: "Fechar sidebar", exact: true });
+  await expect(close).toBeFocused();
+  await expect(close).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("separator", { name: "Largura da sidebar" })).toBeVisible({ visible: testInfo.project.name === "desktop" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.emulateMedia({ media: "print" });
+  await expect(sidebar).toBeHidden();
+  await expect(page.locator(".sidebar-reopen")).toBeHidden();
+});
+
+test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o conteúdo alinhado", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "A sidebar móvel ocupa a largura disponível.");
+  await page.goto("/");
+  const handle = page.getByRole("separator", { name: "Largura da sidebar" });
+  const sidebar = page.locator("#workspace-sidebar");
+  const drag = async (delta: number) => {
+    const bounds = (await handle.boundingBox())!;
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 160);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width / 2 + delta, bounds.y + 160, { steps: 8 });
+    await page.mouse.up();
+  };
+  await drag(100);
+  await expect(handle).toHaveAttribute("aria-valuenow", "348");
+  await drag(-60);
+  await expect(handle).toHaveAttribute("aria-valuenow", "288");
+  await drag(600);
+  await expect(handle).toHaveAttribute("aria-valuenow", "420");
+  await drag(-600);
+  await expect(handle).toHaveAttribute("aria-valuenow", "224");
+  await handle.press("ArrowRight");
+  await expect(handle).toHaveAttribute("aria-valuenow", "240");
+  await handle.press("End");
+  await expect(handle).toHaveAttribute("aria-valuenow", "420");
+  await expect(sidebar).toHaveCSS("width", "420px");
+  await expect(page.locator(".main-area")).toHaveCSS("margin-left", "420px");
+  await page.setViewportSize({ width: 820, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("sidebar-larga.png"), fullPage: true });
+  await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
+  await page.getByRole("button", { name: "Abrir sidebar", exact: true }).click();
+  await expect(sidebar).toHaveCSS("width", "420px");
+  await handle.press("Home");
+  await expect(handle).toHaveAttribute("aria-valuenow", "224");
+  await handle.press("ArrowLeft");
+  await expect(handle).toHaveAttribute("aria-valuenow", "224");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(handle).toBeHidden();
+  await expect(sidebar).toHaveCSS("width", "390px");
+});
+
+test("renomear por botão direito ou edição preserva seleção, transações e gravação", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.locator(".metric").first()).toContainText("2100,00");
+  const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
+  await page.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await page.getByLabel("Nome da carteira", { exact: true }).fill("Outra carteira");
+  await page.getByRole("dialog").getByRole("button", { name: "Criar carteira", exact: true }).click();
+  const first = page.locator(".portfolio-link").filter({ hasText: "A minha carteira" });
+  if (testInfo.project.name === "desktop") await first.click({ button: "right" });
+  else await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
+  await dialog.getByLabel("Nome da carteira").fill("   ");
+  await dialog.getByRole("button", { name: "Guardar nome" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Introduz um nome");
+  await dialog.getByLabel("Nome da carteira").fill("  Investimentos a longo prazo  ");
+  await dialog.getByRole("button", { name: "Guardar nome" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Outra carteira", exact: true })).toBeVisible();
+  const renamed = page.locator(".portfolio-link").filter({ hasText: "Investimentos a longo prazo" });
+  await expect(renamed).toBeVisible();
+  await renamed.focus();
+  await renamed.press("Shift+F10");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Nome da carteira").fill("Alteração cancelada");
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(renamed).toBeVisible();
+  await renamed.click();
+  await expect(page.locator(".metric").first()).toContainText("2100,00");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Investimentos a longo prazo", exact: true })).toBeVisible();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
+  expect(stored.portfolios[0]).toEqual({ ...original.portfolios[0], name: "Investimentos a longo prazo" });
+  await page.screenshot({ path: testInfo.outputPath("sidebar-renomeada.png"), fullPage: true });
+});
+
+
+test("conflito ao renomear mostra erro no diálogo e preserva a versão mais recente", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
+  await dialog.getByLabel("Nome da carteira").fill("Nome desatualizado");
+  const latest = await page.evaluate(() => {
+    const key = "rendimentos.portfolios.v1";
+    const data = JSON.parse(localStorage.getItem(key)!);
+    data.portfolios[0].id = "nova-carteira";
+    data.portfolios[0].name = "Versão mais recente";
+    const encoded = JSON.stringify(data);
+    localStorage.setItem(key, encoded);
+    return encoded;
+  });
+  await dialog.getByRole("button", { name: "Guardar nome" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Não foi possível guardar o nome");
+  await dialog.getByRole("button", { name: "Guardar nome" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("já não está disponível");
+  expect(await page.evaluate(() => localStorage.getItem("rendimentos.portfolios.v1"))).toBe(latest);
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Versão mais recente", exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("noutro separador");
 });
