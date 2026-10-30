@@ -9,12 +9,24 @@ export type Position = {
   invested: number;
   received: number;
   realized: number;
+  realizedCost: number;
   price: number | null;
   value: number | null;
   unrealized: number | null;
+  unrealizedPercent: number | null;
+  realizedPercent: number | null;
   dayGain: number | null;
   issue: string | null;
 };
+export type OrderGain = {
+  gain: number | null;
+  percent: number | null;
+  shares: number;
+};
+
+const gainPercent = (gain: number | null, cost: number) =>
+  gain !== null && cost > 0 ? (gain / cost) * 100 : null;
+
 function calculateSnapshot(
   orders: Order[],
   market: MarketData,
@@ -22,11 +34,19 @@ function calculateSnapshot(
 ) {
   validateOrders(orders);
   const byTicker = new Map<string, Position>();
+  const orderGains = new Map<string, OrderGain>();
   const inventory = new Map<
     string,
     {
       units: bigint;
-      lots: { units: bigint; price: number; date: string }[];
+      lots: {
+        units: bigint;
+        originalUnits: bigint;
+        realized: number;
+        price: number;
+        date: string;
+        orderId: string;
+      }[];
       head: number;
     }
   >();
@@ -40,16 +60,26 @@ function calculateSnapshot(
       invested: 0,
       received: 0,
       realized: 0,
+      realizedCost: 0,
       price: null,
       value: null,
       unrealized: null,
+      unrealizedPercent: null,
+      realizedPercent: null,
       dayGain: null,
       issue: null,
     };
     const stock = inventory.get(o.ticker) ?? { units: 0n, lots: [], head: 0 };
     const quantity = shareUnits(o.shares);
     if (o.type === "buy") {
-      stock.lots.push({ units: quantity, price: o.pricebuy, date: o.date });
+      stock.lots.push({
+        units: quantity,
+        originalUnits: quantity,
+        realized: 0,
+        price: o.pricebuy,
+        date: o.date,
+        orderId: o.id,
+      });
       stock.units += quantity;
       p.invested += o.pricebuy * o.shares;
     } else {
@@ -60,11 +90,19 @@ function calculateSnapshot(
         const lot = stock.lots[stock.head];
         const consumed = remaining < lot.units ? remaining : lot.units;
         soldCost += (Number(consumed) / 1e8) * lot.price;
+        lot.realized += (Number(consumed) / 1e8) * (o.pricebuy - lot.price);
         lot.units -= consumed;
         remaining -= consumed;
         if (lot.units === 0n) stock.head++;
       }
-      p.realized += o.pricebuy * o.shares - soldCost;
+      const gain = o.pricebuy * o.shares - soldCost;
+      p.realized += gain;
+      p.realizedCost += soldCost;
+      orderGains.set(o.id, {
+        gain,
+        percent: gainPercent(gain, soldCost),
+        shares: o.shares,
+      });
       p.received += o.pricebuy * o.shares;
       stock.units -= quantity;
     }
@@ -79,6 +117,7 @@ function calculateSnapshot(
       .slice(stock.head)
       .reduce((cost, lot) => cost + (Number(lot.units) / 1e8) * lot.price, 0);
     p.average = p.shares > 0 ? p.costBasis / p.shares : 0;
+    p.realizedPercent = gainPercent(p.realized, p.realizedCost);
     const q = market[p.ticker];
     p.price =
       q?.currency === currency &&
@@ -87,6 +126,20 @@ function calculateSnapshot(
       q.price >= 0
         ? q.price
         : null;
+    // Purchase gains include sales attributed to the lot and its remaining value.
+    // Sale rows are a second view of the realized part, not additional gains.
+    for (const lot of stock.lots) {
+      const shares = Number(lot.units) / 1e8;
+      const cost = (Number(lot.originalUnits) / 1e8) * lot.price;
+      const unrealized =
+        shares === 0 ? 0 : p.price === null ? null : shares * (p.price - lot.price);
+      const gain = unrealized === null ? null : lot.realized + unrealized;
+      orderGains.set(lot.orderId, {
+        gain,
+        percent: gainPercent(gain, cost),
+        shares,
+      });
+    }
     if (!p.shares) {
       p.value = 0;
       p.unrealized = 0;
@@ -106,6 +159,7 @@ function calculateSnapshot(
           ? (p.price - q.previousClose) * p.shares
           : null;
     }
+    p.unrealizedPercent = gainPercent(p.unrealized, p.costBasis);
   }
   const sum = (key: "invested" | "received" | "realized") =>
     positions.reduce((n, p) => n + p[key], 0);
@@ -124,6 +178,7 @@ function calculateSnapshot(
     inventory,
     summary: {
       positions,
+      orderGains,
       invested,
       realized,
       received: sum("received"),

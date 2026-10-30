@@ -608,6 +608,15 @@ export function Dashboard() {
                 histórico, consideramos as posições abertas em cada data; as
                 vendas podem alterar a percentagem sem alterar as cotações.
               </p>
+              <h3>Ganho por transação</h3>
+              <p>
+                Nas compras, mostramos o ganho total do lote: o realizado nas
+                vendas mais o não realizado das unidades ainda em carteira,
+                sobre o custo original da compra. Nas vendas, mostramos o ganho realizado
+                sobre o custo FIFO das unidades vendidas. Os preços das transações
+                devem ser superiores a zero. Os valores não incluem
+                comissões nem impostos.
+              </p>
               <h3>Histórico e S&P 500</h3>
               <p>
                 Reconstruímos a carteira até ao último dia de negociação de cada
@@ -859,36 +868,63 @@ export function Dashboard() {
                             <th>Quantidade</th>
                             <th>Preço ({currency})</th>
                             <th>Total ({currency})</th>
+                            <th>Ganho ({currency}) / %</th>
                             <th className="no-print">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleOrders.map((o) => (
-                            <tr key={o.id}>
-                              <td>{o.date}</td>
-                              <td>
-                                <strong>{o.ticker}</strong>
-                                <small>{o.name}</small>
-                              </td>
-                              <td>
-                                <span className={`order-badge ${o.type}`}>
-                                  {o.type === "buy" ? "Compra" : "Venda"}
-                                </span>
-                              </td>
-                              <td>{qty(o.shares)}</td>
-                              <td>{money(o.pricebuy)}</td>
-                              <td>{money(o.pricebuy * o.shares)}</td>
-                              <td className="no-print">
-                                <button
-                                  className="delete-button"
-                                  aria-label={`Remover ${o.ticker} de ${o.date}`}
-                                  onClick={() => deleteOrder(o.id)}
-                                >
-                                  Remover
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {visibleOrders.map((o) => {
+                            const result = summary.orderGains.get(o.id)!;
+                            return (
+                              <tr key={o.id}>
+                                <td>{o.date}</td>
+                                <td>
+                                  <strong>{o.ticker}</strong>
+                                  <small>{o.name}</small>
+                                </td>
+                                <td>
+                                  <span className={`order-badge ${o.type}`}>
+                                    {o.type === "buy" ? "Compra" : "Venda"}
+                                  </span>
+                                </td>
+                                <td>{qty(o.shares)}</td>
+                                <td>{money(o.pricebuy)}</td>
+                                <td>{money(o.pricebuy * o.shares)}</td>
+                                <td>
+                                  <span
+                                    className={
+                                      result.gain === null
+                                        ? ""
+                                        : result.gain >= 0
+                                          ? "positive"
+                                          : "negative"
+                                    }
+                                  >
+                                    {money(result.gain)}
+                                    <span className="gain-percent">
+                                      {pct(result.percent)}
+                                    </span>
+                                  </span>
+                                  <small>
+                                    {o.type === "sell"
+                                      ? "Realizado"
+                                      : result.shares === 0
+                                        ? "Total da compra · Lote fechado"
+                                        : `Total da compra · ${qty(result.shares)} em carteira`}
+                                  </small>
+                                </td>
+                                <td className="no-print">
+                                  <button
+                                    className="delete-button"
+                                    aria-label={`Remover ${o.ticker} de ${o.date}`}
+                                    onClick={() => deleteOrder(o.id)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     ) : (
@@ -958,6 +994,7 @@ export function Dashboard() {
                                 }
                               >
                                 {money(p.unrealized)}
+                                <span className="gain-percent">{pct(p.unrealizedPercent)}</span>
                               </td>
                               <td
                                 className={
@@ -965,6 +1002,7 @@ export function Dashboard() {
                                 }
                               >
                                 {money(p.realized)}
+                                <span className="gain-percent">{pct(p.realizedPercent)}</span>
                               </td>
                             </tr>
                           ))}
@@ -981,6 +1019,13 @@ export function Dashboard() {
                   <span>
                     Valores em {currency} · Preços sujeitos a atraso · Cache de
                     5 minutos
+                    {tab === "transactions" ? (
+                      <span className="transaction-gain-note">
+                        Compras: ganho total do lote (realizado + não realizado), % sobre o custo original.
+                        Vendas: ganho realizado, % sobre o custo vendido.
+                        Os ganhos das vendas já estão incluídos nas compras; não somar as duas vistas.
+                      </span>
+                    ) : null}
                   </span>
                 </div>
               </section>
