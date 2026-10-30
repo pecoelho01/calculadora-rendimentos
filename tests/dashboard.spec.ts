@@ -661,3 +661,22 @@ test("entrada sem Supabase conserva acesso explícito ao modo local", async ({ p
   await page.reload();
   await expect(page.getByRole("heading", { name: "A minha carteira", exact: true })).toBeVisible();
 });
+
+test("eliminar a última carteira local mantém uma carteira vazia no navegador", async ({ page }) => {
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "carteira.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios[0].id);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Eliminar carteira", exact: true }).click();
+  await expect(page.locator(".portfolio-row")).toHaveCount(1);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios[0].id)).not.toBe(original);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
+  expect(saved.portfolios).toHaveLength(1);
+  expect(saved.portfolios[0].orders).toEqual([]);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "A minha carteira", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-row")).toHaveCount(1);
+});

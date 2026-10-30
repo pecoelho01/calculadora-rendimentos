@@ -322,6 +322,36 @@ test("conta vazia permite criar a primeira carteira sem copiar dados locais", as
   await assertNoOverflow(page);
 });
 
+test("eliminar a última carteira da conta mantém a conta vazia após confirmação e recarga", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  state.delayNextWrite = true;
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Eliminar carteira", exact: true }).click();
+  await expect.poll(() => state.requests.length).toBe(1);
+  expect(state.requests[0].changes).toEqual([
+    { id: "remote-a", portfolio: null, expectedRevision: 3 },
+  ]);
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  state.releaseWrite();
+  await expect(page.getByText("A tua conta ainda não tem carteiras.", { exact: false })).toBeVisible();
+  await expect(page.locator(".portfolio-row")).toHaveCount(0);
+  expect(state.accounts[userA].portfolios).toEqual([]);
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Criar a primeira carteira", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-row")).toHaveCount(0);
+  await page.getByRole("button", { name: "Criar a primeira carteira", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Criar carteira", exact: true });
+  await dialog.getByLabel("Nome da carteira").fill("Nova carteira após eliminação");
+  await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Nova carteira após eliminação", exact: true })).toBeVisible();
+  expect(state.accounts[userA].portfolios).toHaveLength(1);
+  await assertNoOverflow(page);
+});
+
 test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/data ao mercado", async ({ page }) => {
   const state = await setup(page, true);
   const marketRequests: URL[] = [];

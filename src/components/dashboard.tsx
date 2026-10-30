@@ -408,8 +408,8 @@ export function Dashboard({ identity = null, accountControls }: {
     )
       return;
     const next = portfolios.filter((p) => p.id !== portfolio.id);
-    if (!next.length) next.push(initialPortfolio());
-    persist(next, next[0].id);
+    if (!next.length && !identity) next.push(initialPortfolio());
+    void persist(next, next[0]?.id ?? "");
   }
   function loadDemo() {
     if (portfolios.length >= 30) {
