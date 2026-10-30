@@ -1820,3 +1820,20 @@ ul.import-help {
     content: none;
   }
 }
+
+.account-storage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+.account-storage .button {
+  min-height: 44px;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .account-storage > span { flex-basis: 100%; }
+  .account-storage .button { width: 100%; }
+}

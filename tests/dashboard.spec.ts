@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 const assets = {
   TEST: {
@@ -24,6 +24,10 @@ const assets = {
     ],
   },
 };
+async function openLocal(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+}
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
@@ -32,7 +36,7 @@ test.beforeEach(async ({ page }) => {
   );
 });
 test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
-  await page.goto("/");
+  await openLocal(page);
   await page.locator(".data-actions summary").click();
   await page.getByRole("button", { name: "Importar CSV" }).click();
   const dialog = page.getByRole("dialog", { name: "Importar CSV", exact: true });
@@ -64,7 +68,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await openLocal(page);
   await expect(
     page.getByRole("heading", { name: "A minha carteira" }),
   ).toBeVisible();
@@ -109,7 +113,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
 test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openLocal(page);
   await page
     .getByRole("button", { name: "Nova transação", exact: false })
     .click();
@@ -159,7 +163,7 @@ test("falha de mercado e CSV inválido não inventam valores nem perdem ordens",
   await page.route("**/api/market?*", (route) =>
     route.fulfill({ status: 503, json: { error: "indisponível" } }),
   );
-  await page.goto("/");
+  await openLocal(page);
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -192,7 +196,7 @@ test("alteração noutro separador impede sobrescrita", async ({
   page,
   context,
 }) => {
-  await page.goto("/");
+  await openLocal(page);
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -205,7 +209,7 @@ test("alteração noutro separador impede sobrescrita", async ({
   await second.route("**/api/market?*", (route) =>
     route.fulfill({ json: { assets } }),
   );
-  await second.goto("/");
+  await openLocal(second);
   await expect(second.locator("tbody tr")).toHaveCount(1);
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
@@ -250,7 +254,7 @@ test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
       },
     }),
   );
-  await page.goto("/");
+  await openLocal(page);
   const backup = {
     version: 1,
     portfolios: [
@@ -296,7 +300,7 @@ test("armazenamento corrompido preserva dados até reposição explícita", asyn
   await page.addInitScript(() =>
     localStorage.setItem("rendimentos.portfolios.v1", "conteudo-invalido"),
   );
-  await page.goto("/");
+  await openLocal(page);
   await expect(
     page.getByRole("heading", { name: "Recuperar carteiras" }),
   ).toBeVisible();
@@ -321,7 +325,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await page.route("**/api/market?*", (route) => route.fulfill({
     json: { assets: { ...assets, TEST: { ...assets.TEST, price: 160 } } },
   }));
-  await page.goto("/");
+  await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
@@ -368,7 +372,7 @@ test("distinguir rentabilidade histórica indisponível de preços e retorno zer
   await page.route("**/api/market?*", (route) => route.fulfill({
     json: { assets: { ...assets, TEST: { ...assets.TEST, price: 100, history: [{ date: "2024-01-12", close: 0 }] } } },
   }));
-  await page.goto("/");
+  await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-01,TEST,100,10,buy"),
   });
@@ -385,7 +389,7 @@ test("distinguir rentabilidade histórica indisponível de preços e retorno zer
 });
 
 test("alternar ROI total e posições abertas com FIFO no resumo, histórico e impressão", async ({ page }, testInfo) => {
-  await page.goto("/");
+  await openLocal(page);
   await expect(page.locator(".performance-current")).toContainText("Indisponível");
   await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
   await expect(page.locator(".performance-current")).toContainText("+0%");
@@ -442,7 +446,7 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
     TEST: { ...assets.TEST, price: 150, history },
     "^GSPC": { ...assets["^GSPC"], price: 1500, history: history.map(p => ({ ...p, close: p.close * 10 })) },
   } } }));
-  await page.goto("/");
+  await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
   const current = page.locator(".performance-current");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
@@ -481,7 +485,7 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
 
 
 test("ações agrupadas acessíveis por teclado e metodologia completa na impressão", async ({ page }, testInfo) => {
-  await page.goto("/");
+  await openLocal(page);
   const actions = page.locator(".data-actions");
   const toggle = actions.locator("summary");
   await toggle.focus();
@@ -521,7 +525,7 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
 });
 
 test("fechar e reabrir sidebar mantém foco, carteira e conteúdo", async ({ page }, testInfo) => {
-  await page.goto("/");
+  await openLocal(page);
   const sidebar = page.locator("#workspace-sidebar");
   await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
   await expect(sidebar).toBeHidden();
@@ -544,7 +548,7 @@ test("fechar e reabrir sidebar mantém foco, carteira e conteúdo", async ({ pag
 
 test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o conteúdo alinhado", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile", "A sidebar móvel ocupa a largura disponível.");
-  await page.goto("/");
+  await openLocal(page);
   const handle = page.getByRole("separator", { name: "Largura da sidebar" });
   const sidebar = page.locator("#workspace-sidebar");
   const drag = async (delta: number) => {
@@ -584,7 +588,7 @@ test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o con
 });
 
 test("renomear por botão direito ou edição preserva seleção, transações e gravação", async ({ page }, testInfo) => {
-  await page.goto("/");
+  await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
@@ -621,7 +625,7 @@ test("renomear por botão direito ou edição preserva seleção, transações e
 
 
 test("conflito ao renomear mostra erro no diálogo e preserva a versão mais recente", async ({ page }) => {
-  await page.goto("/");
+  await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
@@ -643,4 +647,17 @@ test("conflito ao renomear mostra erro no diálogo e preserva a versão mais rec
   await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Versão mais recente", exact: true })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("noutro separador");
+});
+
+test("entrada sem Supabase conserva acesso explícito ao modo local", async ({ page }) => {
+  test.skip(!process.env.TEST_NO_ACCOUNT_CONFIG, "Requer TEST_NO_ACCOUNT_CONFIG=1 e build sem configuração Supabase.");
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await expect(page.getByText(/Supabase não configurado/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toHaveCount(0);
+  await expect(page.locator(".metrics")).toHaveCount(0);
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "A minha carteira", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "A minha carteira", exact: true })).toBeVisible();
 });

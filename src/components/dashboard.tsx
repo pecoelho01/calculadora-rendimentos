@@ -15,6 +15,8 @@ import { PerformanceChart } from "./performance-chart";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { WorkspaceShell } from "./workspace-shell";
+import type { AccountIdentity } from "./account-gateway";
+import { buildAccountChanges, validateAccountSnapshot, type AccountSnapshot } from "@/lib/account";
 
 function download(text: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -41,7 +43,82 @@ type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
-export function Dashboard() {
+export function Dashboard({ identity = null, accountControls }: {
+  identity?: AccountIdentity | null;
+  accountControls?: React.ReactNode;
+}) {
+  const [accountSnapshot, setAccountSnapshot] = useState<AccountSnapshot | null>(null);
+  const [saveState, setSaveState] = useState<"saving" | "saved" | "error">("saved");
+  const [accountConflict, setAccountConflict] = useState(false);
+  const writing = useRef(false);
+  const mounted = useRef(true);
+  const requests = useRef<AbortController | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    const controller = new AbortController();
+    requests.current = controller;
+    return () => { mounted.current = false; controller.abort(); };
+  }, []);
+  async function accountRequest(body?: unknown) {
+    const response = await fetch("/api/account", {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Authorization: `Bearer ${identity?.accessToken}`, "Content-Type": "application/json" },
+      cache: "no-store",
+      signal: requests.current?.signal,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error("Esta carteira foi alterada noutro dispositivo. Exporta uma cópia se necessário e recarrega os dados da conta antes de repetir a operação.");
+      }
+      if (response.status === 401) throw new Error("A sessão expirou. Inicia sessão novamente para guardar na conta.");
+      throw new Error("Não foi possível aceder às carteiras da conta. Tenta novamente. Os dados locais continuam disponíveis.");
+    }
+    return validateAccountSnapshot(await response.json());
+  }
+  function acceptAccount(snapshot: AccountSnapshot, id?: string) {
+    setAccountSnapshot(snapshot);
+    const loaded = snapshot.portfolios.map((p) => p.portfolio);
+    setPortfolios(loaded);
+    setSelected(loaded.some((p) => p.id === id) ? id! : loaded[0]?.id ?? "");
+    setAccountConflict(false);
+    setSaveState("saved");
+  }
+  async function reloadAccount() {
+    if (writing.current) return;
+    writing.current = true;
+    setSaveState("saving");
+    try {
+      const snapshot = await accountRequest();
+      if (!mounted.current) return;
+      acceptAccount(snapshot, selected);
+      setModal(null);
+      setSearch("");
+      setMessage("");
+    } catch (error) {
+      if (mounted.current) { setMessage((error as Error).message); setSaveState("error"); }
+    } finally { writing.current = false; }
+  }
+  async function migrateLocal() {
+    if (writing.current || !accountSnapshot) return;
+    if (!window.confirm("Copiar as carteiras deste navegador para a conta? Serão acrescentadas sem substituir carteiras existentes. Os dados locais serão mantidos. Uma cópia idêntica já importada não será duplicada.")) return;
+    writing.current = true;
+    setSaveState("saving");
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) throw new Error("Não existem carteiras guardadas neste navegador.");
+      const local = decodeStorage(raw);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(encodeStorage(local)));
+      const key = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+      if (!mounted.current) return;
+      const snapshot = await accountRequest({ changes: [], migration: { key, portfolios: local } });
+      if (!mounted.current) return;
+      acceptAccount(snapshot, selected);
+      setMessage("Carteiras locais copiadas para a conta. Uma cópia idêntica já importada não foi duplicada; os dados do navegador foram mantidos.");
+    } catch (error) {
+      if (mounted.current) { setMessage((error as Error).message); setSaveState("error"); }
+    } finally { writing.current = false; }
+  }
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selected, setSelected] = useState("");
   const [ready, setReady] = useState(false);
@@ -62,12 +139,20 @@ export function Dashboard() {
   const fileRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (identity) {
+      let cancelled = false;
+      accountRequest().then((snapshot) => {
+        if (!cancelled) { acceptAccount(snapshot); setReady(true); }
+      }).catch((error: Error) => {
+        if (!cancelled) { setMessage(error.message); setSaveState("error"); setReady(true); }
+      });
+      return () => { cancelled = true; };
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       storageSnapshot.current = raw;
       const loaded = raw ? decodeStorage(raw) : [initialPortfolio()];
       // Synchronize React with browser storage after hydration; never overwrite damaged data.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPortfolios(loaded);
       setSelected(loaded[0].id);
     } catch {
@@ -77,12 +162,16 @@ export function Dashboard() {
       } catch {
         /* Storage access can be disabled by the browser. */
       }
+      // Browser storage is read only after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStorageBroken(original);
       setMessage(
         "Não foi possível ler o armazenamento. Exporta os dados originais antes de recuperar.",
       );
     }
     setReady(true);
+    // The parent remounts this workspace when its mode or user changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const portfolio = portfolios.find((p) => p.id === selected) ?? portfolios[0];
   const orders = portfolio?.orders ?? EMPTY_ORDERS;
@@ -153,7 +242,30 @@ export function Dashboard() {
     .filter((o) =>
       `${o.ticker} ${o.name}`.toLowerCase().includes(search.toLowerCase()),
     );
-  function persist(next: Portfolio[], id = selected) {
+  async function persist(next: Portfolio[], id = selected): Promise<boolean> {
+    if (!mounted.current || writing.current) return false;
+    if (identity) {
+      if (!accountSnapshot || accountConflict) {
+        setMessage("Recarrega os dados da conta antes de guardar.");
+        return false;
+      }
+      writing.current = true;
+      setSaveState("saving");
+      try {
+        const snapshot = await accountRequest({ changes: buildAccountChanges(accountSnapshot, next) });
+        if (!mounted.current) return false;
+        acceptAccount(snapshot, id);
+        setMessage("");
+        return true;
+      } catch (error) {
+        if (mounted.current) {
+          setMessage((error as Error).message);
+          setSaveState("error");
+          setAccountConflict(true);
+        }
+        return false;
+      } finally { writing.current = false; }
+    }
     try {
       const current = localStorage.getItem(STORAGE_KEY);
       if (storageBroken === null && current !== storageSnapshot.current) {
@@ -190,13 +302,14 @@ export function Dashboard() {
     setFormError("");
     setModal(value);
   }
-  function addOrder(event: React.FormEvent<HTMLFormElement>) {
+  async function addOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!portfolio) return;
     try {
       const raw = Object.fromEntries(new FormData(event.currentTarget));
       const order = validateOrder(raw);
-      if (update({ ...portfolio, orders: [...orders, order] })) setModal(null);
+      if (await update({ ...portfolio, orders: [...orders, order] })) setModal(null);
+      else setFormError("Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.");
     } catch (e) {
       setFormError((e as Error).message);
     }
@@ -205,7 +318,7 @@ export function Dashboard() {
     setRenameId(id);
     openModal("rename");
   }
-  function renamePortfolio(event: React.FormEvent<HTMLFormElement>) {
+  async function renamePortfolio(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const target = portfolios.find((p) => p.id === renameId);
     if (!target) {
@@ -221,7 +334,7 @@ export function Dashboard() {
         return;
       }
       const renamed = validatePortfolio({ ...target, name });
-      if (persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))) {
+      if (await persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))) {
         setModal(null);
       } else {
         setFormError(
@@ -232,7 +345,7 @@ export function Dashboard() {
       setFormError((error as Error).message);
     }
   }
-  function addPortfolio(event: React.FormEvent<HTMLFormElement>) {
+  async function addPortfolio(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
     if (portfolios.length >= 30) {
@@ -246,17 +359,19 @@ export function Dashboard() {
         currency: values.get("currency"),
         orders: [],
       });
-      if (persist([...portfolios, next], next.id)) setModal(null);
+      if (await persist([...portfolios, next], next.id)) setModal(null);
+      else setFormError("Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.");
     } catch (e) {
       setFormError((e as Error).message);
     }
   }
   async function importFile(file: File | undefined, backup = false) {
-    if (!file || !portfolio) return;
+    if (!file || (!backup && !portfolio)) return;
     try {
       if (file.size > (backup ? 10_000_000 : 2_000_000))
         throw new Error(`O ficheiro excede ${backup ? 10 : 2} MB.`);
       const text = await file.text();
+      if (!mounted.current) return;
       if (backup) {
         const next = decodeStorage(text);
         if (
@@ -264,10 +379,10 @@ export function Dashboard() {
             "Substituir todas as carteiras pelas da cópia de segurança?",
           )
         )
-          persist(next, next[0].id);
+          await persist(next, next[0].id);
       } else {
         const imported = parseCsv(text);
-        if (update({ ...portfolio, orders: [...orders, ...imported] }))
+        if (portfolio && await update({ ...portfolio, orders: [...orders, ...imported] }))
           setMessage(
             `${imported.length} transações importadas. Confirma a moeda dos ativos antes de analisar os totais.`,
           );
@@ -276,10 +391,10 @@ export function Dashboard() {
       setMessage((e as Error).message);
     }
   }
-  function deleteOrder(id: string) {
+  async function deleteOrder(id: string) {
     if (!portfolio || !window.confirm("Remover esta transação?")) return;
     try {
-      update({ ...portfolio, orders: orders.filter((o) => o.id !== id) });
+      await update({ ...portfolio, orders: orders.filter((o) => o.id !== id) });
     } catch (e) {
       setMessage(`Não foi possível remover: ${(e as Error).message}`);
     }
@@ -313,12 +428,14 @@ export function Dashboard() {
   if (!ready)
     return (
       <main className="boot" aria-busy="true">
+        {accountControls}
         A abrir a tua carteira…
       </main>
     );
   if (storageBroken !== null)
     return (
       <main className="boot">
+        {accountControls}
         <h1>Recuperar carteiras</h1>
         <p role="alert">{message}</p>
         <button
@@ -329,14 +446,14 @@ export function Dashboard() {
           Exportar dados originais
         </button>
         <button
-          onClick={() => {
+          onClick={async () => {
             if (
               window.confirm(
                 "Repor o armazenamento? Guarda primeiro os dados originais.",
               )
             ) {
               const p = initialPortfolio();
-              if (persist([p], p.id)) setStorageBroken(null);
+              if (await persist([p], p.id)) setStorageBroken(null);
             }
           }}
         >
@@ -433,8 +550,8 @@ export function Dashboard() {
             <div className="local-badge">
               <Icon name="shield" />
               <div>
-                <strong>Guardado neste navegador</strong>
-                <small>Sem conta · os teus dados, contigo</small>
+                <strong>{identity ? "Carteiras da conta" : "Guardado neste navegador"}</strong>
+                <small>{identity ? "Supabase · sincronização entre dispositivos" : "Sem conta · os teus dados, contigo"}</small>
               </div>
             </div>
             <a
@@ -455,15 +572,23 @@ export function Dashboard() {
           </div>
           <div className="topbar-right">
             <Icon name="shield" />
-            Dados locais · Mercado via Yahoo Finance
+            {identity ? "Dados na conta" : "Dados locais"} · Mercado via Yahoo Finance
           </div>
         </header>
         <main className="content">
+          {accountControls}
+          {identity ? (
+            <div className="account-storage no-print" aria-busy={saveState === "saving"}>
+              <span aria-live="polite">{saveState === "saving" ? "A guardar…" : saveState === "error" ? "Erro ao guardar ou carregar" : "Guardado na conta"}</span>
+              <button className="button secondary" disabled={saveState === "saving"} onClick={() => void reloadAccount()}>Recarregar dados da conta</button>
+              <button className="button secondary" disabled={saveState === "saving" || !accountSnapshot} onClick={() => void migrateLocal()}>Copiar carteiras locais para a conta</button>
+            </div>
+          ) : null}
           <div className="page-heading">
             <div>
               <div className="eyebrow">PAINEL DE INVESTIMENTOS</div>
               <h1>
-                {tab === "notes" ? "Conhece os teus números" : portfolio?.name}
+                {tab === "notes" ? "Conhece os teus números" : portfolio?.name ?? "As tuas carteiras"}
               </h1>
               <p>
                 Acompanha o valor, os resultados e a evolução dos teus
@@ -495,7 +620,7 @@ export function Dashboard() {
                   }}
                 >
                   <span className="action-group-label">Carteira atual</span>
-                  <button onClick={() => openModal("import")}>
+                  <button disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}>
                     <Icon name="upload" /> Importar CSV
                   </button>
                   <button
@@ -513,6 +638,7 @@ export function Dashboard() {
                   </a>
                   <span className="action-group-label">Todas as carteiras</span>
                   <button
+                    disabled={!portfolios.length}
                     onClick={() =>
                       download(
                         encodeStorage(portfolios),
@@ -530,6 +656,7 @@ export function Dashboard() {
               </details>
               <button
                 className="button primary"
+                disabled={!portfolio || saveState === "saving"}
                 onClick={() => openModal("order")}
               >
                 <Icon name="plus" /> Nova transação
@@ -558,6 +685,9 @@ export function Dashboard() {
               e.target.value = "";
             }}
           />
+          {identity && accountSnapshot && !portfolios.length ? (
+            <div className="notice">A tua conta ainda não tem carteiras. <button className="button secondary" onClick={() => openModal("portfolio")}>Criar a primeira carteira</button></div>
+          ) : null}
           {message ? (
             <div className="notice" role="status">
               {message}
@@ -634,9 +764,7 @@ export function Dashboard() {
               </p>
               <h3>Guardar e exportar</h3>
               <p>
-                Os dados ficam apenas neste navegador. Não sincronizam com
-                outros dispositivos. A limpeza dos dados do navegador remove as
-                carteiras; exporta regularmente uma cópia JSON. O CSV contém
+                {identity ? "As carteiras deste modo são guardadas na tua conta e podem ser abertas noutros dispositivos. As carteiras locais permanecem separadas." : "Os dados ficam apenas neste navegador. Não sincronizam com outros dispositivos. A limpeza dos dados do navegador remove as carteiras."} Exporta regularmente uma cópia JSON. O CSV contém
                 apenas as transações da carteira selecionada. «Relatório PDF»
                 abre a impressão do navegador: escolhe «Guardar como PDF».
               </p>
@@ -691,7 +819,7 @@ export function Dashboard() {
               {tab === "overview" ? (
                 <div className="charts-grid">
                   <PerformanceChart
-                    key={portfolio.id}
+                    key={portfolio?.id ?? "empty"}
                     orders={orders}
                     market={market}
                     currency={currency}
@@ -986,7 +1114,7 @@ export function Dashboard() {
               </section>
               <div className="bottom-actions no-print">
                 <span>
-                  <Icon name="shield" /> Guardado apenas neste navegador.
+                  <Icon name="shield" /> {identity ? "Guardado na conta." : "Guardado apenas neste navegador."}
                   Exporta uma cópia regularmente.
                 </span>
                 <button onClick={removePortfolio}>Eliminar carteira</button>
@@ -1026,7 +1154,7 @@ export function Dashboard() {
               >
                 Cancelar
               </button>
-              <button className="button primary" type="submit">
+              <button className="button primary" disabled={saveState === "saving"} type="submit">
                 Guardar nome
               </button>
             </div>
@@ -1162,7 +1290,7 @@ export function Dashboard() {
               >
                 Cancelar
               </button>
-              <button className="button primary" type="submit">
+              <button className="button primary" disabled={saveState === "saving"} type="submit">
                 Guardar transação
               </button>
             </div>
@@ -1206,7 +1334,7 @@ export function Dashboard() {
               >
                 Cancelar
               </button>
-              <button className="button primary">Criar carteira</button>
+              <button className="button primary" disabled={saveState === "saving"}>Criar carteira</button>
             </div>
           </form>
         </Dialog>
