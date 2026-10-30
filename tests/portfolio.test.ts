@@ -124,10 +124,12 @@ test("CSV antigo, formato limpo, vírgula decimal, campos com aspas e roundtrip"
   const old = parseCsv(readFileSync("sample_combo.csv", "utf8"));
   assert.equal(old.length, 9);
   validateOrders(old);
-  assert.throws(
-    () => parseCsv(readFileSync("modelo_site_ativos.csv", "utf8")),
-    /não contém/,
-  );
+  const model = readFileSync("modelo_site_ativos.csv", "utf8");
+  assert.equal(model, readFileSync("public/modelo_site_ativos.csv", "utf8"));
+  const example = parseCsv(model);
+  assert.equal(example.length, 2);
+  validateOrders(example);
+  assert.throws(() => parseCsv("date,ticker,name,pricebuy,shares,type\n"), /não contém/);
   const parsed = parseCsv(
     'date,ticker,name,pricebuy,shares\n2024-01-01,TEST,"Teste, SA","10,50",2\n',
   );

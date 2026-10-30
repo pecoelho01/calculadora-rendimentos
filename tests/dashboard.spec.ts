@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 const assets = {
   TEST: {
     price: 140,
@@ -29,6 +30,32 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/market?*", (route) =>
     route.fulfill({ json: { assets } }),
   );
+});
+test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Importar CSV" }).click();
+  const dialog = page.getByRole("dialog", { name: "Importar CSV", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Exemplo de CSV")).toContainText("date,ticker,name,pricebuy,shares,type");
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("link", { name: "Descarregar modelo CSV" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("modelo_site_ativos.csv");
+  const sample = await readFile((await download.path())!, "utf8");
+  expect(sample.trim()).toBe(await dialog.getByLabel("Exemplo de CSV").textContent());
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".metric").first()).toContainText("0,00");
+  await page.getByRole("button", { name: "Importar CSV" }).click();
+  const chooserPromise = page.waitForEvent("filechooser");
+  await dialog.getByRole("button", { name: "Escolher ficheiro CSV" }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({ name: "modelo.csv", mimeType: "text/csv", buffer: Buffer.from(sample) });
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("status")).toContainText("2 transações importadas");
+  await page.getByRole("button", { name: "Transações", exact: true }).first().click();
+  await expect(page.locator("tbody tr")).toHaveCount(2);
 });
 test("importar, calcular, persistir, filtrar e imprimir", async ({
   page,
