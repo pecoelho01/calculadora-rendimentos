@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { validateAccountSnapshot, validateAccountWrite } from "./account";
 import { encodeStorage } from "./storage";
+import { validateSupabaseUrl } from "./supabase-url";
 
 export type AccountBackend = {
   getUser(token: string): Promise<{ id: string } | null>;
@@ -13,7 +14,7 @@ export type AccountBackend = {
 export type AccountBackendFactory = (token: string) => AccountBackend | null;
 
 export function supabaseAccountBackend(token: string): AccountBackend | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = validateSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
   // Request-scoped client; the user JWT is checked by Auth and forwarded to RLS/RPC.
