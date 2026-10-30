@@ -466,8 +466,9 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
     }
   }
   await page.getByRole("button", { name: "YTD", exact: true }).click();
-  await expect(current).toContainText("01/01/2026");
-  await expect(current).toContainText("30/10/2026");
+  await expect(current).not.toContainText("01/01/2026");
+  await expect(current).not.toContainText("30/10/2026");
+  await expect(page.locator(".performance")).not.toContainText("Passa o rato ou toca no gráfico");
   await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-ytd.png") });
   await page.emulateMedia({ media: "print" });
   await expect(current).toContainText("YTD");
