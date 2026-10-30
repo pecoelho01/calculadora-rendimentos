@@ -80,7 +80,7 @@ test("vendas que atravessam lotes, fecho e recompra preservam a atribuição por
     assert.equal(missing.orderGains.get(reopen.id)!.percent, null);
   }
 });
-test("ganhos distinguem cotação ausente, zero, base gratuita e frações", () => {
+test("ganhos distinguem cotação ausente, zero e frações", () => {
   const purchase = buy(2, 100);
   const partial = sell(1, 120);
   const zero = calculatePortfolio([purchase, partial], quote(0), "EUR");
@@ -89,11 +89,6 @@ test("ganhos distinguem cotação ausente, zero, base gratuita e frações", () 
   const missing = calculatePortfolio([purchase, partial], {}, "EUR");
   assert.equal(missing.orderGains.get(purchase.id)!.gain, null);
   almost(missing.orderGains.get(partial.id)!.gain, 20);
-  const free = buy(2, 0);
-  const freeSale = sell(1, 10);
-  const freeResult = calculatePortfolio([free, freeSale], quote(5), "EUR");
-  assert.deepEqual(freeResult.orderGains.get(free.id), { gain: 15, percent: null, shares: 1 });
-  assert.deepEqual(freeResult.orderGains.get(freeSale.id), { gain: 10, percent: null, shares: 1 });
   const fractional = buy(0.00000003, 100);
   const tinySale = sell(0.00000001, 130);
   const tiny = calculatePortfolio([fractional, tinySale], quote(140), "EUR");
@@ -191,6 +186,24 @@ test("validar números, datas, ticker e tipo", () => {
   );
   assert.throws(() => validateOrder({ ...buy(1, 10), type: "hold" }));
   almost(validateOrder({ ...buy(1, 10), shares: "1,25" }).shares, 1.25);
+});
+test("preços de transação exigem valor positivo e aceitam 0,00001", () => {
+  for (const type of ["buy", "sell"] as const) {
+    for (const pricebuy of [0, "0", "0,00000", -0.00001]) {
+      assert.throws(() => validateOrder({ ...buy(1, 10), type, pricebuy }));
+    }
+    for (const pricebuy of [0.00001, "0.00001", "0,00001"]) {
+      const order = validateOrder({ ...buy(1, 10), type, pricebuy });
+      assert.equal(order.pricebuy, 0.00001);
+    }
+  }
+  const header = "date,ticker,pricebuy,shares,type\n";
+  assert.throws(() => parseCsv(header + "2024-01-01,TEST,0,1,buy"));
+  const [order] = parseCsv(header + "2024-01-01,TEST,0.00001,1,buy");
+  assert.equal(order.pricebuy, 0.00001);
+  const result = calculatePortfolio([order], quote(0.00002), "EUR");
+  almost(result.orderGains.get(order.id)!.gain, 0.00001);
+  almost(result.orderGains.get(order.id)!.percent, 100);
 });
 test("CSV antigo, formato limpo, vírgula decimal, campos com aspas e roundtrip", () => {
   const old = parseCsv(readFileSync("sample_combo.csv", "utf8"));

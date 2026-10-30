@@ -613,8 +613,8 @@ export function Dashboard() {
                 Nas compras, mostramos o ganho total do lote: o realizado nas
                 vendas mais o não realizado das unidades ainda em carteira,
                 sobre o custo original da compra. Nas vendas, mostramos o ganho realizado
-                sobre o custo FIFO das unidades vendidas. As percentagens ficam
-                indisponíveis quando o custo é zero. Os valores não incluem
+                sobre o custo FIFO das unidades vendidas. Os preços das transações
+                devem ser superiores a zero. Os valores não incluem
                 comissões nem impostos.
               </p>
               <h3>Histórico e S&P 500</h3>
