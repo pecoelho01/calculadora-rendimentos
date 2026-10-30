@@ -102,6 +102,8 @@ Os nomes acima identificam papéis de routing; este ficheiro não instala agente
 - Em alterações de cálculos, verificar casos relevantes com resultados conhecidos: compras múltiplas, venda parcial ou total, posições abertas e carteira vazia. Usar dados locais ou mocks para verificações determinísticas.
 - Em alterações temporais, verificar ordenação de datas, fusos horários e alinhamento com o benchmark.
 - Em alterações de UI, CSV ou PDF, verificar o fluxo afetado e a coerência dos valores apresentados.
+- Ao implementar ou alterar a interface, considerar a responsividade desde o início: o telemóvel é um dispositivo de utilização frequente, tal como o computador. Adaptar layouts, navegação, tabelas, gráficos e diálogos a ecrãs pequenos, garantindo texto legível e controlos fáceis de usar por toque.
+- Em alterações de UI, verificar os fluxos afetados em larguras de telemóvel e de computador, incluindo ausência de sobreposições, conteúdo cortado ou deslocamento horizontal inesperado.
 - Executar as verificações adequadas à alteração; não criar testes que apenas reproduzam a implementação.
 - Não afirmar que testes passaram ou que a aplicação foi verificada sem executar essas verificações. Identificar limitações de rede, dependências ou ambiente.
 
