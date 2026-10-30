@@ -1,2 +1,3 @@
-,,,,,,
-,,date,ticker,name,pricebuy,shares,type
+date,ticker,name,pricebuy,shares,type
+2024-01-10,SXR8.DE,iShares Core S&P 500,60,5,buy
+2024-11-01,SXR8.DE,iShares Core S&P 500,75,2,sell

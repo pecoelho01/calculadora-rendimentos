@@ -931,6 +931,28 @@ form select {
   gap: 10px;
   margin-top: 23px;
 }
+.import-help {
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+ul.import-help {
+  padding-left: 18px;
+}
+.csv-example {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid #e4dfeb;
+  border-radius: 6px;
+  background: #f8f6fc;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.import-actions {
+  flex-wrap: wrap;
+}
 .form-error {
   font-size: 11px;
   color: #bc4b64;

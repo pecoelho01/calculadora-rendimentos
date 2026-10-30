@@ -36,7 +36,7 @@ const initialPortfolio = (): Portfolio => ({
   orders: [],
 });
 type Tab = "overview" | "positions" | "transactions" | "notes";
-type Modal = "order" | "portfolio" | null;
+type Modal = "order" | "portfolio" | "import" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
@@ -433,7 +433,7 @@ export function Dashboard() {
             <div className="heading-actions no-print">
               <button
                 className="button secondary"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => openModal("import")}
               >
                 ↥ Importar CSV
               </button>
@@ -920,6 +920,44 @@ export function Dashboard() {
           </footer>
         </main>
       </div>
+      {modal === "import" ? (
+        <Dialog title="Importar CSV" onClose={() => setModal(null)}>
+          <p className="import-help">
+            Prepara o teu ficheiro com uma transação por linha, como neste
+            exemplo. Podes descarregar o modelo e substituir os dados pelos teus.
+          </p>
+          <pre className="csv-example" aria-label="Exemplo de CSV"><code>{`date,ticker,name,pricebuy,shares,type
+2024-01-10,SXR8.DE,iShares Core S&P 500,60,5,buy
+2024-11-01,SXR8.DE,iShares Core S&P 500,75,2,sell`}</code></pre>
+          <ul className="import-help">
+            <li><code>date</code>: data no formato AAAA-MM-DD.</li>
+            <li><code>ticker</code>: símbolo do ativo no Yahoo Finance.</li>
+            <li><code>pricebuy</code>: preço por unidade na moeda da carteira, também nas vendas.</li>
+            <li><code>shares</code>: quantidade positiva.</li>
+            <li><code>name</code> e <code>type</code> são opcionais. Usa <code>buy</code> para compras ou <code>sell</code> para vendas; se omitido, assume compra.</li>
+          </ul>
+          <p className="import-help">
+            Separa as colunas por vírgulas ou ponto e vírgula. Usa ponto nos
+            decimais ou coloca os valores com vírgula entre aspas. Máximo: 2 MB.
+            As transações são acrescentadas à carteira selecionada; importar o
+            mesmo ficheiro novamente duplica-as.
+          </p>
+          <div className="dialog-actions import-actions">
+            <a className="button secondary" href="/modelo_site_ativos.csv" download>
+              Descarregar modelo CSV
+            </a>
+            <button
+              className="button primary"
+              onClick={() => {
+                setModal(null);
+                fileRef.current?.click();
+              }}
+            >
+              Escolher ficheiro CSV
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
       {modal === "order" ? (
         <Dialog title="Nova transação" onClose={() => setModal(null)}>
           <form onSubmit={addOrder}>
