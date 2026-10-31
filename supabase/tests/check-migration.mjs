@@ -24,7 +24,22 @@ await db.exec(`
 `);
 const migrations = new URL("../migrations/", import.meta.url);
 for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort()) {
-  await db.exec(await readFile(new URL(file, migrations), "utf8"));
+  if (file.startsWith("202610300003")) {
+    // A receipt created by migration 002 must prevent duplicates after upgrading.
+    const legacy = { id: "legacy", name: "Antes da atualização", currency: "EUR", orders: [] };
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u1]);
+    await db.query("select public.account_apply('[]'::jsonb,$1::jsonb)", [JSON.stringify({ key: "d".repeat(64), portfolios: [legacy] })]);
+    const legacyNumeric = { ...legacy, id: "legacy-numeric", orders: [{ id: "order", date: "2024-01-01", ticker: "TEST", name: "", type: "buy", shares: 2, pricebuy: 20 }] };
+    const oldNumericPayload = JSON.stringify({ key: "6".repeat(64), portfolios: [legacyNumeric] }).replace('"shares":2', '"shares":2.0');
+    const original = (await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [oldNumericPayload])).rows[0].value;
+    await db.exec(await readFile(new URL(file, migrations), "utf8"));
+    const replay = (await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [JSON.stringify({ key: "e".repeat(64), portfolios: [legacy] })])).rows[0].value;
+    assert.deepEqual(replay, original);
+    // A retry with the original legacy key upgrades its noncanonical numeric hash.
+    assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [oldNumericPayload])).rows[0].value, original);
+    assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [JSON.stringify({ key: "7".repeat(64), portfolios: [legacyNumeric] })])).rows[0].value, original);
+    await db.exec("delete from public.account_portfolios; delete from public.account_migrations");
+  } else await db.exec(await readFile(new URL(file, migrations), "utf8"));
 }
 // Check binary rounding matches the existing JavaScript shareUnits contract.
 for (const value of [1e-8, 0.12345678, 1, 1e12, 999999999999.1234, 999999999999.1233, 0.00011, 1234567890.1234567]) {
@@ -41,6 +56,7 @@ const apply = async (changes, migration = null) => (await db.query("select publi
 const change = (portfolio, expectedRevision = null) => ({ id: portfolio.id, portfolio, expectedRevision });
 const rejectsCode = async (fn, code) => assert.rejects(fn, (error) => error.code === code);
 assert.deepEqual(await snap(), { version: 1, portfolios: [] });
+await rejectsCode(() => db.query("select private.account_canonical_json('[]'::jsonb)"), "42501");
 let current = await apply([change(p)]);
 assert.equal(current.portfolios[0].revision, 1);
 assert.deepEqual(current.portfolios[0].portfolio.orders.map((o) => o.id), ["buy", "sell"]);
@@ -86,6 +102,28 @@ const imported = current.portfolios.find((item) => item.portfolio.id.startsWith(
 assert.ok(imported);
 assert.deepEqual(imported.portfolio.orders, p.orders);
 assert.deepEqual(await apply([], migration), current);
+const alternate = { ...migration, key: "c".repeat(64) };
+assert.deepEqual(await apply([], alternate), current);
+await rejectsCode(() => apply([], { ...alternate, portfolios: [{ ...p, name: "Changed alias" }] }), "22023");
+// Different JSON property order and numeric scales still represent the same snapshot.
+const reordered = { ...Object.fromEntries(Object.entries(p).reverse()), orders: p.orders.map((order) => Object.fromEntries(Object.entries(order).reverse())) };
+assert.deepEqual(await apply([], { key: "4".repeat(64), portfolios: [reordered] }), current);
+const numericReplay = JSON.stringify({ ...migration, key: "f".repeat(64) }).replace('"shares":2', '"shares":2.000').replace('"pricebuy":20', '"pricebuy":20.0');
+assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [numericReplay])).rows[0].value, current);
+// Receipts survive edits and deletion; retry must never resurrect an imported portfolio.
+await apply([change({ ...imported.portfolio, name: "Edited import" }, imported.revision)]);
+const edited = await snap();
+assert.deepEqual(await apply([], { ...migration, key: "1".repeat(64) }), edited);
+await apply([{ id: imported.portfolio.id, portfolio: null, expectedRevision: imported.revision + 1 }]);
+const deleted = await snap();
+assert.deepEqual(await apply([], { ...migration, key: "2".repeat(64) }), deleted);
+// Recreate only through an explicit revision-aware write for later capacity assertions.
+await apply([change(imported.portfolio)]);
+// Content receipts are scoped to the authenticated owner.
+await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u2]);
+const other = await apply([], migration);
+assert.equal(other.portfolios.length, 2);
+await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u1]);
 await rejectsCode(() => apply([], { ...migration, portfolios: [{ ...p, name: "Different" }] }), "22023");
 // Deleted IDs keep their revision so stale device writes fail after recreation.
 await apply([{ id: p.id, portfolio: null, expectedRevision: 1 }]);
@@ -98,12 +136,44 @@ assert.deepEqual(await snap(), beforeFull);
 // Capacity failure also rolls back migration receipts, so a later retry can succeed.
 await apply(Array.from({ length: 28 }, (_, i) => change({ ...p, id: `capacity-${i}` })));
 const full = await snap();
-const retriable = { key: "b".repeat(64), portfolios: [p] };
+assert.deepEqual(await apply([], { ...migration, key: "3".repeat(64) }), full);
+const retriable = { key: "b".repeat(64), portfolios: [{ ...p, name: "New import after capacity" }] };
 await rejectsCode(() => apply([], retriable), "22023");
 assert.deepEqual(await snap(), full);
 assert.equal((await db.query("select * from public.account_migrations where key=$1", [retriable.key])).rows.length, 0);
 await apply([{ id: "capacity-0", portfolio: null, expectedRevision: 1 }]);
 assert.equal((await apply([], retriable)).portfolios.length, 30);
+// At the SQL byte limit, compact JSON array punctuation must not break reads.
+await db.exec("reset role; insert into auth.users values ('33333333-3333-4333-8333-333333333333'); set role authenticated; select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false)");
+const boundary = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}`, name: "N".repeat(60), currency: "EUR", orders: [] }));
+const boundaryOrder = (i) => ({ id: String(i).padEnd(200, "x"), date: "2024-01-01", ticker: "TEST", name: "N".repeat(100), type: "buy", shares: 1, pricebuy: 1 });
+const sqlBytes = async (portfolios) => (await db.query("select sum(octet_length(value::text))::int as size from jsonb_array_elements($1::jsonb)", [JSON.stringify(portfolios)])).rows[0].size;
+const baseBytes = await sqlBytes(boundary);
+const perOrder = await sqlBytes([{ ...boundary[0], orders: [boundaryOrder(0)] }]) - await sqlBytes([boundary[0]]);
+let orderCount = Math.floor((3_000_000 - baseBytes + 60) / (perOrder + 2));
+for (let i = 0; i < orderCount; i++) boundary[i % 30].orders.push(boundaryOrder(i));
+while (await sqlBytes(boundary) > 3_000_000) {
+  orderCount--;
+  boundary[orderCount % 30].orders.pop();
+}
+boundary[orderCount % 30].orders.push(boundaryOrder(orderCount));
+orderCount++;
+let excess = await sqlBytes(boundary) - 3_000_000;
+for (const portfolio of boundary) for (const order of portfolio.orders) {
+  if (excess <= 0) break;
+  const trim = Math.min(excess, order.id.length - 10);
+  if (trim) order.id = order.id.slice(0, -trim);
+  excess -= trim;
+}
+assert.equal(await sqlBytes(boundary), 3_000_000);
+const atLimit = await apply(boundary.map((portfolio) => change(portfolio)));
+const compactBytes = Buffer.byteLength(JSON.stringify(atLimit.portfolios.map((record) => record.portfolio)));
+assert.ok(compactBytes <= 3_000_000);
+const enlarged = structuredClone(atLimit.portfolios.find((record) => record.portfolio.orders.some((order) => order.id.length < 200)));
+enlarged.portfolio.orders.find((order) => order.id.length < 200).id += "y";
+await rejectsCode(() => apply([change(enlarged.portfolio, enlarged.revision)]), "22023");
+assert.deepEqual(await snap(), atLimit);
+console.log(`SQL bytes=3000000; compact array bytes=${compactBytes}; orders=${orderCount}; one-byte overflow rolled back.`);
 await db.exec("reset role; set role anon; select set_config('request.jwt.claim.sub','',false)");
 await rejectsCode(() => snap(), "42501");
 await rejectsCode(() => apply([change(p)]), "42501");
