@@ -34,6 +34,7 @@ test("seguir o sistema e manter a escolha explícita após recarregar", async ({
   await expect.poll(() => scheme(page)).toBe("dark");
   await expect(theme.locator(".theme-sun")).toBeVisible();
   await expect(theme.locator(".theme-moon")).toBeHidden();
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
   await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
   await expect(theme).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -86,6 +87,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({ page
   const theme = page.getByRole("button", { name: /^Ativar tema/ });
   await expect(theme).toHaveAccessibleName("Ativar tema escuro");
   await theme.click();
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "theme.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy"),

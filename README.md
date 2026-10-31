@@ -18,7 +18,7 @@ npm run build
 npm start
 ```
 
-Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
+O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa Supabase Auth e Postgres; consultar a configuração abaixo.
 
 ## Funcionalidades
 
@@ -29,20 +29,27 @@ Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
 - Gráfico interativo com toggle «Rentabilidade total» / «Posições abertas» (predefinição), percentagem atual, consulta por rato, toque ou teclado (setas, Home e End) e comparação com o S&P 500. O histórico semanal pode diferir da cotação atual.
 - Tabela de posições abertas e fechadas, pesquisa e alocação por valor de mercado.
 - Importação/exportação de CSV compatível com a aplicação anterior.
-- Persistência local no navegador e cópia de segurança/restauro de todas as carteiras em JSON.
+- Persistência local no navegador ou, opcionalmente, na conta Supabase, com cópia de segurança/restauro em JSON.
+- Registo, início/fim de sessão e recuperação de acesso por email. Cópia explícita das carteiras locais para a conta, sem substituição das remotas.
 - Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador.
 - Layout responsivo e notas com as fórmulas e limitações.
 - Botão de sol/lua para alternar entre tema claro e escuro, com preferência guardada neste navegador. Até à primeira escolha, acompanha o tema do sistema. A impressão mantém o tema claro.
 - Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita; no telemóvel ocupa a largura disponível.
 - Renomeação de carteiras pelo botão direito, Shift+F10 ou botão de edição, preservando transações e moeda. A largura e abertura da sidebar mantêm-se durante a sessão da página.
 
+Ao abrir a aplicação sem sessão, escolhe «Iniciar sessão», «Criar conta» ou «Continuar sem sessão». O dashboard só abre depois dessa escolha ou da recuperação de uma sessão válida. A escolha local mantém-se ao recarregar a mesma aba (se o navegador permitir `sessionStorage`); uma nova aba apresenta novamente a entrada. Uma sessão de conta válida abre automaticamente a conta ao recarregar. Terminar sessão regressa ao ecrã de escolha.
+
 A aplicação inicia vazia. «Explorar uma carteira de exemplo» cria uma carteira USD com transações fictícias, mas procura preços reais; não apresenta cotações simuladas.
 
 ## Dados e privacidade
 
-As carteiras são guardadas em `localStorage`, sem conta ou sincronização. Limpar os dados do navegador remove-as; exportar uma cópia JSON regularmente. A importação CSV acrescenta transações à carteira selecionada; importar o mesmo ficheiro duas vezes duplica as transações. O restauro JSON substitui todas as carteiras após confirmação.
+Podes continuar sem sessão: as carteiras desse modo são guardadas em `localStorage`. Limpar os dados do navegador remove-as; exportar uma cópia JSON regularmente. Na conta, a base de dados Supabase é a fonte de verdade e permite abrir as carteiras noutros dispositivos. Os modos local e conta são separados, incluindo ao sair ou trocar de utilizador; não há sincronização implícita nem fallback de uma gravação remota falhada para o navegador.
 
-Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e ao Yahoo Finance. Quantidades, preços de compra e nomes das carteiras ficam no navegador. A cache do servidor contém apenas dados públicos de mercado. O armazenamento local não é cifrado e é partilhado pelos separadores da mesma origem; uma gravação deteta alterações feitas noutro separador, carrega a versão mais recente e pede para repetir a operação.
+A importação CSV acrescenta transações à carteira selecionada; importar o mesmo ficheiro duas vezes duplica as transações. O restauro JSON substitui as carteiras do modo ativo após confirmação. Na conta, o lote inteiro é atómico: se houver conflito numa revisão, nenhuma alteração é aplicada. O aviso pede para recarregar os dados antes de repetir; uma falha de rede pode ter ocorrido depois do commit, pelo que deves recarregar e verificar antes de repetir uma importação CSV.
+
+«Copiar carteiras locais para a conta» pede confirmação, valida os dados e acrescenta cópias sem substituir carteiras remotas. Um recibo por utilizador e SHA256 do snapshot impede duplicar uma cópia idêntica, mesmo após perda da resposta ou noutro dispositivo. Os dados locais são sempre mantidos. Alterar as carteiras locais produz outro snapshot: confirmar uma nova cópia importa novamente o conjunto completo. Não é uma sincronização incremental.
+
+Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e ao Yahoo Finance. Quantidades, preços de compra e nomes das carteiras ficam no navegador no modo local; no modo conta são enviados apenas à API privada da aplicação e ao projeto Supabase configurado, com autenticação. A cache do servidor contém apenas dados públicos de mercado. O armazenamento local não é cifrado e é partilhado pelos separadores da mesma origem; uma gravação deteta alterações feitas noutro separador, carrega a versão mais recente e pede para repetir a operação.
 
 ## CSV
 
@@ -109,18 +116,37 @@ Sem comissões, impostos, dividendos ou ajustes automáticos das quantidades por
 1. Publicar a branch no fornecedor Git e importar o repositório em **Vercel → Add New → Project**.
 2. Selecionar a conta/equipa e o projeto pretendidos. Framework: **Next.js**; Root Directory: raiz do repositório.
 3. Usar **Node.js 24.x**, Install Command `npm ci` e Build Command `npm run build`. Manter Output Directory automático.
-4. Não são necessárias variáveis de ambiente nem base de dados. O endpoint `/api/market` usa Node.js no servidor; não configurar como exportação estática.
+4. Para modo local não são necessárias variáveis nem base de dados. Para ativar contas, seguir a configuração Supabase abaixo e definir as duas variáveis públicas em cada ambiente Vercel antes do build. O endpoint `/api/market` usa Node.js no servidor; não configurar como exportação estática.
 5. Publicar primeiro um preview, verificar transações, importação e cotações reais nesse ambiente; depois promover para produção e associar o domínio em **Settings → Domains**.
 
 O Next.js tem suporte nativo na [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). Não é preciso `vercel.json` para os defaults desta aplicação. Os testes devem passar antes de publicar; a integração Git faz deploy em cada push, pelo que convém configurar checks obrigatórios.
 
 O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. A versão Streamlit não é desligada por esta migração. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
 
+## Configurar a conta opcional (Supabase)
+
+O [registo de configuração externa](supabase/SETUP.md) documenta o projeto configurado, as migrations aplicadas, os testes reais e o SMTP configurado com entrega de confirmação e recuperação validada. Não houve deploy desta configuração.
+
+1. Criar um projeto Supabase. Em **Authentication → Providers**, ativar Email/password; manter confirmação de email e configurar a política de palavras-passe (a UI exige pelo menos 8 caracteres). Configurar SMTP para entrega fiável em produção, limites e proteção contra abuso no painel Auth.
+2. Aplicar os ficheiros de `supabase/migrations/` pela ordem do nome, usando SQL Editor ou a CLI Supabase (`supabase db push` após ligar o projeto). Rever as tabelas, RLS e permissões após aplicar. O [contrato](supabase/CONTRACT.md) descreve snapshots, revisões, limites e recibos de migração. Não é necessário `service_role`.
+3. Copiar `.env.example` para `.env.local`. Definir `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` com a URL e a **publishable key** do projeto (Dashboard → Connect/API Keys). A URL deve usar HTTPS; HTTP só é aceite em loopback (`localhost`, `127.0.0.0/8` ou `[::1]`) para desenvolvimento local. URLs inválidas desativam o modo de conta antes de criar os clientes Supabase. A chave pública identifica o projeto; Auth e RLS autorizam os acessos. Nunca usar uma secret key ou `service_role` numa variável pública.
+4. Em **Authentication → URL Configuration**, definir **Site URL** para o domínio de produção e permitir os redirects exatos `https://o-teu-dominio/` e `https://o-teu-dominio/?recovery=1`. Para desenvolvimento, acrescentar `http://localhost:3000/` e `http://localhost:3000/?recovery=1`. Permitir apenas origens de preview controladas, preferencialmente URLs exatos. Os emails de confirmação voltam a `/`; os de recuperação a `/?recovery=1`, onde se define a nova palavra-passe.
+5. Na Vercel, definir ambas as variáveis em **Settings → Environment Variables** nos ambientes pretendidos e fazer um novo build. São incorporadas no cliente no build. Usar projetos Supabase separados para testes/preview e produção quando apropriado. Sem ambas as variáveis, só o modo local é apresentado.
+6. Verificar com contas de teste distintas: confirmação de email, recuperação, gravação, revisões entre dispositivos, migração repetida e isolamento RLS pela Data API. Os testes com mocks não substituem estes passos. Nenhum projeto, credencial ou deploy é criado automaticamente por este código.
+
+O backend verifica o Bearer token com Auth `getUser`, deriva a identidade da sessão e usa o mesmo JWT para aceder à DB. As RPCs não recebem `user_id`; as tabelas têm RLS e as escritas diretas são revogadas. As respostas da API usam `Cache-Control: no-store`. Guardam-se as transações originais em JSONB, incluindo a ordem do array para desempatar datas iguais; fórmulas e dados de mercado não são persistidos na conta. Não há caches partilhadas de carteiras.
+
+A sessão Auth é persistida pelo SDK Supabase no navegador; terminar sessão fecha imediatamente o espaço da conta e termina a sessão neste navegador. Uma falha é mostrada e permite repetir. O modo local não cifra dados; usar um dispositivo de confiança. Apagar a conta e exportações administrativas não têm interface nesta versão.
+
+Referências oficiais: [Auth por palavra-passe](https://supabase.com/docs/guides/auth/passwords), [verificação getUser](https://supabase.com/docs/reference/javascript/auth-getuser), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) e [funções Postgres](https://supabase.com/docs/guides/database/functions).
+
 ## Estrutura
 
 ```text
 src/app/                     # App Router, layout e estilos
 src/app/api/market/route.ts   # Endpoint de mercado com validação e limites
+src/app/api/account/route.ts  # API privada da conta, sessão e gravações atómicas
+supabase/                    # Contrato, migrations SQL e políticas RLS
 src/components/              # Dashboard, gráfico e diálogo
 src/lib/portfolio.ts          # Cálculos puros e reconstrução histórica
 src/lib/validation.ts         # Validação de ordens/carteiras
@@ -144,3 +170,30 @@ npm run test:e2e
 ```
 
 O Playwright inicia `next start` depois do build e testa desktop/móvel, persistência, CSV, carteiras, falhas de dados e relatório. Os dados de mercado dos testes de UI são controlados para resultados determinísticos; não validam a disponibilidade real do Yahoo nem o comportamento de uma conta Vercel.
+
+Os testes de conta no Playwright exigem um build com configuração pública fictícia, sem credenciais reais:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://rendimentos-test.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=public-test-key npm run build
+TEST_ACCOUNT_AUTH=1 npm run test:e2e
+```
+
+Estes testes interceptam Auth e `/api/account`; verificam UI, isolamento do estado e pedidos, sem comprovar a execução real do SQL/RLS ou entrega de emails. Um build sem configuração continua a suportar todos os fluxos locais.
+
+Para verificar a entrada sem Supabase mesmo quando existe `.env.local`, usar um build com as variáveis públicas explicitamente vazias:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= npm run build
+TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/dashboard.spec.ts
+```
+
+Depois dos testes com configuração fictícia ou vazia, executar novamente `npm run build` para repor a configuração local real.
+
+Para testar conjuntamente a API e as migrations num PostgreSQL local em memória, sem credenciais nem dados reais:
+
+```bash
+npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
+npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+```
+
+O teste usa o handler real da API e SQL real para verificar escrita/leitura no limite de 3 MB, rejeição de um byte adicional e preservação dos dados após a rejeição. Auth e o transporte RPC são injetados; este teste não comprova o fluxo completo numa deployment Vercel.

@@ -1208,6 +1208,18 @@ td strong {
   min-width: 32px;
   min-height: 32px;
 }
+.account-empty-notice {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.account-empty-notice > span {
+  flex: 1 1 200px;
+}
+.account-empty-notice .button {
+  font-size: 13px;
+  min-height: 44px;
+  white-space: normal;
+}
 .order-badge {
   padding: 5px 9px;
   border-radius: 5px;
@@ -1908,4 +1920,21 @@ ul.import-help {
   a[href]::after {
     content: none;
   }
+}
+
+.account-storage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+.account-storage .button {
+  min-height: 44px;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .account-storage > span { flex-basis: 100%; }
+  .account-storage .button { width: 100%; }
 }
