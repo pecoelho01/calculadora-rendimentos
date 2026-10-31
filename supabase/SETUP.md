@@ -4,7 +4,7 @@
 
 - Supabase: projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`), organização Vercel Marketplace `pecoelho01's projects`, região `eu-north-1`.
 - Antes das alterações: projeto saudável, sem tabelas da aplicação, funções `account_*`, migrations ou utilizadores Auth. O projeto MetroLiveTime não foi alterado.
-- Migrations aplicadas e registadas com as versões locais `202610300001` e `202610300002`. Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`.
+- Migrations aplicadas e registadas com as versões locais `202610300001` e `202610300002`; `202610300003` aplicada e verificada em 31 de outubro, conforme o registo final abaixo. Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`.
 - Auth: email/password e registo ativos, confirmação de email obrigatória, início de sessão sem confirmação desativado e palavra-passe mínima de 8 caracteres.
 - Site URL: `https://calculadora-rendimentos.vercel.app`.
 - Redirects exatos: `https://calculadora-rendimentos.vercel.app/`, `https://calculadora-rendimentos.vercel.app/?recovery=1`, `http://localhost:3000/` e `http://localhost:3000/?recovery=1`.
@@ -74,4 +74,12 @@ Os novos testes verificam, em computador e telemóvel, que eliminar a última ca
 
 A migration `202610300003_account_import_idempotency.sql` acrescenta deduplicação por conteúdo calculado no SQL, independente da chave do cliente. Foi validada localmente no harness SQL/PGlite: upgrade de recibo anterior, chaves diferentes com o mesmo conteúdo, reutilização de chave com conteúdo diferente, números com escalas diferentes, propriedade JSON reordenada, repetição após editar/apagar a carteira, isolamento por utilizador e rollback por capacidade. O harness também verifica o limite de 3 MB e a rejeição atómica de um byte adicional, conforme o contrato.
 
-Node.js 24: `npm ci`, `npm run dev`, 33 testes unitários, typecheck, lint e build passaram. Playwright com configuração Supabase fictícia: 69 aprovados e 3 ignorados. Os testes de navegador usam mocks; o harness executa SQL real num PostgreSQL WASM local. O build final foi reposto com `.env.local`. A terceira migration ainda não foi aplicada no Supabase real e não foi feito deploy manual. O comentário sobre o botão de transação na conta vazia não faz parte desta correção.
+Node.js 24: `npm ci`, `npm run dev`, 33 testes unitários, typecheck, lint e build passaram. Playwright com configuração Supabase fictícia: 69 aprovados e 3 ignorados. Os testes de navegador usam mocks; o harness executa SQL real num PostgreSQL WASM local. O build final foi reposto com `.env.local`. À data desta validação local, a terceira migration ainda não tinha sido aplicada no Supabase real e não foi feito deploy manual. A aplicação posterior está registada na secção seguinte. O comentário sobre o botão de transação na conta vazia não faz parte desta correção.
+
+## Aplicação da migration 003 no Supabase real — 31 de outubro de 2026
+
+A pedido do utilizador, `202610300003_account_import_idempotency.sql` foi aplicada no projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`) através do SQL Editor autenticado, depois de confirmar o histórico 001/002 e a ausência da função nova. O DDL e o registo da versão `202610300003`, nome `account_import_idempotency`, foram executados na mesma transação. O checksum do corpo SQL registado corresponde ao ficheiro do PR.
+
+Validação real em PostgreSQL/Supabase: uma transação com utilizador e carteira fictícios confirmou que o mesmo conteúdo com chaves diferentes e escala numérica diferente produz apenas uma carteira; reutilizar a chave com conteúdo diferente foi rejeitado. A transação de teste foi revertida. As contagens de carteiras/recibos e o checksum agregado das carteiras permaneceram iguais aos anteriores ao teste.
+
+Confirmados o índice por conteúdo, a normalização numérica, a execução de `account_apply` apenas para `authenticated` e a função auxiliar sem execução direta para esse papel. A verificação não usou tokens nem enviou emails. Não foi feito deploy da aplicação. A indicação de migration pendente na secção anterior é histórica; a versão 003 está agora aplicada e registada no serviço real.
