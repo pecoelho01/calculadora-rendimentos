@@ -23,10 +23,10 @@ Além de `npm test` (contratos/API com backend injetado), é possível executar 
 
 ```bash
 npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
-node supabase/tests/check-migration.mjs /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
 ```
 
-O harness simula apenas o esquema `auth`, dois utilizadores e os papéis Supabase; executa as funções, grants e políticas SQL reais. Verifica CAS, rollback de lote e recibos, limites, isolamento/RLS, proibição de escrita direta, ordem de transações, vendas excessivas, migração repetida e revisão após apagar/recriar. Inclui limites Unicode/UTF-16, valores não representáveis em JavaScript e arredondamento das quantidades grandes conforme `shareUnits`. Não testa o serviço Supabase Auth real, a Data API HTTP, email/SMTP ou Vercel.
+O harness simula apenas o esquema `auth`, dois utilizadores e os papéis Supabase; executa as funções, grants e políticas SQL reais. Verifica CAS, rollback de lote e recibos, limites, isolamento/RLS, proibição de escrita direta, ordem de transações, vendas excessivas, migração repetida e revisão após apagar/recriar. Inclui limites Unicode/UTF-16, valores não representáveis em JavaScript e arredondamento das quantidades grandes conforme `shareUnits`. No limite de tamanho, também executa o handler real de `/api/account`: POST seguido de GET no máximo SQL, rejeição de uma escrita um byte acima e GET posterior inalterado. As validações TypeScript e as funções PostgreSQL são reais; Auth e o transporte RPC são injetados. Não testa o serviço Supabase Auth real, a Data API HTTP, email/SMTP ou Vercel.
 
 ## Correção de idempotência e verificação de tamanho
 

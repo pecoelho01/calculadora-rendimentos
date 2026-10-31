@@ -188,3 +188,12 @@ TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/dashboard.spec.ts
 ```
 
 Depois dos testes com configuração fictícia ou vazia, executar novamente `npm run build` para repor a configuração local real.
+
+Para testar conjuntamente a API e as migrations num PostgreSQL local em memória, sem credenciais nem dados reais:
+
+```bash
+npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
+npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+```
+
+O teste usa o handler real da API e SQL real para verificar escrita/leitura no limite de 3 MB, rejeição de um byte adicional e preservação dos dados após a rejeição. Auth e o transporte RPC são injetados; este teste não comprova o fluxo completo numa deployment Vercel.

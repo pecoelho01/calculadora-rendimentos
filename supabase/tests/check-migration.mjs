@@ -1,9 +1,10 @@
 // Optional deterministic PostgreSQL verification using PGlite outside project dependencies.
 // npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
-// node supabase/tests/check-migration.mjs /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+// npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { createAccountHandler } from "../../src/lib/account-server.ts";
 
 const modulePath = process.argv[2];
 if (!modulePath) throw new Error("Indica o caminho para o módulo PGlite instalado separadamente.");
@@ -166,14 +167,56 @@ for (const portfolio of boundary) for (const order of portfolio.orders) {
   excess -= trim;
 }
 assert.equal(await sqlBytes(boundary), 3_000_000);
-const atLimit = await apply(boundary.map((portfolio) => change(portfolio)));
+// Use the production handler and validators, with only Auth and the transport injected.
+// RPC calls execute the real SQL under the authenticated role above.
+const rpcCalls = [];
+let rejectedSqlCode = null;
+const handle = createAccountHandler(() => ({
+  async getUser(token) {
+    return token === "boundary-test-token" ? { id: "33333333-3333-4333-8333-333333333333" } : null;
+  },
+  async rpc(name, args) {
+    rpcCalls.push(name);
+    try {
+      const data = name === "account_apply"
+        ? await apply(args.p_changes, args.p_migration)
+        : await snap();
+      return { data, error: null };
+    } catch (error) {
+      rejectedSqlCode = error.code;
+      return { data: null, error: { code: error.code } };
+    }
+  },
+}));
+const apiRequest = (body) => new Request("http://localhost/api/account", {
+  method: body === undefined ? "GET" : "POST",
+  headers: { Authorization: "Bearer boundary-test-token", "Content-Type": "application/json" },
+  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+});
+const writeAtLimit = await handle(apiRequest({ changes: boundary.map((portfolio) => change(portfolio)) }));
+assert.equal(writeAtLimit.status, 200, "POST no limite SQL deve confirmar a escrita e devolver um snapshot válido.");
+assert.equal(writeAtLimit.headers.get("cache-control"), "private, no-store");
+assert.deepEqual(rpcCalls, ["account_apply"]);
+const atLimit = await writeAtLimit.json();
+const readAtLimit = await handle(apiRequest());
+assert.equal(readAtLimit.status, 200, "GET após a escrita no limite deve continuar legível pela API.");
+assert.deepEqual(await readAtLimit.json(), atLimit);
 const compactBytes = Buffer.byteLength(JSON.stringify(atLimit.portfolios.map((record) => record.portfolio)));
 assert.ok(compactBytes <= 3_000_000);
 const enlarged = structuredClone(atLimit.portfolios.find((record) => record.portfolio.orders.some((order) => order.id.length < 200)));
 enlarged.portfolio.orders.find((order) => order.id.length < 200).id += "y";
-await rejectsCode(() => apply([change(enlarged.portfolio, enlarged.revision)]), "22023");
+const overflowingPortfolios = atLimit.portfolios.map((record) => record.portfolio.id === enlarged.portfolio.id ? enlarged.portfolio : record.portfolio);
+assert.equal(await sqlBytes(overflowingPortfolios), 3_000_001);
+const oversizedWrite = await handle(apiRequest({ changes: [change(enlarged.portfolio, enlarged.revision)] }));
+assert.equal(oversizedWrite.status, 400, "POST um byte acima do limite SQL deve ser rejeitado, sem confirmação seguida de 503.");
+assert.equal(rejectedSqlCode, "22023", "A rejeição deve vir do PostgreSQL, não apenas da validação de entrada.");
+assert.deepEqual(rpcCalls, ["account_apply", "account_snapshot", "account_apply"]);
+const afterRejectedWrite = await handle(apiRequest());
+assert.equal(afterRejectedWrite.status, 200);
+assert.equal(afterRejectedWrite.headers.get("cache-control"), "private, no-store");
+assert.deepEqual(await afterRejectedWrite.json(), atLimit);
 assert.deepEqual(await snap(), atLimit);
-console.log(`SQL bytes=3000000; compact array bytes=${compactBytes}; orders=${orderCount}; one-byte overflow rolled back.`);
+console.log(`API + PostgreSQL: SQL bytes=3000000; compact array bytes=${compactBytes}; orders=${orderCount}; POST/GET=200; overflow POST=400; GET remains unchanged.`);
 await db.exec("reset role; set role anon; select set_config('request.jwt.claim.sub','',false)");
 await rejectsCode(() => snap(), "42501");
 await rejectsCode(() => apply([change(p)]), "42501");

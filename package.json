@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:sql": "node --import tsx supabase/tests/check-migration.mjs"
   },
   "keywords": [],
   "author": "",
