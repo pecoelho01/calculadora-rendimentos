@@ -435,7 +435,6 @@ export function Dashboard() {
               <Icon name="shield" />
               <div>
                 <strong>Guardado neste navegador</strong>
-                <small>Sem conta · os teus dados, contigo</small>
               </div>
             </div>
             <a
@@ -465,14 +464,9 @@ export function Dashboard() {
         <main className="content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">PAINEL DE INVESTIMENTOS</div>
               <h1>
                 {tab === "notes" ? "Conhece os teus números" : portfolio?.name}
               </h1>
-              <p>
-                Acompanha o valor, os resultados e a evolução dos teus
-                investimentos.
-              </p>
             </div>
             <div className="heading-actions no-print">
               <details
@@ -587,7 +581,6 @@ export function Dashboard() {
           ) : null}
           {tab === "notes" ? (
             <section className="panel notes">
-              <span className="eyebrow">TRANSPARÊNCIA PRIMEIRO</span>
               <h2>Como calculamos a rentabilidade</h2>
               <h3>Custo de aquisição FIFO</h3>
               <p>
@@ -664,7 +657,6 @@ export function Dashboard() {
             <>
               <div className="portfolio-toolbar">
                 <div>
-                  <span className="pill">CARTEIRA PESSOAL</span>
                   <span className="currency-tag">Moeda: {currency}</span>
                 </div>
                 <button
@@ -698,7 +690,6 @@ export function Dashboard() {
                 <Metric
                   label="Compras acumuladas"
                   value={money(summary.invested)}
-                  detail="Valor acumulado das compras"
                 />
               </div>
               {tab === "overview" ? (
@@ -712,8 +703,7 @@ export function Dashboard() {
                   <section className="panel allocation">
                     <div className="panel-heading">
                       <div>
-                        <span className="eyebrow">DISTRIBUIÇÃO</span>
-                        <h2>Onde estás investido</h2>
+                        <h2>Onde estás a investir</h2>
                       </div>
                       <span className="subtle">{currency}</span>
                     </div>
@@ -789,7 +779,6 @@ export function Dashboard() {
               <section className="panel holdings">
                 <div className="panel-heading">
                   <div>
-                    <span className="eyebrow">O TEU PORTFÓLIO</span>
                     <h2>
                       {tab === "transactions"
                         ? "Histórico de transações"
@@ -834,8 +823,6 @@ export function Dashboard() {
                     <h3>Um novo capítulo para os teus investimentos</h3>
                     <p>
                       Adiciona a primeira transação ou importa um CSV.
-                      <br />
-                      Vamos dar forma à tua carteira.
                     </p>
                     <div>
                       <button
@@ -1042,12 +1029,6 @@ export function Dashboard() {
               </div>
             </>
           )}
-          <footer className="page-footer">
-            <span>
-              <Icon name="trend" /> Um olhar mais claro sobre o teu futuro.
-            </span>
-            <span>rendimentos · Projeto pessoal</span>
-          </footer>
         </main>
       </div>
       {modal === "rename" ? (
@@ -1280,7 +1261,7 @@ function Metric({
 }: {
   label: string;
   value: string;
-  detail: string;
+  detail?: string;
   featured?: boolean;
   trend?: number | null;
 }) {
@@ -1295,7 +1276,7 @@ function Metric({
       >
         {value}
       </strong>
-      <small>{detail}</small>
+      {detail ? <small>{detail}</small> : null}
     </section>
   );
 }
