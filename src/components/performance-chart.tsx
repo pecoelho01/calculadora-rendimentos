@@ -124,7 +124,6 @@ export function PerformanceChart({
     <section ref={panelRef} className="panel performance">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">O TEU PERCURSO</span>
           <h2>Evolução da rentabilidade</h2>
         </div>
         <div className="segments" aria-label="Período do gráfico">
