@@ -303,13 +303,22 @@ test("ligação de recuperação Auth abre o formulário de palavra-passe", asyn
   expect(state.authRequests.some((request) => request.path.endsWith("/user") && request.body.password === "recovered-password-test")).toBe(true);
 });
 
-test("conta vazia permite criar a primeira carteira sem copiar dados locais", async ({ page }) => {
+test("conta vazia permite criar a primeira carteira sem copiar dados locais", async ({ page }, testInfo) => {
   const state = await setup(page, true);
   state.accounts[userA] = { version: 1, portfolios: [] };
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toBeEnabled();
   await expect(page.locator(".portfolio-row")).toHaveCount(0);
-  await page.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Adicionar transação", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Nova transação", exact: true })).toBeDisabled();
+  await assertNoOverflow(page);
+  const noticeText = await page.locator(".account-empty-notice > span").boundingBox();
+  const noticeButton = await page.locator(".account-empty-notice .button").boundingBox();
+  expect(noticeText && noticeButton).toBeTruthy();
+  expect(noticeText!.x + noticeText!.width <= noticeButton!.x || noticeText!.y + noticeText!.height <= noticeButton!.y).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("conta-vazia.png"), fullPage: true });
+  await page.locator(".empty-state").getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Nova transação", exact: true })).toHaveCount(0);
   const dialog = page.getByRole("dialog", { name: "Criar carteira", exact: true });
   await dialog.getByLabel("Nome da carteira").fill("Primeira carteira na conta");
   await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();
@@ -318,6 +327,16 @@ test("conta vazia permite criar a primeira carteira sem copiar dados locais", as
   expect(state.requests[0].changes).toHaveLength(1);
   expect(state.requests[0].changes[0].expectedRevision).toBe(null);
   expect(state.accounts[userA].portfolios).toHaveLength(1);
+  await page.getByRole("button", { name: "Adicionar transação", exact: true }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Nova transação", exact: true });
+  await expect(orderDialog).toBeVisible();
+  await orderDialog.getByLabel("Ticker Yahoo").fill("TEST");
+  await orderDialog.getByLabel("Quantidade", { exact: true }).fill("2");
+  await orderDialog.getByLabel("Preço por unidade").fill("100");
+  await orderDialog.getByRole("button", { name: "Guardar transação", exact: true }).click();
+  await expect(orderDialog).toBeHidden();
+  expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(1);
+  expect(state.accounts[userA].portfolios[0].revision).toBe(2);
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
   await assertNoOverflow(page);
 });
@@ -342,7 +361,8 @@ test("eliminar a última carteira da conta mantém a conta vazia após confirma�
   await page.reload();
   await expect(page.getByRole("button", { name: "Criar a primeira carteira", exact: true })).toBeVisible();
   await expect(page.locator(".portfolio-row")).toHaveCount(0);
-  await page.getByRole("button", { name: "Criar a primeira carteira", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Adicionar transação", exact: true })).toHaveCount(0);
+  await page.locator(".empty-state").getByRole("button", { name: "Criar carteira", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Criar carteira", exact: true });
   await dialog.getByLabel("Nome da carteira").fill("Nova carteira após eliminação");
   await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();

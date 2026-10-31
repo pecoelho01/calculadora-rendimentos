@@ -686,7 +686,10 @@ export function Dashboard({ identity = null, accountControls }: {
             }}
           />
           {identity && accountSnapshot && !portfolios.length ? (
-            <div className="notice">A tua conta ainda não tem carteiras. <button className="button secondary" onClick={() => openModal("portfolio")}>Criar a primeira carteira</button></div>
+            <div className="notice account-empty-notice">
+              <span>A tua conta ainda não tem carteiras.</span>
+              <button className="button secondary" onClick={() => openModal("portfolio")}>Criar a primeira carteira</button>
+            </div>
           ) : null}
           {message ? (
             <div className="notice" role="status">
@@ -948,16 +951,18 @@ export function Dashboard({ identity = null, accountControls }: {
                     </div>
                     <h3>Um novo capítulo para os teus investimentos</h3>
                     <p>
-                      Adiciona a primeira transação ou importa um CSV.
+                      {portfolio
+                        ? "Adiciona a primeira transação ou importa um CSV."
+                        : "Cria a primeira carteira para registar transações."}
                       <br />
                       Vamos dar forma à tua carteira.
                     </p>
                     <div>
                       <button
                         className="button primary no-print"
-                        onClick={() => openModal("order")}
+                        onClick={() => openModal(portfolio ? "order" : "portfolio")}
                       >
-                        <Icon name="plus" /> Adicionar transação
+                        <Icon name="plus" /> {portfolio ? "Adicionar transação" : "Criar carteira"}
                       </button>
                       <button
                         className="text-button no-print"

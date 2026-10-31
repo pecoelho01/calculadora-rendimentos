@@ -83,3 +83,9 @@ A pedido do utilizador, `202610300003_account_import_idempotency.sql` foi aplica
 Validação real em PostgreSQL/Supabase: uma transação com utilizador e carteira fictícios confirmou que o mesmo conteúdo com chaves diferentes e escala numérica diferente produz apenas uma carteira; reutilizar a chave com conteúdo diferente foi rejeitado. A transação de teste foi revertida. As contagens de carteiras/recibos e o checksum agregado das carteiras permaneceram iguais aos anteriores ao teste.
 
 Confirmados o índice por conteúdo, a normalização numérica, a execução de `account_apply` apenas para `authenticated` e a função auxiliar sem execução direta para esse papel. A verificação não usou tokens nem enviou emails. Não foi feito deploy da aplicação. A indicação de migration pendente na secção anterior é histórica; a versão 003 está agora aplicada e registada no serviço real.
+
+## Correção do botão na conta vazia — 31 de outubro de 2026
+
+Sem carteira selecionada, a ação do estado vazio mostra «Criar carteira» e abre o respetivo diálogo; só passa a «Adicionar transação» depois da criação. O aviso de conta vazia adapta o texto e o botão a ecrãs pequenos, sem sobreposição.
+
+Validação local com Node.js 24: 33 testes unitários, typecheck, lint e build passaram. Playwright com Auth/API/mercado mockados: 69 aprovados e 3 ignorados. Os testes verificam a criação pelo botão do estado vazio, a gravação da primeira transação e o percurso após eliminar a última carteira/recarregar, em desktop e telemóvel; capturas e ausência de sobreposição foram verificadas. O build final foi reposto com `.env.local`; esta alteração de UI não foi testada com Auth real nem num deploy Vercel.
