@@ -518,3 +518,30 @@ test("modo local continua utilizável se o navegador bloquear sessionStorage", a
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
   await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
 });
+
+test("preservar tema entre entrada, conta, modo local e saída", async ({ page }, testInfo) => {
+  await setup(page);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Ativar tema escuro", exact: true }).click();
+  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(25, 34, 48)");
+  await assertNoOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("entrada-tema-escuro.png"), fullPage: true });
+  await login(page);
+  await expect(page.locator(".market-source")).toContainText("Dados na conta");
+  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(25, 34, 48)");
+  await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
+  await assertNoOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("conta-tema-escuro.png"), fullPage: true });
+  await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await expect(page.locator(".market-source")).toContainText("Dados locais");
+  await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Ativar tema claro", exact: true }).click();
+  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await login(page);
+  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator(".market-source")).toContainText("Dados na conta");
+  await assertNoOverflow(page);
+});

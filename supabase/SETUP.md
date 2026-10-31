@@ -89,3 +89,9 @@ Confirmados o índice por conteúdo, a normalização numérica, a execução de
 Sem carteira selecionada, a ação do estado vazio mostra «Criar carteira» e abre o respetivo diálogo; só passa a «Adicionar transação» depois da criação. O aviso de conta vazia adapta o texto e o botão a ecrãs pequenos, sem sobreposição.
 
 Validação local com Node.js 24: 33 testes unitários, typecheck, lint e build passaram. Playwright com Auth/API/mercado mockados: 69 aprovados e 3 ignorados. Os testes verificam a criação pelo botão do estado vazio, a gravação da primeira transação e o percurso após eliminar a última carteira/recarregar, em desktop e telemóvel; capturas e ausência de sobreposição foram verificadas. O build final foi reposto com `.env.local`; esta alteração de UI não foi testada com Auth real nem num deploy Vercel.
+
+## Integração com o tema claro/escuro — 31 de outubro de 2026
+
+A branch de destino foi integrada preservando o seletor de tema e a distinção «Dados na conta»/«Dados locais» no cabeçalho. O ecrã de entrada e os controlos da conta usam as cores do tema; o seletor também está disponível antes do login. Os testes de tema e o teste de ganhos provenientes da branch base foram adaptados à escolha explícita do modo local.
+
+Validação Node.js 24: `npm ci`, `npm run dev`, 37 testes unitários, typecheck, lint e build passaram. Playwright com configuração Supabase fictícia: 81 aprovados e 3 ignorados; os dois casos de integração de tema foram repetidos após acrescentar a captura e a verificação de largura da entrada. Verificados entrada, login, modo local, logout, preferências de tema, impressão clara e capturas de computador/telemóvel. Auth/API/mercado são mocks; esta revisão de UI não foi testada com Auth real nem num deploy Vercel. O build final foi reposto com `.env.local`.

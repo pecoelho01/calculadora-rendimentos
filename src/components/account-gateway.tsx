@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
+import { ThemeControl } from "./theme-control";
 import "./account.css";
 
 export type AccountIdentity = {
@@ -274,7 +275,7 @@ export function AccountGateway({
       <main className="entry-page">
         <div className="entry-layout">
           <section className="entry-intro" aria-labelledby="entry-title">
-            <div className="entry-brand"><Icon name="trend" /> rendimentos.</div>
+            <div className="entry-brand"><Icon name="trend" /> rendimentos.<ThemeControl /></div>
             <span className="eyebrow">O TEU PATRIMÓNIO, COM CLAREZA</span>
             <h1 id="entry-title" ref={welcomeHeading} tabIndex={-1}>Bem-vindo ao Rendimentos</h1>
             <p>Acompanha as tuas carteiras, regista transações e percebe a evolução dos teus investimentos.</p>

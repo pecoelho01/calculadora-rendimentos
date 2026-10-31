@@ -6,7 +6,7 @@
   gap: 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: white;
+  background: var(--surface);
   padding: 18px 20px;
   margin-bottom: 24px;
   min-width: 0;
@@ -67,7 +67,7 @@
   display: grid;
   place-items: center;
   padding: 48px 24px;
-  background: radial-gradient(ellipse at top left, #eaf1ff, transparent 65%), var(--bg);
+  background: radial-gradient(ellipse at top left, light-dark(#eaf1ff, #172c48), transparent 65%), var(--bg);
 }
 .entry-layout {
   width: min(100%, 1000px);
@@ -85,14 +85,15 @@
   font-weight: 700;
   letter-spacing: -1px;
 }
-.entry-brand .icon {
+.entry-brand > .icon {
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: var(--ink);
+  background: var(--featured-bg);
   color: white;
   border-radius: 9px;
 }
+.entry-brand .theme-control { margin-left: auto; }
 .entry-intro h1 {
   font-size: clamp(30px, 4vw, 44px);
   line-height: 1.15;
@@ -123,7 +124,7 @@
   padding: 32px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 16px 48px #17203308;
 }
 .entry-card h2 { font-size: 23px; letter-spacing: -.5px; margin: 0 0 20px; }

@@ -33,6 +33,7 @@ O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa
 - Registo, início/fim de sessão e recuperação de acesso por email. Cópia explícita das carteiras locais para a conta, sem substituição das remotas.
 - Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador.
 - Layout responsivo e notas com as fórmulas e limitações.
+- Botão de sol/lua para alternar entre tema claro e escuro, com preferência guardada neste navegador. Até à primeira escolha, acompanha o tema do sistema. A impressão mantém o tema claro.
 - Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita; no telemóvel ocupa a largura disponível.
 - Renomeação de carteiras pelo botão direito, Shift+F10 ou botão de edição, preservando transações e moeda. A largura e abertura da sidebar mantêm-se durante a sessão da página.
 
@@ -57,7 +58,7 @@ Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e 
 | `date` | Sim | Data ISO `YYYY-MM-DD`, entre 2000-01-01 e hoje |
 | `ticker` | Sim | Símbolo Yahoo Finance, por exemplo `SXR8.DE` ou `AAPL` |
 | `name` | Não | Nome do ativo |
-| `pricebuy` | Sim | Preço por unidade na moeda da carteira; nas vendas, preço de venda |
+| `pricebuy` | Sim | Preço por unidade estritamente positivo (por exemplo, `0,00001`) na moeda da carteira; nas vendas, preço de venda |
 | `shares` | Sim | Quantidade positiva, até 8 casas decimais |
 | `type` | Não | `buy` ou `sell`; vazio/omitido assume `buy` |
 
@@ -85,6 +86,8 @@ Cada compra cria um lote FIFO. As vendas consomem primeiro as unidades dos lotes
 `Rentabilidade total (ROI) = ganho total ÷ total de todas as compras × 100`.
 
 `Rentabilidade das posições abertas = ganho não realizado ÷ custo FIFO dos lotes abertos × 100`.
+
+As posições apresentam também a percentagem não realizada sobre o custo FIFO aberto e a percentagem realizada sobre o custo FIFO vendido. Nas transações, cada compra mostra o ganho total desse lote: o realizado nas unidades vendidas mais o não realizado das unidades restantes, com percentagem sobre o custo original da compra. Um lote totalmente vendido mantém o seu ganho realizado e aparece como «Lote fechado». Cada venda mostra `receita − custo FIFO consumido` e a percentagem sobre esse custo, mesmo sem cotação atual. Os ganhos das vendas já estão incluídos nos ganhos das compras: são duas vistas do mesmo resultado, que não devem ser somadas. A soma dos ganhos de todas as compras corresponde ao ganho total da carteira. Sem cotação compatível, o ganho de uma compra com unidades abertas fica indisponível; compras totalmente vendidas não exigem cotação. Os preços das transações devem ser superiores a zero; uma cotação de mercado igual a zero continua válida. Nenhum destes ganhos inclui comissões ou impostos.
 
 O toggle muda a série, a percentagem em destaque e os valores consultados no gráfico. Os períodos 3M, 6M, 1A e YTD recalculam a rentabilidade do intervalo; «Máximo» mantém o cálculo desde a primeira compra. YTD começa em 1 de janeiro do ano atual. Os meses usam datas UTC e o último dia válido do mês de destino. «Posições abertas» considera as posições que estavam abertas em cada data, incluindo ativos que tenham sido vendidos posteriormente. Sem posições abertas ou com custo aberto zero, esta percentagem é indisponível, não zero. Uma cotação válida a zero, com custo positivo, representa −100%. Vendas podem alterar a rentabilidade das posições abertas mesmo sem alteração dos preços de mercado.
 

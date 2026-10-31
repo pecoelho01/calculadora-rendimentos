@@ -89,11 +89,38 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await page.getByRole("textbox", { name: "Pesquisar ativo" }).fill("");
   await page.reload();
   await expect(page.locator("tbody tr")).toHaveCount(1);
+  const position = page.locator("tbody tr").first();
+  await expect(position.locator("td").nth(5)).toContainText("400,00");
+  await expect(position.locator("td").nth(5)).toContainText("+23,53%");
+  await expect(position.locator("td").nth(6)).toContainText("+30%");
   await page
     .getByRole("button", { name: "Transações", exact: true })
     .first()
     .click();
   await expect(page.locator("tbody tr")).toHaveCount(3);
+  const sale = page.locator("tbody tr").filter({ hasText: "2024-01-03" }).locator("td").nth(6);
+  const firstBuy = page.locator("tbody tr").filter({ hasText: "2024-01-01" }).locator("td").nth(6);
+  const secondBuy = page.locator("tbody tr").filter({ hasText: "2024-01-02" }).locator("td").nth(6);
+  await expect(sale).toContainText("150,00");
+  await expect(sale).toContainText("+30%");
+  await expect(sale).toContainText("Realizado");
+  await expect(page.locator("table")).not.toContainText("FIFO");
+  await expect(firstBuy).toContainText("350,00");
+  await expect(firstBuy).toContainText("+35%");
+  await expect(firstBuy).toContainText("5 em carteira");
+  await expect(secondBuy).toContainText("200,00");
+  await expect(secondBuy).toContainText("+16,67%");
+  const screenViewport = page.viewportSize()!;
+  // A4 landscape minus the 14 mm margins from @page, converted to CSS pixels.
+  await page.setViewportSize({ width: 1016, height: 794 });
+  await page.emulateMedia({ media: "print" });
+  await expect(firstBuy).toContainText("+35%");
+  expect(await page.locator("table").evaluate((table) => table.getBoundingClientRect().right <= document.documentElement.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("transaction-gains-print.png"), fullPage: true });
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize(screenViewport);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("transaction-gains.png"), fullPage: true });
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".sidebar")).toBeHidden();
@@ -109,6 +136,27 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
     fullPage: true,
   });
   expect(errors).toEqual([]);
+});
+test("ganhos de compras fechadas e vendas permanecem sem cotação atual", async ({ page }) => {
+  await page.unroute("**/api/market?*");
+  await page.route("**/api/market?*", (route) => route.fulfill({ json: { assets: {} } }));
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "fechada.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell\n2024-01-03,TEST,Teste,120,1,buy"),
+  });
+  await page.getByRole("button", { name: "Transações", exact: true }).first().click();
+  const closed = page.locator("tbody tr").filter({ hasText: "2024-01-01" }).locator("td").nth(6);
+  const sale = page.locator("tbody tr").filter({ hasText: "2024-01-02" }).locator("td").nth(6);
+  const open = page.locator("tbody tr").filter({ hasText: "2024-01-03" }).locator("td").nth(6);
+  await expect(closed).toContainText("300,00");
+  await expect(closed).toContainText("+30%");
+  await expect(closed).toContainText("Lote fechado");
+  await expect(sale).toContainText("300,00");
+  await expect(sale).toContainText("+30%");
+  await expect(open).toContainText("—");
+  await expect(open).not.toContainText("0,00");
 });
 test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   page,

@@ -259,7 +259,7 @@ export function PerformanceChart({
                       x2={chartWidth - 30}
                       y1={y(v)}
                       y2={y(v)}
-                      stroke="#e9edf2"
+                      stroke="var(--chart-grid)"
                       strokeDasharray="4 5"
                     />
                     <text
@@ -275,7 +275,7 @@ export function PerformanceChart({
               })}
               <path
                 d={path("benchmark")}
-                stroke="#a8b1c2"
+                stroke="var(--benchmark)"
                 strokeWidth="2"
                 fill="none"
                 strokeDasharray="5 5"
@@ -307,7 +307,7 @@ export function PerformanceChart({
                     x2={x(activeIndex)}
                     y1="30"
                     y2="200"
-                    stroke="#a8b1c2"
+                    stroke="var(--benchmark)"
                     strokeDasharray="4 4"
                   />
                   {active.roi !== null ? (
@@ -316,7 +316,7 @@ export function PerformanceChart({
                       cy={y(active.roi)}
                       r="5"
                       fill="var(--accent)"
-                      stroke="white"
+                      stroke="var(--surface)"
                       strokeWidth="2"
                     />
                   ) : null}
