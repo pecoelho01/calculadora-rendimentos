@@ -14,6 +14,7 @@ import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
+import { ThemeControl } from "./theme-control";
 import { WorkspaceShell } from "./workspace-shell";
 
 function download(text: string, name: string, type: string) {
@@ -454,8 +455,11 @@ export function Dashboard() {
             Espaço pessoal <span>/</span> <strong>As tuas carteiras</strong>
           </div>
           <div className="topbar-right">
-            <Icon name="shield" />
-            Dados locais · Mercado via Yahoo Finance
+            <span className="market-source">
+              <Icon name="shield" />
+              Dados locais · Mercado via Yahoo Finance
+            </span>
+            <ThemeControl />
           </div>
         </header>
         <main className="content">

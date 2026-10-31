@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { themeScript } from "@/lib/theme";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "Rendimentos · A tua carteira, em perspetiva",
@@ -11,7 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-PT">
+    <html lang="pt-PT" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );
