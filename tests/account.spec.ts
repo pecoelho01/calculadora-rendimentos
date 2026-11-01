@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import type { Portfolio } from "../src/lib/types";
 import type { AccountSnapshot, AccountWrite } from "../src/lib/account";
 
@@ -34,9 +35,10 @@ function remote(name = "Carteira da Ana", id = "remote-a"): AccountSnapshot {
 async function setup(page: Page, signedIn: boolean | "expired" = false) {
   const accounts: Record<string, AccountSnapshot> = { [userA]: remote(), [userB]: remote("Carteira do Bruno", "remote-b") };
   const requests: AccountWrite[] = [];
-  const authRequests: { path: string; body: Record<string, unknown> }[] = [];
+  const authRequests: { path: string; body: Record<string, unknown>; grant: string | null }[] = [];
+  const pkceFlows = new Map<string, { challenge: string; id: string }>();
   const receipts = new Set<string>();
-  const state = { failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
+  const state = { failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, delayAuthPath: "", releaseAuth: () => {}, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
   await page.addInitScript(({ key, json, authKey, authSession }) => {
     localStorage.setItem(key, json);
     if (authSession) localStorage.setItem(authKey, JSON.stringify(authSession));
@@ -53,16 +55,35 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
     }
     const path = new URL(request.url()).pathname;
     const body = request.postDataJSON() as Record<string, unknown> | null;
-    authRequests.push({ path, body: body ?? {} });
-    if (path.endsWith("/token") && new URL(request.url()).searchParams.get("grant_type") === "refresh_token") {
+    const grant = new URL(request.url()).searchParams.get("grant_type");
+    authRequests.push({ path, body: body ?? {}, grant });
+    if (state.delayAuthPath && path.endsWith(state.delayAuthPath)) {
+      state.delayAuthPath = "";
+      await new Promise<void>((resolve) => { state.releaseAuth = resolve; });
+    }
+    if (path.endsWith("/token") && grant === "refresh_token") {
       if (state.delayRefresh) await new Promise<void>((resolve) => { state.releaseRefresh = resolve; });
       if (state.failRefresh) {
         await route.fulfill({ status: 400, json: { code: "refresh_token_not_found", message: "Invalid Refresh Token" }, headers: { "Access-Control-Allow-Origin": "*" } });
         return;
       }
     }
+    if (path.endsWith("/signup") || path.endsWith("/recover")) {
+      const code = path.endsWith("/signup") ? "confirmation-test-code" : "recovery-test-code";
+      pkceFlows.set(code, { challenge: String(body?.code_challenge), id: userA });
+    }
     let json: unknown = {};
-    if (path.endsWith("/token")) json = session(body?.email === "bruno@example.test" ? userB : userA);
+    if (path.endsWith("/token") && grant === "pkce") {
+      const flow = pkceFlows.get(String(body?.auth_code));
+      const challenge = createHash("sha256").update(String(body?.code_verifier)).digest("base64url");
+      if (!flow || flow.challenge !== challenge) {
+        await route.fulfill({ status: 400, json: { code: "bad_code_verifier", message: "Invalid verifier" }, headers: { "Access-Control-Allow-Origin": "*" } });
+        return;
+      }
+      pkceFlows.delete(String(body?.auth_code));
+      json = session(flow.id);
+    }
+    else if (path.endsWith("/token")) json = session(body?.email === "bruno@example.test" ? userB : userA);
     else if (path.endsWith("/signup")) json = user();
     else if (path.endsWith("/user")) json = user();
     await route.fulfill({ json, headers: { "Access-Control-Allow-Origin": "*" } });
@@ -113,13 +134,13 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
   });
   return state;
 }
-async function login(page: Page, email = "ana@example.test") {
+async function login(page: Page, email = "ana@example.test", waitForCompletion = true) {
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
   await dialog.getByLabel("Email", { exact: true }).fill(email);
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await dialog.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  if (waitForCompletion) await expect(dialog).toBeHidden();
 }
 async function rename(page: Page, oldName: string, nextName: string) {
   await page.getByRole("button", { name: `Renomear carteira ${oldName}`, exact: true }).click();
@@ -253,16 +274,13 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
   await assertNoOverflow(page);
 });
 
-test("sessão de recuperação permite definir palavra-passe após abrir a ligação", async ({ page }) => {
+test("o parâmetro recovery isolado não autoriza alteração de palavra-passe", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/?recovery=1");
-  const dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("new-password-test");
-  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
-  expect(state.authRequests.some((request) => request.path.endsWith("/user") && request.body.password === "new-password-test")).toBe(true);
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+  expect(state.authRequests.some((request) => request.body.password)).toBe(false);
   expect(new URL(page.url()).searchParams.has("recovery")).toBe(false);
 });
 
@@ -284,23 +302,215 @@ test("resposta pendente da conta não volta a apresentar dados depois de sair", 
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
 });
 
-test("ligação de recuperação Auth abre o formulário de palavra-passe", async ({ page }) => {
+async function requestRecovery(page: Page) {
+  await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Recuperar acesso", exact: true });
+  await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
+  await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
+}
+
+test("recuperação PKCE valida o verifier antes de definir palavra-passe", async ({ page }) => {
   const state = await setup(page);
-  const authSession = session();
-  const hash = new URLSearchParams({
-    access_token: authSession.access_token,
-    refresh_token: authSession.refresh_token,
-    expires_in: "3600",
-    token_type: "bearer",
-    type: "recovery",
-  });
-  await page.goto(`/?recovery=1#${hash}`);
+  await page.goto("/");
+  await requestRecovery(page);
+  await page.goto("/?recovery=1&code=recovery-test-code");
   const dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("recovered-password-test");
   await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
   await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
+  const exchange = state.authRequests.find((request) => request.grant === "pkce");
+  expect(exchange?.body.auth_code).toBe("recovery-test-code");
+  expect(exchange?.body.code_verifier).toBeTruthy();
   expect(state.authRequests.some((request) => request.path.endsWith("/user") && request.body.password === "recovered-password-test")).toBe(true);
+  expect(new URL(page.url()).search).toBe("");
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("confirmação PKCE abre a conta sem autorizar formulário de recuperação", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
+  await dialog.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect(page.getByText(/Consulta o teu email para confirmar a conta/)).toBeVisible();
+  expect(state.authRequests.find((request) => request.path.endsWith("/signup"))?.body.code_challenge_method).toBe("s256");
+  await page.goto("/?code=confirmation-test-code&recovery=1");
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(new URL(page.url()).search).toBe("");
+});
+
+test("uma sessão recebida após a troca PKCE não herda o formulário de recuperação", async ({ page }) => {
+  await setup(page);
+  await page.goto("/");
+  await requestRecovery(page);
+  // Deterministically place another tab's completed login in the exact gap
+  // between releasing the exchange lock and the gateway restoring its session.
+  await page.addInitScript(({ authKey, otherSession }) => {
+    const locks = navigator.locks;
+    const request = locks.request.bind(locks);
+    Object.defineProperty(locks, "request", { value: async (...args: Parameters<typeof request>) => {
+      const result = await request(...args);
+      if (args[0] === "rendimentos.auth.mutation.v1" && new URL(location.href).pathname === "/")
+        localStorage.setItem(authKey, JSON.stringify(otherSession));
+      return result;
+    } });
+  }, { authKey, otherSession: session(userB) });
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+});
+
+for (const signedIn of [false, true]) {
+  test(`rejeitar sessão por tokens na ligação e preservar sessão anterior: ${signedIn}`, async ({ page }) => {
+    const state = await setup(page, signedIn);
+    const attackerSession = session(userB);
+    const hash = new URLSearchParams({ access_token: attackerSession.access_token, refresh_token: attackerSession.refresh_token, expires_in: "3600", token_type: "bearer", type: "recovery" });
+    await page.goto(`/?recovery=1#${hash}`);
+    await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    if (signedIn) {
+      await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+      expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).user.id, authKey)).toBe(userA);
+    } else {
+      await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toHaveCount(0);
+      expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+    }
+    expect(state.authRequests).toHaveLength(0);
+    expect(state.requests).toHaveLength(0);
+    expect(new URL(page.url()).hash).toBe("");
+    expect(new URL(page.url()).search).toBe("");
+    expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+  });
+  test(`código sem verifier não inicia sessão nem substitui sessão anterior: ${signedIn}`, async ({ page }) => {
+    const state = await setup(page, signedIn);
+    await page.goto("/?code=unsolicited-code&recovery=1");
+    await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(state.authRequests).toHaveLength(0);
+    expect(new URL(page.url()).search).toBe("");
+    if (signedIn) await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+    else expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+  });
+}
+
+test("código com verifier incorreto é rejeitado sem alterar carteiras", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await requestRecovery(page);
+  await page.evaluate((key) => localStorage.setItem(`${key}-code-verifier`, JSON.stringify("wrong-verifier/recovery")), authKey);
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.authRequests.filter((request) => request.grant === "pkce")).toHaveLength(1);
+  expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+  expect(state.requests).toHaveLength(0);
+});
+
+test("login pendente bloqueia fecho, Escape e reentrada até concluir", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  state.delayAuthPath = "/token";
+  await login(page, "ana@example.test", false);
+  await expect.poll(() => state.authRequests.length).toBe(1);
+  const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
+  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Email", { exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "A aguardar…", exact: true })).toBeDisabled();
+  state.releaseAuth();
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await login(page, "bruno@example.test");
+  await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
+});
+
+test("pedidos Auth noutro separador não ultrapassam um login pendente", async ({ page, context }) => {
+  const first = await setup(page);
+  await page.goto("/");
+  const secondPage = await context.newPage();
+  const second = await setup(secondPage);
+  await secondPage.goto("/");
+  first.delayAuthPath = "/token";
+  await login(page, "ana@example.test", false);
+  await expect.poll(() => first.authRequests.length).toBe(1);
+  await login(secondPage, "bruno@example.test", false);
+  await expect(secondPage.getByText(/Há um pedido de conta em curso/)).toBeVisible();
+  expect(second.authRequests).toHaveLength(0);
+  first.releaseAuth();
+  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await secondPage.close();
+});
+
+test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes protegidos", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  state.delayAuthPath = "/recover";
+  await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
+  await expect.poll(() => state.authRequests.length).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  state.releaseAuth();
+  await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
+  await expect(dialog).toBeVisible();
+  state.delayAuthPath = "/user";
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("new-password-test");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect.poll(() => state.authRequests.some((request) => request.body.password === "new-password-test")).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  state.releaseAuth();
+  await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
+  state.delayAuthPath = "/logout";
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(true);
+  await expect(page.locator(".metrics")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Abrir carteiras da conta", exact: true })).toBeDisabled();
+  state.releaseAuth();
+  await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeEnabled();
+});
+
+test("sem bloqueio seguro entre separadores a conta falha sem enviar credenciais e o modo local funciona", async ({ page }) => {
+  const state = await setup(page);
+  await page.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined }));
+  await page.goto("/");
+  await login(page, "ana@example.test", false);
+  await expect(page.getByText(/Este navegador não permite proteger os pedidos da conta/)).toBeVisible();
+  expect(state.authRequests).toHaveLength(0);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+});
+
+test("respostas incluem proteção contra enquadramento e fuga de referrer", async ({ request }) => {
+  for (const path of ["/", "/api/account"]) {
+    const response = await request.get(path);
+    expect(response.headers()["content-security-policy"]).toBe("frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+    expect(response.headers()["x-frame-options"]).toBe("DENY");
+    expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers()["referrer-policy"]).toBe("no-referrer");
+    if (path === "/api/account") {
+      expect(response.status()).toBe(401);
+      expect(response.headers()["cache-control"]).toBe("private, no-store");
+    }
+  }
 });
 
 test("conta vazia permite criar a primeira carteira sem copiar dados locais", async ({ page }, testInfo) => {

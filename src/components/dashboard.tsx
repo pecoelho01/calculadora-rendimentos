@@ -73,6 +73,8 @@ export function Dashboard({ identity = null, accountControls }: {
         throw new Error("Esta carteira foi alterada noutro dispositivo. Exporta uma cópia se necessário e recarrega os dados da conta antes de repetir a operação.");
       }
       if (response.status === 401) throw new Error("A sessão expirou. Inicia sessão novamente para guardar na conta.");
+      if (response.status === 429) throw new Error("Demasiadas gravações. Aguarda um minuto e recarrega os dados da conta antes de tentar novamente.");
+      if (response.status === 400) throw new Error("Dados inválidos ou limites da conta excedidos. Nenhuma alteração foi guardada. Verifica os dados e os limites documentados antes de repetir.");
       throw new Error("Não foi possível aceder às carteiras da conta. Tenta novamente. Os dados locais continuam disponíveis.");
     }
     return validateAccountSnapshot(await response.json());

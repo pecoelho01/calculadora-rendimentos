@@ -12,7 +12,8 @@ export function getBrowserSupabase(): SupabaseClient | null {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return (client = null);
   try {
-    client = createClient(url, key);
+    // URL callbacks are handled explicitly, after rejecting implicit token links.
+    client = createClient(url, key, { auth: { flowType: "pkce", detectSessionInUrl: false } });
   } catch {
     client = null;
   }

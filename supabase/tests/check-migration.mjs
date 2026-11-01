@@ -23,6 +23,9 @@ await db.exec(`
   grant execute on function auth.uid() to authenticated, anon;
   insert into auth.users values ('${u1}'),('${u2}');
 `);
+const grandfatherUser = "44444444-4444-4444-8444-444444444444";
+const historicalPortfolio = { id: "historical-active", name: "Histórico preservado", currency: "EUR", orders: [] };
+const historicalKey = "8".repeat(64);
 const migrations = new URL("../migrations/", import.meta.url);
 for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort()) {
   if (file.startsWith("202610300003")) {
@@ -40,6 +43,19 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
     assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [oldNumericPayload])).rows[0].value, original);
     assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [JSON.stringify({ key: "7".repeat(64), portfolios: [legacyNumeric] })])).rows[0].value, original);
     await db.exec("delete from public.account_portfolios; delete from public.account_migrations");
+  } else if (file.startsWith("202610310004")) {
+    // Seed an over-quota account BEFORE upgrading: migration must not delete history.
+    await db.query("insert into auth.users values ($1)", [grandfatherUser]);
+    await db.query(`insert into public.account_portfolios(user_id,id,revision,portfolio)
+      select $1::uuid,'old-'||i,2,null from generate_series(1,1000) i`, [grandfatherUser]);
+    await db.query("insert into public.account_portfolios(user_id,id,revision,portfolio) values($1,$2,1,$3::jsonb)",
+      [grandfatherUser, historicalPortfolio.id, JSON.stringify(historicalPortfolio)]);
+    await db.query(`insert into public.account_migrations(user_id,key,payload_hash)
+      select $1::uuid,lpad(to_hex(i),64,'0'),'historical-fixture-'||i from generate_series(1,1000) i`, [grandfatherUser]);
+    await db.query(`insert into public.account_migrations(user_id,key,payload_hash)
+      values($1,$2,encode(sha256(convert_to(private.account_canonical_json($3::jsonb)::text,'UTF8')),'hex'))`,
+      [grandfatherUser, historicalKey, JSON.stringify([historicalPortfolio])]);
+    await db.exec(await readFile(new URL(file, migrations), "utf8"));
   } else await db.exec(await readFile(new URL(file, migrations), "utf8"));
 }
 // Check binary rounding matches the existing JavaScript shareUnits contract.
@@ -217,6 +233,127 @@ assert.equal(afterRejectedWrite.headers.get("cache-control"), "private, no-store
 assert.deepEqual(await afterRejectedWrite.json(), atLimit);
 assert.deepEqual(await snap(), atLimit);
 console.log(`API + PostgreSQL: SQL bytes=3000000; compact array bytes=${compactBytes}; orders=${orderCount}; POST/GET=200; overflow POST=400; GET remains unchanged.`);
+// Resource-limit fixtures run only in this isolated database, never in the service.
+const resourceUser = "55555555-5555-4555-8555-555555555555";
+const rateUser = "66666666-6666-4666-8666-666666666666";
+await db.exec("reset role");
+for (const role of ["anon", "authenticated"]) {
+  const privileges = (await db.query(`select
+    has_table_privilege($1,'private.account_write_limits','SELECT,INSERT,UPDATE,DELETE') as table_access,
+    has_function_privilege($1,'private.account_check_write_rate(uuid)','EXECUTE') as helper_access`, [role])).rows[0];
+  assert.deepEqual(privileges, { table_access: false, helper_access: false });
+}
+await db.query("insert into auth.users values ($1),($2)", [resourceUser, rateUser]);
+const setOwner = async (id) => {
+  await db.exec("set role authenticated");
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
+};
+const resourceCounts = async (id) => {
+  await db.exec("reset role");
+  const result = (await db.query(`select
+    (select count(*)::int from public.account_portfolios where user_id=$1) as ids,
+    (select count(*)::int from public.account_migrations where user_id=$1) as receipts,
+    (select calls from private.account_write_limits where user_id=$1) as calls`, [id])).rows[0];
+  await setOwner(id);
+  return result;
+};
+const resetRateWindow = async (id) => {
+  await db.exec("reset role");
+  // Move the clock fixture, rather than sleep or weaken the production function.
+  await db.query("update private.account_write_limits set window_started=clock_timestamp()-interval '2 minutes' where user_id=$1", [id]);
+  await setOwner(id);
+};
+await setOwner(grandfatherUser);
+assert.deepEqual(await snap(), { version: 1, portfolios: [{ portfolio: historicalPortfolio, revision: 1 }] });
+assert.deepEqual(await resourceCounts(grandfatherUser), { ids: 1001, receipts: 1001, calls: null });
+const historicalImport = { key: historicalKey, portfolios: [historicalPortfolio] };
+await apply([], historicalImport);
+await apply([change({ ...historicalPortfolio, name: "Atualização permitida" }, 1)]);
+await apply([{ id: historicalPortfolio.id, portfolio: null, expectedRevision: 2 }]);
+await apply([change(historicalPortfolio)]);
+assert.equal((await snap()).portfolios[0].revision, 4);
+const historicalBefore = await snap();
+const grandfatherBefore = await resourceCounts(grandfatherUser);
+await rejectsCode(() => apply([change({ ...historicalPortfolio, id: "blocked-new-id" })]), "22023");
+await rejectsCode(() => apply([], { ...historicalImport, key: "9".repeat(64) }), "22023");
+await rejectsCode(() => apply([], { key: "a".repeat(64), portfolios: [{ ...historicalPortfolio, name: "Novo conteúdo" }] }), "22023");
+assert.deepEqual(await snap(), historicalBefore);
+assert.deepEqual(await resourceCounts(grandfatherUser), grandfatherBefore);
+// Existing receipt stays idempotent even after edits/deletion/recreation and above quota.
+await apply([], historicalImport);
+assert.deepEqual(await snap(), historicalBefore);
+
+await setOwner(resourceUser);
+const source = { id: "resource-source", name: "Limites", currency: "EUR", orders: [] };
+const sourceImport = { key: "a".repeat(64), portfolios: [source] };
+const resourceSnapshot = await apply([], sourceImport);
+await db.exec("reset role");
+// Leave ONE slot for a new alias, then enforce the real function at the boundary.
+await db.query(`insert into public.account_migrations(user_id,key,payload_hash)
+  select $1::uuid,lpad(to_hex(i),64,'0'),'fixture-'||i from generate_series(1,998) i`, [resourceUser]);
+await setOwner(resourceUser);
+assert.deepEqual(await apply([], { ...sourceImport, key: "b".repeat(64) }), resourceSnapshot);
+assert.equal((await resourceCounts(resourceUser)).receipts, 1000);
+const aliasesBefore = await resourceCounts(resourceUser);
+await rejectsCode(() => apply([], { ...sourceImport, key: "c".repeat(64) }), "22023");
+await rejectsCode(() => apply([], { key: "d".repeat(64), portfolios: [{ ...source, name: "Mais conteúdo" }] }), "22023");
+assert.deepEqual(await resourceCounts(resourceUser), aliasesBefore);
+assert.deepEqual(await snap(), resourceSnapshot);
+assert.deepEqual(await apply([], sourceImport), resourceSnapshot);
+// Quotas are per owner: the same source/key remains valid for a separate user.
+await setOwner(rateUser);
+assert.equal((await apply([], sourceImport)).portfolios.length, 1);
+await setOwner(resourceUser);
+await db.exec("reset role");
+await db.query(`insert into public.account_portfolios(user_id,id,revision,portfolio)
+  select $1::uuid,'tomb-'||i,2,null from generate_series(1,998) i`, [resourceUser]);
+await setOwner(resourceUser);
+const finalSlot = { ...source, id: "last-slot" };
+await apply([change(finalSlot)]);
+await apply([{ id: finalSlot.id, portfolio: null, expectedRevision: 1 }]);
+assert.equal((await resourceCounts(resourceUser)).ids, 1000);
+const identifiersBefore = await resourceCounts(resourceUser);
+// An earlier valid edit must roll back if a later new identifier exceeds capacity.
+await rejectsCode(() => apply([change({ ...resourceSnapshot.portfolios[0].portfolio, name: "Must roll back" }, 1), change({ ...source, id: "overflow-id" })]), "22023");
+assert.deepEqual(await resourceCounts(resourceUser), identifiersBefore);
+assert.deepEqual(await snap(), resourceSnapshot);
+await apply([change(finalSlot)]);
+assert.equal((await snap()).portfolios.find((item) => item.portfolio.id === finalSlot.id).revision, 3);
+await rejectsCode(() => apply([change({ ...finalSlot, name: "stale" }, 1)]), "PT409");
+await apply([{ id: finalSlot.id, portfolio: null, expectedRevision: 3 }]);
+assert.equal((await resourceCounts(resourceUser)).ids, 1000);
+// Portfolio ID capacity must also be enforced on an import, below receipt capacity.
+await db.exec("reset role");
+await db.query("delete from public.account_migrations where user_id=$1 and key=$2", [resourceUser, "b".repeat(64)]);
+await setOwner(resourceUser);
+const beforeImportCapacity = await resourceCounts(resourceUser);
+await rejectsCode(() => apply([], { key: "e".repeat(64), portfolios: [{ ...source, name: "New at ID capacity" }] }), "22023");
+assert.deepEqual(await resourceCounts(resourceUser), beforeImportCapacity);
+// Existing data and receipts cannot expose or directly alter the private limiter.
+await rejectsCode(() => db.query("select * from private.account_write_limits"), "42501");
+await rejectsCode(() => db.query("update private.account_write_limits set calls=1"), "42501");
+await rejectsCode(() => db.query("select private.account_check_write_rate($1)", [rateUser]), "42501");
+
+await resetRateWindow(rateUser);
+const rateBefore = await snap();
+for (let i = 0; i < 60; i++) await apply([], sourceImport);
+assert.equal((await resourceCounts(rateUser)).calls, 60);
+await rejectsCode(() => apply([], sourceImport), "PT429");
+assert.equal((await resourceCounts(rateUser)).calls, 60);
+assert.deepEqual(await snap(), rateBefore); // Reads remain available after the write limit.
+await setOwner(resourceUser);
+await apply([], sourceImport); // Another owner's limiter is independent.
+await resetRateWindow(rateUser);
+await apply([], sourceImport);
+assert.equal((await resourceCounts(rateUser)).calls, 1);
+const beforeFailedWrite = await resourceCounts(rateUser);
+await rejectsCode(() => apply([change({ ...source, id: "invalid-rate", orders: [{ ...p.orders[0], shares: -1 }] })]), "22023");
+assert.deepEqual(await resourceCounts(rateUser), beforeFailedWrite);
+// Deleting the Auth fixture cascades its private rate row as well as all account data.
+await db.exec("reset role");
+await db.query("delete from auth.users where id=$1", [rateUser]);
+assert.equal((await db.query("select count(*)::int as total from private.account_write_limits where user_id=$1", [rateUser])).rows[0].total, 0);
+console.log("SQL/PGlite: quotas de IDs/recibos, upgrade sem perda, rollback, isolamento e 60 escritas/minuto verificados.");
 await db.exec("reset role; set role anon; select set_config('request.jwt.claim.sub','',false)");
 await rejectsCode(() => snap(), "42501");
 await rejectsCode(() => apply([change(p)]), "42501");

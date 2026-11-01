@@ -1,10 +1,22 @@
 # Configuração externa — 30 de outubro de 2026
 
+## Correções de segurança — migration aplicada, deploy pendente
+
+A revisão do HEAD `569481d766fda927484ad50470e8cecc3c35c638` identificou aceitação de sessões implícitas por URL, concorrência de pedidos Auth e crescimento ilimitado de recibos/tombstones. A correção local passa a usar troca explícita PKCE vinculada ao navegador, rejeita/limpa ligações com tokens e serializa mutações Auth entre separadores com Web Locks. A confirmação e a recuperação exigem agora o navegador e a origem onde o pedido começou; ligações implícitas antigas têm de ser renovadas. Os redirects exatos existentes (`/` e `/?recovery=1`) mantêm-se, sem necessidade de wildcards.
+
+**A migration `202610310004_account_resource_limits.sql` foi aplicada e registada no Supabase real em 1 de novembro de 2026**, após confirmar o histórico 001/002/003. Preserva revisões, recibos e dados existentes; acrescenta quotas de metadados e limite transacional de escritas confirmadas, conforme [CONTRACT.md](CONTRACT.md). O deploy da aplicação e a validação integrada continuam pendentes.
+
+Durante a implementação local não foram alteradas configurações externas, criadas contas de teste, enviados emails nem feito deploy. A aplicação posterior da migration 004 está registada no final deste ficheiro. Os testes locais com mocks/PGlite não comprovam o fluxo integrado Vercel/Auth/SMTP. Antes de aceitar dados reais, validar no ambiente pretendido o registo/confirmar email/login/recuperação/alteração da palavra-passe/logout, renovação/expiração de sessão e isolamento entre utilizadores. Confirmar também os redirects exatos, política de palavras-passe/reautenticação, duração dos JWTs, respostas de enumeração da API Auth direta e limites de registos, login, recuperação e SMTP. Preview deve continuar separado da base de produção e sem conta enquanto não tiver configuração própria.
+
+Os registos abaixo são históricos; não representam uma revalidação destas configurações na versão corrigida.
+
+Validação desta correção em Node.js 24.22.2: `npm ci` e arranque de `npm run dev` concluídos; entrada HTTP 200 e API sem sessão HTTP 401 verificadas. Passaram 37 testes unitários, typecheck, lint, build e o harness SQL/PGlite com as quatro migrations (quotas, upgrade, rollback, isolamento, 60/61 escritas e API no limite de 3 MB). A suite Playwright completa com Auth/API/mercado simulados passou com 105 testes e 3 ignorados (dois exigem build sem configuração e um é exclusivo de desktop). Inclui confirmação/recuperação PKCE com verificação do challenge no mock, ligações não solicitadas com/sem sessão anterior, verifier ausente/incorreto, callbacks repetidos, pedidos retidos, concorrência entre separadores e vínculo do formulário de recuperação à sessão que completou a troca. Os headers foram verificados por HTTP. A revisão independente de Auth encontrou uma race adicional entre a troca PKCE e a leitura da sessão, corrigida com comparação do token da sessão e coberta por teste; a revisão SQL não encontrou bloqueios adicionais. `npm audit --omit=dev` não reportou advisories; permanecem 16 entradas moderadas na cadeia de desenvolvimento ESLint/minimatch, sem alteração de dependências nesta correção.
+
 ## Recursos configurados
 
 - Supabase: projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`), organização Vercel Marketplace `pecoelho01's projects`, região `eu-north-1`.
 - Antes das alterações: projeto saudável, sem tabelas da aplicação, funções `account_*`, migrations ou utilizadores Auth. O projeto MetroLiveTime não foi alterado.
-- Migrations aplicadas e registadas com as versões locais `202610300001` e `202610300002`; `202610300003` aplicada e verificada em 31 de outubro, conforme o registo final abaixo. Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`.
+- Migrations aplicadas e registadas: `202610300001`, `202610300002`, `202610300003` (31 de outubro) e `202610310004` (1 de novembro). Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`; o contador privado da 004 não tem acesso direto pelos papéis cliente.
 - Auth: email/password e registo ativos, confirmação de email obrigatória, início de sessão sem confirmação desativado e palavra-passe mínima de 8 caracteres.
 - Site URL: `https://calculadora-rendimentos.vercel.app`.
 - Redirects exatos: `https://calculadora-rendimentos.vercel.app/`, `https://calculadora-rendimentos.vercel.app/?recovery=1`, `http://localhost:3000/` e `http://localhost:3000/?recovery=1`.
@@ -95,3 +107,19 @@ Validação local com Node.js 24: 33 testes unitários, typecheck, lint e build 
 A branch de destino foi integrada preservando o seletor de tema e a distinção «Dados na conta»/«Dados locais» no cabeçalho. O ecrã de entrada e os controlos da conta usam as cores do tema; o seletor também está disponível antes do login. Os testes de tema e o teste de ganhos provenientes da branch base foram adaptados à escolha explícita do modo local.
 
 Validação Node.js 24: `npm ci`, `npm run dev`, 37 testes unitários, typecheck, lint e build passaram. Playwright com configuração Supabase fictícia: 81 aprovados e 3 ignorados; os dois casos de integração de tema foram repetidos após acrescentar a captura e a verificação de largura da entrada. Verificados entrada, login, modo local, logout, preferências de tema, impressão clara e capturas de computador/telemóvel. Auth/API/mercado são mocks; esta revisão de UI não foi testada com Auth real nem num deploy Vercel. O build final foi reposto com `.env.local`.
+
+## Aplicação da migration 004 no Supabase real — 1 de novembro de 2026
+
+A pedido do utilizador, `202610310004_account_resource_limits.sql` foi aplicada pela Management API no projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`), confirmado como saudável. O histórico continha 001/002/003; a versão 004 e os seus objetos novos estavam ausentes. Foi usado um access token pessoal recebido por cartão privado, sem o emitir em outputs ou guardar no repositório; o ficheiro privado temporário foi removido após o uso.
+
+O DDL e o registo da versão `202610310004`, nome `account_resource_limits`, foram executados numa única transação, com timeout de lock de 5 segundos e de instrução de 30 segundos. Um lock de leitura nas tabelas da aplicação protegeu a comparação dos totais e hashes agregados antes/depois. A comparação confirmou carteiras e recibos inalterados antes do commit; não foram criados utilizadores nem executadas gravações de carteiras para testar a aplicação.
+
+Verificações após commit:
+
+- SQL registado com SHA256 `5d09fa3deb8b8f6ae5c7511117a06efd62cb16186b31efc8bfb25056524a7ad9`, igual ao ficheiro local.
+- Corpos de `public.account_apply` e `private.account_check_write_rate` iguais aos do repositório, ambos com `search_path` fixo.
+- `account_apply` mantém `SECURITY DEFINER` e execução por `authenticated`, sem execução por `anon` ou `PUBLIC`.
+- Helper privado sem execução por `authenticated`, `anon` ou `PUBLIC`.
+- Contador privado com RLS, chave primária, FK para `auth.users` com cascade e sem permissões diretas de SELECT/INSERT/UPDATE/DELETE para os papéis cliente.
+
+Esta aplicação confirma o esquema e as permissões no serviço real. Os testes funcionais de quotas/60 escritas, rollback e isolamento continuam a ser os testes locais PGlite já documentados; não foram repetidos com sessões reais. Não houve alteração de Auth/SMTP, commit, push, merge ou deploy. A UI corrigida e o percurso integrado Vercel/Auth/SMTP continuam pendentes de validação externa.

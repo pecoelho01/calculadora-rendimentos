@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
@@ -37,6 +38,7 @@ export function AccountGateway({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const action = useRef(0);
+  const authPending = useRef(false);
   const welcomeHeading = useRef<HTMLHeadingElement>(null);
 
   function rememberLocal(value: boolean) {
@@ -49,6 +51,7 @@ export function AccountGateway({
     }
   }
   function continueLocal() {
+    if (authPending.current) return;
     rememberLocal(true);
     setAccountMode(false);
     setForm(null);
@@ -75,8 +78,8 @@ export function AccountGateway({
     let live = true;
     let events = 0;
     let currentUser = "";
-    const recoveryRequested = () =>
-      new URLSearchParams(window.location.search).get("recovery") === "1";
+    let initializing = true;
+    let latestSession: Session | null = null;
     const apply = (next: Session | null, openAccount: boolean) => {
       if (!live) return;
       setSession(next);
@@ -93,37 +96,43 @@ export function AccountGateway({
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
       if (!live) return;
       events++;
+      latestSession = next;
+      if (initializing) return;
       // Keep this callback synchronous: awaiting Auth methods here can deadlock the SDK.
       const changedUser = currentUser !== (next?.user.id ?? "");
       if (changedUser) {
         // Discard UI completions belonging to another session, including an in-flight form.
         actions.current++;
         rememberLocal(false);
-        setBusy(false);
         setForm(null);
         setError("");
         setMessage("");
       }
       apply(next, changedUser || event === "INITIAL_SESSION");
-      if (event === "PASSWORD_RECOVERY" ||
-          (event === "INITIAL_SESSION" && next && recoveryRequested())) {
+      if (event === "PASSWORD_RECOVERY") {
         setForm("password");
         setError("");
         setMessage("");
       }
     });
-    const beforeRead = events;
-    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!live || events !== beforeRead) return;
+    void completeBrowserAuthCallback(supabase).then(async (callback) => {
+      const beforeRead = events;
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (!live) return;
+      initializing = false;
       if (sessionError) {
         apply(null, false);
         setError("Não foi possível recuperar a sessão. Podes continuar no modo local ou iniciar sessão novamente.");
         return;
       }
-      apply(data.session, !!data.session);
-      if (data.session && recoveryRequested()) setForm("password");
+      const restored = events === beforeRead ? data.session : latestSession;
+      apply(restored, !!restored);
+      if (callback.error) setError(callback.error);
+      // A login in another tab after the exchange must not inherit recovery UI.
+      if (restored && restored.access_token === callback.recoveryAccessToken) setForm("password");
     }).catch(() => {
-      if (!live || events !== beforeRead) return;
+      if (!live) return;
+      initializing = false;
       apply(null, false);
       setError("Não foi possível recuperar a sessão. Podes continuar no modo local.");
     });
@@ -135,6 +144,7 @@ export function AccountGateway({
   }, []);
 
   function open(next: AuthForm) {
+    if (authPending.current) return;
     setForm(next);
     setError("");
     setMessage("");
@@ -142,57 +152,61 @@ export function AccountGateway({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const supabase = getBrowserSupabase();
-    if (!supabase || busy || !form) return;
+    if (!supabase || authPending.current || !form) return;
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "").trim();
     const password = String(data.get("password") ?? "");
     const task = ++action.current;
     const submitted = form;
+    authPending.current = true;
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      const redirectTo = `${window.location.origin}/?recovery=1`;
-      if (submitted === "recover") {
-        const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-        if (result.error) throw result.error;
-        if (task === action.current)
-          setMessage("Se existir uma conta com este email, receberás uma ligação para recuperar o acesso.");
-      } else if (submitted === "password") {
-        const result = await supabase.auth.updateUser({ password });
-        if (result.error) throw result.error;
-        if (task === action.current) {
-          setForm(null);
-          setMessage("Palavra-passe atualizada.");
-          const url = new URL(window.location.href);
-          url.searchParams.delete("recovery");
-          window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      await runBrowserAuthMutation(async () => {
+        const redirectTo = `${window.location.origin}/?recovery=1`;
+        if (submitted === "recover") {
+          const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          if (result.error) throw result.error;
+          if (task === action.current)
+            setMessage("Se existir uma conta com este email, receberás uma ligação para recuperar o acesso.");
+        } else if (submitted === "password") {
+          const result = await supabase.auth.updateUser({ password });
+          if (result.error) throw result.error;
+          if (task === action.current) {
+            setForm(null);
+            setMessage("Palavra-passe atualizada.");
+            const url = new URL(window.location.href);
+            url.searchParams.delete("recovery");
+            window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+          }
+        } else if (submitted === "register") {
+          const result = await supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: `${window.location.origin}/` },
+          });
+          if (result.error) throw result.error;
+          if (task === action.current) {
+            setForm(null);
+            setMessage(result.data.session
+              ? "Conta criada. As carteiras locais só serão copiadas se escolheres importá-las."
+              : "Consulta o teu email para confirmar a conta. Depois, inicia sessão. As carteiras locais continuam neste navegador.");
+          }
+        } else {
+          const result = await supabase.auth.signInWithPassword({ email, password });
+          if (result.error) throw result.error;
+          if (task === action.current) {
+            setAccountMode(true);
+            setForm(null);
+            setMessage("");
+          }
         }
-      } else if (submitted === "register") {
-        const result = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
-        });
-        if (result.error) throw result.error;
-        if (task === action.current) {
-          setForm(null);
-          setMessage(result.data.session
-            ? "Conta criada. As carteiras locais só serão copiadas se escolheres importá-las."
-            : "Consulta o teu email para confirmar a conta. Depois, inicia sessão. As carteiras locais continuam neste navegador.");
-        }
-      } else {
-        const result = await supabase.auth.signInWithPassword({ email, password });
-        if (result.error) throw result.error;
-        if (task === action.current) {
-          setAccountMode(true);
-          setForm(null);
-          setMessage("");
-        }
-      }
-    } catch {
+      });
+    } catch (failure) {
       if (task === action.current) {
-        setError(submitted === "login"
+        setError(failure instanceof Error && [AUTH_BUSY_MESSAGE, AUTH_BROWSER_MESSAGE].includes(failure.message)
+          ? failure.message : submitted === "login"
           ? "Não foi possível iniciar sessão. Confirma o email, a palavra-passe e a confirmação da conta."
           : submitted === "register"
             ? "Não foi possível criar a conta. Verifica os dados e tenta novamente mais tarde."
@@ -201,13 +215,15 @@ export function AccountGateway({
               : "Não foi possível enviar a ligação de recuperação. Tenta novamente mais tarde.");
       }
     } finally {
-      if (task === action.current) setBusy(false);
+      authPending.current = false;
+      setBusy(false);
     }
   }
 
   async function logout() {
     const supabase = getBrowserSupabase();
-    if (!supabase || busy) return;
+    if (!supabase || authPending.current) return;
+    authPending.current = true;
     // Hide and unmount account data before waiting for a network response.
     setAccountMode(false);
     rememberLocal(false);
@@ -217,7 +233,7 @@ export function AccountGateway({
     setBusy(true);
     const task = ++action.current;
     try {
-      const { error: logoutError } = await supabase.auth.signOut({ scope: "local" });
+      const { error: logoutError } = await runBrowserAuthMutation(() => supabase.auth.signOut({ scope: "local" }));
       if (logoutError) throw logoutError;
       if (task === action.current) {
         setSession(null);
@@ -227,7 +243,8 @@ export function AccountGateway({
       if (task === action.current)
         setError("As carteiras da conta foram fechadas, mas não foi possível terminar a sessão. Tenta sair novamente.");
     } finally {
-      if (task === action.current) setBusy(false);
+      authPending.current = false;
+      setBusy(false);
     }
   }
 
@@ -292,9 +309,9 @@ export function AccountGateway({
         </div>
       </main>
     )}
-    {form && <Dialog title={titles[form]} onClose={() => {
+    {form && <Dialog title={titles[form]} closeDisabled={busy} onClose={() => {
+      if (authPending.current) return;
       action.current++;
-      setBusy(false);
       setForm(null);
       setError("");
     }}>

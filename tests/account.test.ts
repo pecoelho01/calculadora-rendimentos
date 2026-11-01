@@ -110,6 +110,11 @@ test("API não executa lote inválido, mapeia conflito e oculta erros internos",
   assert.equal((await handle(request({ changes: [change] }))).status, 409);
   code = "22023";
   assert.equal((await handle(request({ changes: [change] }))).status, 400);
+  code = "PT429";
+  const limited = await handle(request({ changes: [change] }));
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get("retry-after"), "60");
+  assert.equal(limited.headers.get("cache-control"), "private, no-store");
   code = "unavailable";
   const unavailable = await handle(request());
   assert.equal(unavailable.status, 503);

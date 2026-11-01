@@ -34,8 +34,8 @@ export function supabaseAccountBackend(token: string): AccountBackend | null {
   };
 }
 const headers = { "Cache-Control": "private, no-store", "Vary": "Authorization" };
-function response(body: unknown, status = 200) {
-  return Response.json(body, { status, headers });
+function response(body: unknown, status = 200, extraHeaders?: Record<string, string>) {
+  return Response.json(body, { status, headers: { ...headers, ...extraHeaders } });
 }
 async function readBody(request: Request): Promise<unknown> {
   const maxBytes = 3_100_000;
@@ -90,6 +90,7 @@ export function createAccountHandler(factory: AccountBackendFactory = supabaseAc
       }
       const result = await backend.rpc(request.method === "POST" ? "account_apply" : "account_snapshot", args);
       if (result.error) {
+        if (result.error.code === "PT429") return response({ error: "Demasiadas gravações. Aguarda um minuto antes de tentar novamente." }, 429, { "Retry-After": "60" });
         if (result.error.code === "PT409" || result.error.code === "40001") return response({ error: "Esta carteira foi alterada noutro dispositivo. Recarrega os dados antes de repetir a operação." }, 409);
         if (result.error.code?.startsWith("22") || result.error.code === "23514") return response({ error: "Dados inválidos ou limites excedidos. Nenhuma alteração foi guardada." }, 400);
         if (result.error.code === "42501") return response({ error: "A sessão expirou. Inicia sessão novamente." }, 401);
