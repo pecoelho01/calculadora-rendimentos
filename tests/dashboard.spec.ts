@@ -496,7 +496,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await expect(chart.locator("svg")).toBeVisible();
   await expect(page.getByRole("group", { name: "Tipo de rentabilidade" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
-  await page.getByRole("button", { name: "3M", exact: true }).click();
+  await page.getByRole("button", { name: "1M", exact: true }).click();
   await expect(chart).toBeVisible();
   await expect(current).toContainText("+14,29%");
   await page.getByRole("button", { name: "Máximo", exact: true }).click();
@@ -567,15 +567,19 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(current).toContainText("+25%");
 });
 
-test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ page }, testInfo) => {
+test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ page }, testInfo) => {
   await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   const history = [
     { date: "2025-01-03", close: 100 },
     { date: "2025-10-29", close: 105 },
     { date: "2025-12-31", close: 110 },
     { date: "2026-04-29", close: 120 },
-    { date: "2026-07-29", close: 130 },
+    { date: "2026-09-29", close: 130 },
     { date: "2026-10-23", close: 140 },
+    { date: "2026-10-26", close: 142 },
+    { date: "2026-10-27", close: 144 },
+    { date: "2026-10-28", close: 146 },
+    { date: "2026-10-29", close: 148 },
   ];
   await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
     TEST: { ...assets.TEST, price: 150, history },
@@ -587,9 +591,10 @@ test("3M, 6M, 1A e YTD recalculam o destaque, o hover e o benchmark", async ({ p
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
   await expect(current).toContainText("+50%");
+  await expect(page.locator(".segments button")).toHaveText(["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"]);
   for (const mode of ["Posições abertas", "Rentabilidade total"]) {
     await page.getByRole("button", { name: mode, exact: true }).click();
-    for (const [period, expected] of [["3M", "+15,38%"], ["6M", "+25%"], ["1A", "+42,86%"], ["YTD", "+36,36%"], ["Máximo", "+50%"]]) {
+    for (const [period, expected] of [["1D", "+1,35%"], ["5D", "+7,14%"], ["1M", "+15,38%"], ["6M", "+25%"], ["YTD", "+36,36%"], ["1A", "+42,86%"], ["Máximo", "+50%"]]) {
       await page.getByRole("button", { name: period, exact: true }).click();
       await expect(current).toContainText(expected);
       await expect(current).toContainText(period);
