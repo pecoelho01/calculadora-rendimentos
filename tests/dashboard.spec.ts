@@ -31,6 +31,97 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ json: { assets } }),
   );
 });
+test("mostrar o resumo apenas na visão geral", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await expect(page.locator(".metric")).toHaveCount(4);
+  await expect(page.locator(".metric").first()).toContainText("2100,00");
+
+  for (const tab of ["Posições", "Transações"]) {
+    await page.getByRole("navigation", { name: "Navegação principal" })
+      .getByRole("button", { name: new RegExp(`^${tab}`) }).click();
+    await expect(page.locator(".metrics")).toHaveCount(0);
+    await expect(page.locator(".charts-grid")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1, name: tab, exact: true })).toBeVisible();
+    await expect(page.locator(".page-heading")).not.toContainText("A minha carteira");
+    await expect(page.getByRole("heading", {
+      name: tab === "Posições" ? "As tuas posições" : "Histórico de transações",
+    })).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(tab === "Posições" ? 1 : 3);
+    await expect(page.getByRole("textbox", { name: "Pesquisar ativo" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.emulateMedia({ media: "print" });
+    await expect(page.locator(".metrics")).toHaveCount(0);
+    await expect(page.locator("table")).toBeVisible();
+    await page.emulateMedia({ media: "screen" });
+  }
+
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await expect(page.locator(".metric")).toHaveCount(4);
+  await expect(page.locator(".metric").first()).toContainText("2100,00");
+  await expect(page.locator(".charts-grid")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true })).toBeVisible();
+  await expect(page.locator(".page-heading")).not.toContainText("A minha carteira");
+});
+test("manter pesquisas independentes e permitir limpar resultados vazios", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  const nav = page.getByRole("navigation", { name: "Navegação principal" });
+  const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
+  await search.fill("Teste");
+  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await expect(search).toHaveValue("");
+  await search.fill("sem posição");
+  await expect(page.locator(".no-results")).toContainText("Nenhuma posição corresponde à pesquisa.");
+  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await expect(page.locator("tbody tr")).toHaveCount(3);
+  await search.fill("sem transação");
+  await expect(page.locator(".no-results")).toContainText("Nenhuma transação corresponde à pesquisa.");
+  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await expect(search).toHaveValue("sem posição");
+  await page.getByRole("button", { name: "Limpar pesquisa" }).click();
+  await expect(search).toHaveValue("");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("posicoes.png"), fullPage: true });
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByRole("heading", { level: 1, name: "Posições", exact: true })).toBeVisible();
+  await expect(page.locator(".page-heading")).not.toContainText("A minha carteira");
+  await page.emulateMedia({ media: "screen" });
+  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await expect(search).toHaveValue("sem transação");
+  await page.getByRole("button", { name: "Limpar pesquisa" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(3);
+  await page.screenshot({ path: testInfo.outputPath("transacoes.png"), fullPage: true });
+  await nav.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await expect(search).toHaveValue("Teste");
+});
+test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
+  await page.goto("/");
+  const nav = page.getByRole("navigation", { name: "Navegação principal" });
+  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await expect(page.getByRole("heading", { name: "Ainda não tens posições" })).toBeVisible();
+  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ainda não tens transações" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adicionar transação", exact: false })).toBeVisible();
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "fechada.csv", mimeType: "text/csv",
+    buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell"),
+  });
+  await expect(page.locator("tbody tr")).toHaveCount(2);
+  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await expect(page.getByText("Não tens posições abertas.", { exact: false })).toBeVisible();
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody")).toContainText("Fechada");
+  await expect(page.getByRole("button", { name: "Limpar pesquisa" })).toHaveCount(0);
+});
 test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
   await page.goto("/");
   await page.locator(".data-actions summary").click();
@@ -66,7 +157,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "A minha carteira" }),
+    page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true }),
   ).toBeVisible();
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
@@ -81,7 +172,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await page
     .getByRole("textbox", { name: "Pesquisar ativo" })
     .fill("inexistente");
-  await expect(page.getByText("Nenhum ativo encontrado.")).toBeVisible();
+  await expect(page.getByText("Nenhuma posição corresponde à pesquisa.", { exact: false })).toBeVisible();
   await page.getByRole("textbox", { name: "Pesquisar ativo" }).fill("");
   await page.reload();
   await expect(page.locator("tbody tr")).toHaveCount(1);
@@ -189,7 +280,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
     .getByRole("button", { name: "Criar carteira", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Longo prazo", exact: true }),
+    page.locator(".portfolio-link.selected").filter({ hasText: "Longo prazo" }),
   ).toBeVisible();
   await page.locator(".data-actions summary").click();
   await expect(
@@ -329,13 +420,13 @@ test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
       buffer: Buffer.from(JSON.stringify(backup)),
     });
   await expect(
-    page.getByRole("heading", { name: "Carteira recuperada" }),
+    page.locator(".portfolio-link.selected").filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
   await expect(page.getByText("Cotação em USD; carteira em EUR")).toBeVisible();
   await expect(page.locator(".metric").nth(0)).toContainText("—");
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Carteira recuperada" }),
+    page.locator(".portfolio-link.selected").filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
 });
 test("armazenamento corrompido preserva dados até reposição explícita", async ({
@@ -361,7 +452,7 @@ test("armazenamento corrompido preserva dados até reposição explícita", asyn
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Repor armazenamento" }).click();
   await expect(
-    page.getByRole("heading", { name: "A minha carteira" }),
+    page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true }),
   ).toBeVisible();
 });
 
@@ -576,7 +667,7 @@ test("fechar e reabrir sidebar mantém foco, carteira e conteúdo", async ({ pag
   const reopen = page.getByRole("button", { name: "Abrir sidebar", exact: true });
   await expect(reopen).toBeFocused();
   await expect(reopen).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByRole("heading", { name: "A minha carteira" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true })).toBeVisible();
   expect(await page.locator(".main-area").evaluate((element) => getComputedStyle(element).marginLeft)).toBe("0px");
   await reopen.press("Enter");
   await expect(sidebar).toBeVisible();
@@ -649,7 +740,7 @@ test("renomear por botão direito ou edição preserva seleção, transações e
   await dialog.getByLabel("Nome da carteira").fill("  Investimentos a longo prazo  ");
   await dialog.getByRole("button", { name: "Guardar nome" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Outra carteira", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Outra carteira" })).toBeVisible();
   const renamed = page.locator(".portfolio-link").filter({ hasText: "Investimentos a longo prazo" });
   await expect(renamed).toBeVisible();
   await renamed.focus();
@@ -661,7 +752,7 @@ test("renomear por botão direito ou edição preserva seleção, transações e
   await renamed.click();
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Investimentos a longo prazo", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Investimentos a longo prazo" })).toBeVisible();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
   expect(stored.portfolios[0]).toEqual({ ...original.portfolios[0], name: "Investimentos a longo prazo" });
   await page.screenshot({ path: testInfo.outputPath("sidebar-renomeada.png"), fullPage: true });
@@ -689,6 +780,6 @@ test("conflito ao renomear mostra erro no diálogo e preserva a versão mais rec
   await expect(dialog.getByRole("alert")).toContainText("já não está disponível");
   expect(await page.evaluate(() => localStorage.getItem("rendimentos.portfolios.v1"))).toBe(latest);
   await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Versão mais recente", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Versão mais recente" })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("noutro separador");
 });
