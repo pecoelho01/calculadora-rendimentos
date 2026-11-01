@@ -52,7 +52,13 @@ export function Dashboard() {
   const [modal, setModal] = useState<Modal>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
-  const [search, setSearch] = useState("");
+  const [searches, setSearches] = useState<Record<Tab, string>>({
+    overview: "",
+    positions: "",
+    transactions: "",
+    notes: "",
+  });
+  const search = searches[tab];
   const [refresh, setRefresh] = useState(0);
   const [marketResult, setMarketResult] = useState<{
     key: string;
@@ -397,7 +403,7 @@ export function Dashboard() {
                 <button
                   onClick={() => {
                     setSelected(p.id);
-                    setSearch("");
+                    setSearches({ overview: "", positions: "", transactions: "", notes: "" });
                   }}
                   onContextMenu={(event) => {
                     event.preventDefault();
@@ -465,7 +471,13 @@ export function Dashboard() {
           <div className="page-heading">
             <div>
               <h1>
-                {tab === "notes" ? "Conhece os teus números" : portfolio?.name}
+                {tab === "notes"
+                  ? "Conhece os teus números"
+                  : tab === "positions"
+                    ? "Posições"
+                    : tab === "transactions"
+                      ? "Transações"
+                      : "Visão Geral"}
               </h1>
             </div>
             <div className="heading-actions no-print">
@@ -668,30 +680,32 @@ export function Dashboard() {
                   {loading ? "A obter cotações…" : "Atualizar preços"}
                 </button>
               </div>
-              <div className="metrics">
-                <Metric
-                  label="Valor da carteira"
-                  value={money(summary.value)}
-                  detail={`${summary.positions.filter((p) => p.shares > 0).length} posições abertas`}
-                  featured
-                />
-                <Metric
-                  label="Ganho total"
-                  value={money(summary.gain)}
-                  detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
-                  trend={summary.gain}
-                />
-                <Metric
-                  label="Ganho realizado"
-                  value={money(summary.realized)}
-                  detail="Resultado das tuas vendas"
-                  trend={summary.realized}
-                />
-                <Metric
-                  label="Compras acumuladas"
-                  value={money(summary.invested)}
-                />
-              </div>
+              {tab === "overview" ? (
+                <div className="metrics">
+                  <Metric
+                    label="Valor da carteira"
+                    value={money(summary.value)}
+                    detail={`${summary.positions.filter((p) => p.shares > 0).length} posições abertas`}
+                    featured
+                  />
+                  <Metric
+                    label="Ganho total"
+                    value={money(summary.gain)}
+                    detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
+                    trend={summary.gain}
+                  />
+                  <Metric
+                    label="Ganho realizado"
+                    value={money(summary.realized)}
+                    detail="Resultado das tuas vendas"
+                    trend={summary.realized}
+                  />
+                  <Metric
+                    label="Compras acumuladas"
+                    value={money(summary.invested)}
+                  />
+                </div>
+              ) : null}
               {tab === "overview" ? (
                 <div className="charts-grid">
                   <PerformanceChart
@@ -797,7 +811,10 @@ export function Dashboard() {
                         aria-label="Pesquisar ativo"
                         placeholder="Pesquisar ativo…"
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => setSearches((current) => ({
+                          ...current,
+                          [tab]: e.target.value,
+                        }))}
                       />
                     </label>
                   </div>
@@ -820,7 +837,13 @@ export function Dashboard() {
                     <div className="empty-illustration">
                       <Icon name="positions" />
                     </div>
-                    <h3>Um novo capítulo para os teus investimentos</h3>
+                    <h3>
+                      {tab === "transactions"
+                        ? "Ainda não tens transações"
+                        : tab === "positions"
+                          ? "Ainda não tens posições"
+                          : "Um novo capítulo para os teus investimentos"}
+                    </h3>
                     <p>
                       Adiciona a primeira transação ou importa um CSV.
                     </p>
@@ -849,6 +872,12 @@ export function Dashboard() {
                   </div>
                 ) : (
                   <div className="table-scroll">
+                    {tab !== "transactions" && !search &&
+                    summary.positions.every((p) => p.shares === 0) ? (
+                      <p className="no-results" role="status">
+                        Não tens posições abertas. Podes consultar as posições fechadas abaixo.
+                      </p>
+                    ) : null}
                     {tab === "transactions" ? (
                       <table>
                         <thead>
@@ -1002,7 +1031,17 @@ export function Dashboard() {
                     )}
                     {(tab === "transactions" ? visibleOrders : visiblePositions)
                       .length === 0 ? (
-                      <p className="no-results">Nenhum ativo encontrado.</p>
+                      <p className="no-results" role="status">
+                        {tab === "transactions"
+                          ? "Nenhuma transação corresponde à pesquisa."
+                          : "Nenhuma posição corresponde à pesquisa."}{" "}
+                        <button
+                          className="text-button no-print"
+                          onClick={() => setSearches((current) => ({ ...current, [tab]: "" }))}
+                        >
+                          Limpar pesquisa
+                        </button>
+                      </p>
                     ) : null}
                   </div>
                 )}
