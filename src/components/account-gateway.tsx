@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
-import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
+import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_RECOVERY_CHANGED, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
+import { getRecoverySession, matchesRecoverySession, type RecoverySession } from "@/lib/recovery-session";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
@@ -39,6 +40,7 @@ export function AccountGateway({
   const [message, setMessage] = useState("");
   const action = useRef(0);
   const authPending = useRef(false);
+  const recoverySession = useRef<RecoverySession | null>(null);
   const welcomeHeading = useRef<HTMLHeadingElement>(null);
 
   function rememberLocal(value: boolean) {
@@ -52,6 +54,7 @@ export function AccountGateway({
   }
   function continueLocal() {
     if (authPending.current) return;
+    recoverySession.current = null;
     rememberLocal(true);
     setAccountMode(false);
     setForm(null);
@@ -62,6 +65,8 @@ export function AccountGateway({
   useEffect(() => {
     const actions = action;
     const supabase = getBrowserSupabase();
+    // This synchronously strips Auth parameters, even with absent/rejected config.
+    const callbackResult = completeBrowserAuthCallback(supabase);
     try {
       // Only the entry preference is remembered here; portfolios keep their existing storage.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -72,8 +77,13 @@ export function AccountGateway({
     // Read browser-only Auth configuration after hydration.
     setConfigured(!!supabase);
     if (!supabase) {
-      setChecking(false);
-      return;
+      let live = true;
+      void callbackResult.then((callback) => {
+        if (!live) return;
+        setError(callback.error);
+        setChecking(false);
+      });
+      return () => { live = false; };
     }
     let live = true;
     let events = 0;
@@ -100,6 +110,7 @@ export function AccountGateway({
       if (initializing) return;
       // Keep this callback synchronous: awaiting Auth methods here can deadlock the SDK.
       const changedUser = currentUser !== (next?.user.id ?? "");
+      const changedRecovery = recoverySession.current !== null && !matchesRecoverySession(next, recoverySession.current);
       if (changedUser) {
         // Discard UI completions belonging to another session, including an in-flight form.
         actions.current++;
@@ -108,14 +119,21 @@ export function AccountGateway({
         setError("");
         setMessage("");
       }
+      if (changedRecovery) {
+        recoverySession.current = null;
+        actions.current++;
+        setForm(null);
+        setError(AUTH_RECOVERY_CHANGED);
+      }
       apply(next, changedUser || event === "INITIAL_SESSION");
       if (event === "PASSWORD_RECOVERY") {
-        setForm("password");
-        setError("");
+        recoverySession.current = getRecoverySession(next);
+        setForm(recoverySession.current ? "password" : null);
+        setError(recoverySession.current ? "" : AUTH_RECOVERY_CHANGED);
         setMessage("");
       }
     });
-    void completeBrowserAuthCallback(supabase).then(async (callback) => {
+    void callbackResult.then(async (callback) => {
       const beforeRead = events;
       const { data, error: sessionError } = await supabase.auth.getSession();
       if (!live) return;
@@ -129,7 +147,10 @@ export function AccountGateway({
       apply(restored, !!restored);
       if (callback.error) setError(callback.error);
       // A login in another tab after the exchange must not inherit recovery UI.
-      if (restored && restored.access_token === callback.recoveryAccessToken) setForm("password");
+      if (matchesRecoverySession(restored, callback.recovery)) {
+        recoverySession.current = callback.recovery;
+        setForm("password");
+      }
     }).catch(() => {
       if (!live) return;
       initializing = false;
@@ -145,6 +166,7 @@ export function AccountGateway({
 
   function open(next: AuthForm) {
     if (authPending.current) return;
+    recoverySession.current = null;
     setForm(next);
     setError("");
     setMessage("");
@@ -158,6 +180,7 @@ export function AccountGateway({
     const password = String(data.get("password") ?? "");
     const task = ++action.current;
     const submitted = form;
+    const expectedRecovery = recoverySession.current;
     authPending.current = true;
     setBusy(true);
     setError("");
@@ -171,9 +194,19 @@ export function AccountGateway({
           if (task === action.current)
             setMessage("Se existir uma conta com este email, receberás uma ligação para recuperar o acesso.");
         } else if (submitted === "password") {
+          // Read again under the mutation lock: a cross-tab event may not yet
+          // have reached React, or a refresh may have happened while waiting.
+          const { data: current, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !expectedRecovery || recoverySession.current !== expectedRecovery ||
+              !matchesRecoverySession(current.session, expectedRecovery)) {
+            recoverySession.current = null;
+            setForm(null);
+            throw new Error(AUTH_RECOVERY_CHANGED);
+          }
           const result = await supabase.auth.updateUser({ password });
           if (result.error) throw result.error;
           if (task === action.current) {
+            recoverySession.current = null;
             setForm(null);
             setMessage("Palavra-passe atualizada.");
             const url = new URL(window.location.href);
@@ -205,7 +238,7 @@ export function AccountGateway({
       });
     } catch (failure) {
       if (task === action.current) {
-        setError(failure instanceof Error && [AUTH_BUSY_MESSAGE, AUTH_BROWSER_MESSAGE].includes(failure.message)
+        setError(failure instanceof Error && [AUTH_BUSY_MESSAGE, AUTH_BROWSER_MESSAGE, AUTH_RECOVERY_CHANGED].includes(failure.message)
           ? failure.message : submitted === "login"
           ? "Não foi possível iniciar sessão. Confirma o email, a palavra-passe e a confirmação da conta."
           : submitted === "register"
@@ -223,6 +256,7 @@ export function AccountGateway({
   async function logout() {
     const supabase = getBrowserSupabase();
     if (!supabase || authPending.current) return;
+    recoverySession.current = null;
     authPending.current = true;
     // Hide and unmount account data before waiting for a network response.
     setAccountMode(false);
@@ -311,6 +345,7 @@ export function AccountGateway({
     )}
     {form && <Dialog title={titles[form]} closeDisabled={busy} onClose={() => {
       if (authPending.current) return;
+      recoverySession.current = null;
       action.current++;
       setForm(null);
       setError("");

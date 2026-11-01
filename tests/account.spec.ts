@@ -21,11 +21,11 @@ function user(id = userA) {
     user_metadata: {}, identities: [], created_at: "2024-01-01T00:00:00Z", email_confirmed_at: "2024-01-01T00:00:00Z",
   };
 }
-function session(id = userA, lifetime = 3600) {
+function session(id = userA, lifetime = 3600, options: { sessionId?: string; nonce?: string } = {}) {
   const expiresAt = Math.floor(Date.now() / 1000) + lifetime;
   const base64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   return {
-    access_token: `${base64({ alg: "HS256", typ: "JWT" })}.${base64({ sub: id, aud: "authenticated", role: "authenticated", exp: expiresAt })}.test-signature`,
+    access_token: `${base64({ alg: "HS256", typ: "JWT" })}.${base64({ sub: id, session_id: options.sessionId ?? id, nonce: options.nonce ?? "initial", aud: "authenticated", role: "authenticated", exp: expiresAt })}.test-signature`,
     refresh_token: `mock-refresh-${id}`, token_type: "bearer", expires_in: 3600, expires_at: expiresAt, user: user(id),
   };
 }
@@ -35,10 +35,10 @@ function remote(name = "Carteira da Ana", id = "remote-a"): AccountSnapshot {
 async function setup(page: Page, signedIn: boolean | "expired" = false) {
   const accounts: Record<string, AccountSnapshot> = { [userA]: remote(), [userB]: remote("Carteira do Bruno", "remote-b") };
   const requests: AccountWrite[] = [];
-  const authRequests: { path: string; body: Record<string, unknown>; grant: string | null }[] = [];
+  const authRequests: { path: string; body: Record<string, unknown>; grant: string | null; authorization: string }[] = [];
   const pkceFlows = new Map<string, { challenge: string; id: string }>();
   const receipts = new Set<string>();
-  const state = { failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, delayAuthPath: "", releaseAuth: () => {}, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
+  const state = { failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, delayAuthPath: "", releaseAuth: () => {}, nextTokenSession: null as ReturnType<typeof session> | null, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
   await page.addInitScript(({ key, json, authKey, authSession }) => {
     localStorage.setItem(key, json);
     if (authSession) localStorage.setItem(authKey, JSON.stringify(authSession));
@@ -56,7 +56,7 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
     const path = new URL(request.url()).pathname;
     const body = request.postDataJSON() as Record<string, unknown> | null;
     const grant = new URL(request.url()).searchParams.get("grant_type");
-    authRequests.push({ path, body: body ?? {}, grant });
+    authRequests.push({ path, body: body ?? {}, grant, authorization: request.headers().authorization ?? "" });
     if (state.delayAuthPath && path.endsWith(state.delayAuthPath)) {
       state.delayAuthPath = "";
       await new Promise<void>((resolve) => { state.releaseAuth = resolve; });
@@ -83,7 +83,10 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
       pkceFlows.delete(String(body?.auth_code));
       json = session(flow.id);
     }
-    else if (path.endsWith("/token")) json = session(body?.email === "bruno@example.test" ? userB : userA);
+    else if (path.endsWith("/token")) {
+      json = state.nextTokenSession ?? session(body?.email === "bruno@example.test" ? userB : userA);
+      state.nextTokenSession = null;
+    }
     else if (path.endsWith("/signup")) json = user();
     else if (path.endsWith("/user")) json = user();
     await route.fulfill({ json, headers: { "Access-Control-Allow-Origin": "*" } });
@@ -366,6 +369,72 @@ test("uma sessão recebida após a troca PKCE não herda o formulário de recupe
   await page.goto("/?code=recovery-test-code&recovery=1");
   await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+});
+
+async function openRecovery(page: Page) {
+  await page.goto("/");
+  await requestRecovery(page);
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  const dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+async function publishAuthSession(page: Page, next: ReturnType<typeof session>, event: "TOKEN_REFRESHED" | "SIGNED_IN") {
+  // Mirror the real SDK's cross-tab storage + BroadcastChannel protocol.
+  await page.evaluate(async ({ key, next, event }) => {
+    const received = new Promise<void>((resolve) => {
+      const listener = new BroadcastChannel(key);
+      listener.onmessage = () => { listener.close(); requestAnimationFrame(() => resolve()); };
+    });
+    localStorage.setItem(key, JSON.stringify(next));
+    const writer = new BroadcastChannel(key);
+    writer.postMessage({ event, session: next });
+    writer.close();
+    await received;
+  }, { key: authKey, next, event });
+}
+
+test("renovar o token da mesma sessão conserva a recuperação e usa o token atual", async ({ page }) => {
+  const state = await setup(page);
+  const dialog = await openRecovery(page);
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("retained-password-test");
+  const expired = session(userA, -3600, { nonce: "expired-rotation" });
+  const refreshed = session(userA, 3600, { nonce: "valid-rotation" });
+  state.nextTokenSession = refreshed;
+  await publishAuthSession(page, expired, "TOKEN_REFRESHED");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Nova palavra-passe", { exact: true })).toHaveValue("retained-password-test");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
+  expect(state.authRequests.some((request) => request.grant === "refresh_token")).toBe(true);
+  expect(state.authRequests.find((request) => request.body.password === "retained-password-test")?.authorization).toBe(`Bearer ${refreshed.access_token}`);
+});
+
+for (const sessionId of ["33333333-3333-4333-8333-333333333333", ""]) {
+  test(`outra sessão do mesmo utilizador invalida a recuperação: ${sessionId || "sem identificador"}`, async ({ page }) => {
+    const state = await setup(page);
+    const dialog = await openRecovery(page);
+    await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("discarded-password-test");
+    await publishAuthSession(page, session(userA, 3600, { sessionId, nonce: "replacement" }), "SIGNED_IN");
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+    expect(state.authRequests.some((request) => request.body.password)).toBe(false);
+  });
+}
+
+test("revalidar a sessão dentro do lock impede submissão sem evento de mudança", async ({ page }) => {
+  const state = await setup(page);
+  const dialog = await openRecovery(page);
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("never-sent-password-test");
+  // Another tab has persisted a session, but its event has not reached this tab.
+  await page.evaluate(({ key, next }) => localStorage.setItem(key, JSON.stringify(next)), {
+    key: authKey, next: session(userA, 3600, { sessionId: "44444444-4444-4444-8444-444444444444" }),
+  });
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+  expect(state.authRequests.some((request) => request.body.password)).toBe(false);
 });
 
 for (const signedIn of [false, true]) {
