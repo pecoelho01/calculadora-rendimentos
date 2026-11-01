@@ -201,7 +201,7 @@ export function PerformanceChart({
               </>
             ) : (
               <span>
-                Seleciona uma data para consultar a rentabilidade semanal.
+                Seleciona uma data para consultar a rentabilidade.
               </span>
             )}
           </div>
@@ -246,9 +246,9 @@ export function PerformanceChart({
               ref={svgRef}
               viewBox={`0 0 ${chartWidth} 235`}
               role="img"
-              aria-label={`${modeLabel} e rentabilidade do S&P 500 por semana`}
+              aria-label={`${modeLabel} e rentabilidade do S&P 500`}
             >
-              <title>Rentabilidade semanal em percentagem</title>
+              <title>Rentabilidade em percentagem</title>
               {[0, 1, 2, 3, 4].map((i) => {
                 const v = min + (span * i) / 4;
                 return (
