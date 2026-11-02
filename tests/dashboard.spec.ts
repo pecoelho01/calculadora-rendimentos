@@ -592,7 +592,7 @@ test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ 
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
   await expect(current).toContainText("+50%");
-  await expect(page.locator(".segments button")).toHaveText(["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"]);
+  await expect(page.locator(".performance .segments button")).toHaveText(["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"]);
   for (const mode of ["Posições abertas", "Rentabilidade total"]) {
     await page.getByRole("button", { name: mode, exact: true }).click();
     for (const [period, expected] of [["1D", "+1,35%"], ["5D", "+7,14%"], ["1M", "+15,38%"], ["6M", "+25%"], ["YTD", "+36,36%"], ["1A", "+42,86%"], ["Máximo", "+50%"]]) {
@@ -619,7 +619,7 @@ test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ 
   await expect(current).toContainText("YTD");
   await expect(current).toContainText("+36,36%");
   await expect(current).toBeVisible();
-  await expect(page.locator(".segments")).toBeHidden();
+  await expect(page.locator(".performance .segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
@@ -813,12 +813,13 @@ test("mostrar exposição geográfica ponderada, cobertura e fonte em ecrã e im
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
   });
   await expect(chart.getByRole("img")).toBeVisible();
-  await expect(chart.locator("svg circle")).toHaveCount(3);
+  await expect(chart.locator("svg path")).toHaveCount(3);
   await expect(chart.locator(".donut")).toContainText("90%");
   for (const [name, weight] of [
     ["América do Norte", "60%"],
@@ -858,6 +859,7 @@ test("exposição sem composição permanece sem classificação e moeda incompa
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
@@ -928,6 +930,7 @@ test("agrupar composição completa apenas por continentes em ecrã e impressão
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
@@ -965,4 +968,123 @@ test("agrupar composição completa apenas por continentes em ecrã e impressão
   await expect(chart).toBeVisible();
   await expect(chart).toContainText("1271 posições no ficheiro da gestora");
   expect(await withinPanel()).toBe(true);
+});
+
+
+test("alternar distribuição no mesmo card e alinhar altura com a rentabilidade", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const card = page.getByRole("region", { name: "Distribuição da carteira", exact: true });
+  const assetsButton = card.getByRole("button", { name: "ETFs", exact: true });
+  const geographyButton = card.getByRole("button", { name: "Geografia", exact: true });
+  const assertLayout = async () => {
+    await expect(page.locator(".charts-grid > .panel")).toHaveCount(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const cardBounds = await card.boundingBox();
+    const toggleBounds = await card.locator(".allocation-toggle").boundingBox();
+    expect(toggleBounds!.x).toBeGreaterThanOrEqual(cardBounds!.x);
+    expect(toggleBounds!.x + toggleBounds!.width).toBeLessThanOrEqual(cardBounds!.x + cardBounds!.width);
+    if (testInfo.project.name === "desktop") {
+      const performance = await page.locator(".performance").boundingBox();
+      const allocation = await card.boundingBox();
+      expect(Math.abs(allocation!.height - performance!.height)).toBeLessThan(1);
+      expect(Math.abs(allocation!.y - performance!.y)).toBeLessThan(1);
+    }
+  };
+  await expect(assetsButton).toHaveAttribute("aria-pressed", "true");
+  await assertLayout();
+  await geographyButton.click();
+  await expect(geographyButton).toHaveAttribute("aria-pressed", "true");
+  await expect(card.getByRole("heading", { name: "Distribuição por continente" })).toBeVisible();
+  await expect(card.locator(".asset-allocation")).toBeHidden();
+  await assertLayout();
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
+  });
+  await expect(card.locator(".geographic-allocation .allocation-list")).toContainText("100%");
+  await assertLayout();
+  await assetsButton.click();
+  await expect(card.getByRole("img", { name: "Alocação da carteira por valor de mercado", exact: true })).toBeVisible();
+  await expect(card.locator(".geographic-view")).toBeHidden();
+  await assertLayout();
+  await page.emulateMedia({ media: "print" });
+  await expect(card.locator(".geographic-view")).toBeVisible();
+  await expect(card.locator(".allocation-toggle")).toBeHidden();
+  await expect(card.locator(".asset-allocation")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.screenshot({ path: testInfo.outputPath("distribuicao-etfs.png"), fullPage: true });
+  await geographyButton.click();
+  await page.screenshot({ path: testInfo.outputPath("distribuicao-geografia.png"), fullPage: true });
+});
+
+test("explorar fatias dos ETFs e continentes por rato, toque e teclado", async ({ page }, testInfo) => {
+  await page.route("**/api/market?*", (route) => route.fulfill({ json: { assets: {
+    ...assets,
+    OTHER: { ...assets.TEST, name: "Outro ETF" },
+    ZERO: { ...assets.TEST, price: 0, name: "Cotação zero" },
+  } } }));
+  const geography = (country: string) => ({
+    allocations: [{ country, weight: 1 }],
+    asOf: "2026-10-30",
+    source: "https://www.justetf.com/en/etf-profile.html?isin=IE00B4L5Y983",
+  });
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: {
+    TEST: geography("US"), OTHER: geography("JP"),
+  } } }));
+  await page.goto("/");
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "fatias.csv", mimeType: "text/csv",
+    buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-01,TEST,100,10,buy\n2024-01-01,ZERO,100,10,buy\n2024-01-01,OTHER,100,10,buy"),
+  });
+  const card = page.getByRole("region", { name: "Distribuição da carteira", exact: true });
+  const assetsChart = card.locator(".asset-allocation");
+  await expect(assetsChart.locator("svg path")).toHaveCount(2);
+  const selectedLabel = assetsChart.locator(".donut-selection").first();
+  const svg = assetsChart.locator("svg");
+  await svg.scrollIntoViewIfNeeded();
+  const bounds = (await svg.boundingBox())!;
+  // Half of the ring belongs to TEST, from the top clockwise to the bottom.
+  const x = bounds.x + bounds.width * 0.94;
+  const y = bounds.y + bounds.height * 0.5;
+  if (testInfo.project.name === "mobile") {
+    await page.touchscreen.tap(x, y);
+  } else {
+    await page.mouse.move(x, y);
+  }
+  await expect(selectedLabel).toHaveText("TEST");
+  await expect(assetsChart.locator(".donut-selection").last()).toHaveText("50%");
+  await expect(assetsChart.locator(".slice-muted")).toHaveCount(1);
+  if (testInfo.project.name === "desktop") {
+    await page.mouse.click(x, y);
+    await page.mouse.move(0, 0);
+    await expect(selectedLabel).toHaveText("TEST");
+  }
+  await page.keyboard.press("Escape");
+  await expect(selectedLabel).toHaveCount(0);
+  const other = assetsChart.getByRole("button", { name: "OTHER: 50%", exact: true });
+  await other.focus();
+  await expect(selectedLabel).toHaveText("OTHER");
+  await other.press("Enter");
+  await expect(other).toHaveAttribute("aria-pressed", "true");
+  await other.press("Escape");
+  await expect(selectedLabel).toHaveCount(0);
+  await expect(assetsChart.locator(".donut")).toContainText("Ativos3");
+  const zero = assetsChart.getByRole("button", { name: "ZERO: 0%", exact: true });
+  await zero.focus();
+  await zero.press("Space");
+  await expect(zero).toHaveAttribute("aria-pressed", "true");
+  await expect(selectedLabel).toHaveText("ZERO");
+  await card.getByRole("button", { name: "Geografia", exact: true }).click();
+  const chart = card.getByRole("region", { name: "Distribuição por continente", exact: true });
+  await expect(chart).not.toContainText("Exposição dos ETFs por continente");
+  const asia = chart.getByRole("button", { name: "Ásia: 50%", exact: true });
+  await asia.click();
+  await expect(chart.locator(".donut-selection").first()).toHaveText("Ásia");
+  await expect(chart.locator(".slice-muted")).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath("pizza-interativa.png"), fullPage: true });
+  await page.emulateMedia({ media: "print" });
+  await expect(chart.locator(".donut-selection").first()).toBeHidden();
+  await expect(chart.locator(".donut-default").first()).toHaveText("Cobertura");
+  await expect(chart.locator(".donut-default").last()).toBeVisible();
+  await expect(chart.locator(".donut-default").last()).toHaveText("100%");
+  expect(await chart.locator(".slice-muted").evaluateAll((paths) => paths.every((path) => getComputedStyle(path).opacity === "1"))).toBe(true);
 });

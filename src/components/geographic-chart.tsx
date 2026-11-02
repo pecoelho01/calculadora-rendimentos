@@ -1,3 +1,4 @@
+import { AllocationDonut } from "./allocation-donut";
 import { CONTINENT_LABELS, type Continent } from "@/lib/continents";
 import type { MarketData } from "@/lib/types";
 import { geographicAllocation, type Position } from "@/lib/portfolio";
@@ -28,7 +29,7 @@ export function GeographicChart({
   const allocations = data?.allocations ?? [];
   return (
     <section
-      className="panel allocation geographic-allocation"
+      className="allocation geographic-allocation"
       aria-labelledby="geographic-title"
     >
       <div className="panel-heading">
@@ -36,57 +37,18 @@ export function GeographicChart({
       </div>
       {!loading && data && data.total > 0 ? (
         <>
-          <div
-            className="donut geography-donut"
-            role="img"
-            aria-label="Distribuição por continente ponderada pelo valor de mercado; percentagens na legenda"
-          >
-            <svg viewBox="0 0 160 160" aria-hidden="true">
-              {allocations.map((a, i) => (
-                <circle
-                  key={a.continent}
-                  cx="80"
-                  cy="80"
-                  r="71"
-                  fill="none"
-                  stroke={colors[a.continent]}
-                  strokeWidth="18"
-                  pathLength="100"
-                  strokeDasharray={`${a.percent} ${100 - a.percent}`}
-                  strokeDashoffset={
-                    -allocations
-                      .slice(0, i)
-                      .reduce((n, item) => n + item.percent, 0)
-                  }
-                  transform="rotate(-90 80 80)"
-                />
-              ))}
-            </svg>
-            <div>
-              <small>Cobertura</small>
-              <strong>{percent(data.coverage)}</strong>
-            </div>
-          </div>
-          <div className="allocation-list">
-            {allocations.map((a) => (
-              <div key={a.continent}>
-                <span>
-                  <i
-                    className="dot"
-                    style={{ background: colors[a.continent] }}
-                  />
-                  {CONTINENT_LABELS[a.continent]}
-                </span>
-                <strong>{percent(a.percent)}</strong>
-              </div>
-            ))}
-          </div>
+          <AllocationDonut
+            slices={allocations.map((allocation) => ({
+              id: allocation.continent,
+              label: CONTINENT_LABELS[allocation.continent],
+              percent: allocation.percent,
+              color: colors[allocation.continent],
+            }))}
+            label="Distribuição por continente ponderada pelo valor de mercado; percentagens na legenda"
+            centerLabel="Cobertura"
+            centerValue={percent(data.coverage)}
+          />
           <div className="geography-note">
-            <p>
-              Exposição dos ETFs por continente, ponderada pelo valor atual das
-              posições. Parcelas sem continente identificado ficam sem
-              classificação.
-            </p>
             {data.sources.length > 0 ? (
               <div className="geography-sources">
                 <p>Fonte e datas da composição</p>
