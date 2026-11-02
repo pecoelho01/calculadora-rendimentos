@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     );
   }
   const assets = await Promise.all(
-    [...new Set([...tickers, "^GSPC"])].map(async (ticker) => {
+    tickers.map(async (ticker) => {
       try {
         return [ticker, await getAsset(ticker, start)] as const;
       } catch {
