@@ -12,17 +12,6 @@ const assets = {
       { date: "2024-01-12", close: 140 },
     ],
   },
-  "^GSPC": {
-    price: 4400,
-    previousClose: 4300,
-    currency: "USD",
-    name: "S&P 500",
-    asOf: null,
-    history: [
-      { date: "2024-01-05", close: 4000 },
-      { date: "2024-01-12", close: 4400 },
-    ],
-  },
 };
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
@@ -481,12 +470,12 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   else await page.mouse.move(last.x, last.y);
   await expect(readout).toContainText("Atual");
   await expect(readout).toContainText("+38,64%");
-  await expect(readout).toContainText("+10%");
+  await expect(readout).not.toContainText("S&P 500");
   await chart.focus();
   await chart.press("Home");
   await expect(readout).toContainText("05/01/2024");
   await expect(readout).toContainText("-2,27%");
-  await expect(readout).toContainText("+0%");
+  await expect(chart).not.toHaveAttribute("aria-valuetext", /S&P 500/);
   await chart.press("ArrowRight");
   await expect(chart).toHaveAttribute("aria-valuetext", /12\/01\/2024.*\+25%/);
   await page.locator(".performance").screenshot({ path: testInfo.outputPath("grafico-interativo.png") });
@@ -504,7 +493,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await expect(readout).toContainText("Seleciona uma data");
 });
 
-test("distinguir rentabilidade histórica indisponível de preços e retorno zero", async ({ page }) => {
+test("distinguir preço histórico zero de retorno atual zero", async ({ page }) => {
   await page.route("**/api/market?*", (route) => route.fulfill({
     json: { assets: { ...assets, TEST: { ...assets.TEST, price: 100, history: [{ date: "2024-01-12", close: 0 }] } } },
   }));
@@ -516,8 +505,7 @@ test("distinguir rentabilidade histórica indisponível de preços e retorno zer
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   await chart.focus();
   await chart.press("Home");
-  await expect(page.locator(".chart-readout")).toContainText("Posições abertas Indisponível");
-  await expect(page.locator(".chart-readout")).toContainText("S&P 500 +0%");
+  await expect(page.locator(".chart-readout")).toContainText("Posições abertas -100%");
   await chart.press("End");
   await expect(page.locator(".chart-readout")).toContainText("Posições abertas +0%");
   await chart.press("ArrowLeft");
@@ -568,7 +556,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(current).toContainText("+25%");
 });
 
-test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ page }, testInfo) => {
+test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({ page }, testInfo) => {
   await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   const history = [
     { date: "2025-01-03", close: 100 },
@@ -584,7 +572,6 @@ test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ 
   ];
   await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
     TEST: { ...assets.TEST, price: 150, history },
-    "^GSPC": { ...assets["^GSPC"], price: 1500, history: history.map(p => ({ ...p, close: p.close * 10 })) },
   } } }));
   await page.goto("/");
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
@@ -602,7 +589,9 @@ test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ 
       await chart.focus();
       await chart.press("End");
       await expect(readout).toContainText(expected);
-      await expect(readout).toContainText(`S&P 500 ${expected}`);
+      await expect(page.locator(".performance")).not.toContainText(/S&P 500|índice/);
+      await expect(chart).not.toHaveAttribute("aria-valuetext", /S&P 500/);
+      await expect(chart.locator("svg path")).toHaveCount(1);
       await expect(readout).toContainText("Atual");
       if (period !== "Máximo") {
         await chart.press("Home");
@@ -614,10 +603,13 @@ test("Os sete períodos recalculam o destaque, o hover e o benchmark", async ({ 
   await expect(current).not.toContainText("01/01/2026");
   await expect(current).not.toContainText("30/10/2026");
   await expect(page.locator(".performance")).not.toContainText("Passa o rato ou toca no gráfico");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-ytd.png") });
   await page.emulateMedia({ media: "print" });
   await expect(current).toContainText("YTD");
   await expect(current).toContainText("+36,36%");
+  await expect(page.locator(".performance")).not.toContainText(/S&P 500|índice/);
+  await expect(chart.locator("svg path")).toHaveCount(1);
   await expect(current).toBeVisible();
   await expect(page.locator(".segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });

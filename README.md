@@ -26,7 +26,7 @@ Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
 - Compras e vendas manuais, histórico de transações e remoção com validação da posição disponível.
 - Custo FIFO por lotes, ganhos realizados/não realizados, valor das posições, ROI sobre todas as compras e rentabilidade das posições abertas.
 - Preços e histórico Yahoo Finance no servidor, com cache de cinco minutos e indicação de timestamp/indisponibilidade.
-- Gráfico interativo com toggle «Rentabilidade total» / «Posições abertas» (predefinição), percentagem atual, consulta por rato, toque ou teclado (setas, Home e End) e comparação com o S&P 500. O histórico pode diferir da cotação atual.
+- Gráfico interativo com toggle «Rentabilidade total» / «Posições abertas» (predefinição), percentagem atual, consulta por rato, toque ou teclado (setas, Home e End). O histórico pode diferir da cotação atual.
 - Tabela de posições abertas e fechadas, pesquisa e alocação por valor de mercado.
 - Gráfico circular de distribuição dos ETFs exclusivamente por continente, ponderado pelo valor atual, com cobertura, fonte e data da composição. Composição completa da iShares e alternativa justETF, carregadas em separado dos preços; ativos sem dados permanecem «Sem classificação».
 - Importação/exportação de CSV compatível com a aplicação anterior.
@@ -87,9 +87,9 @@ O toggle muda a série, a percentagem em destaque e os valores consultados no gr
 
 A adoção de FIFO substitui o custo médio móvel das versões anteriores e recalcula ganhos realizados/não realizados e custo das posições. O ganho total e o ROI sobre todas as compras mantêm-se para as mesmas ordens e cotações. Não há migração do JSON/localStorage ou do CSV: estes formatos guardam as transações originais, não os resultados derivados.
 
-Em «Máximo», no histórico, `ROI = (valor aberto + receitas das vendas − compras acumuladas) ÷ compras acumuladas × 100` (equivalente à fórmula do ganho). Para cada período, a série e a percentagem em destaque usam a mesma lógica partilhada. O gráfico usa fechos diários em 1D, 5D e 1M; nos restantes períodos, amostra o último dia de negociação de cada semana disponível no benchmark. As datas de mercado são normalizadas no fuso da respetiva bolsa. Nunca seleciona preços futuros; sem preços anteriores, deixa uma lacuna. Em «Máximo», o S&P 500 usa o primeiro fecho disponível desde a primeira transação, em USD.
+Em «Máximo», no histórico, `ROI = (valor aberto + receitas das vendas − compras acumuladas) ÷ compras acumuladas × 100` (equivalente à fórmula do ganho). Para cada período, a série e a percentagem em destaque usam a mesma lógica partilhada. O gráfico usa fechos diários em 1D, 5D e 1M; nos restantes períodos, amostra o último dia de negociação de cada semana disponível nos históricos dos ativos da carteira. As datas de mercado são normalizadas no fuso da respetiva bolsa. Nunca seleciona preços futuros; sem preços anteriores, deixa uma lacuna.
 
-Nos outros períodos, a base das posições existentes é o valor no dia anterior ao início, usando apenas preços já disponíveis nessa data. Ordens na data inicial pertencem ao período. Se a carteira começar depois do início solicitado, o intervalo efetivo começa na primeira transação. O benchmark usa o último fecho disponível antes desse início efetivo; sem esse preço, fica indisponível, sem procurar uma observação futura.
+Nos outros períodos, a base das posições existentes é o valor no dia anterior ao início, usando apenas preços já disponíveis nessa data. Ordens na data inicial pertencem ao período. Se a carteira começar depois do início solicitado, o intervalo efetivo começa na primeira transação.
 
 `Retorno total do período = (valor final + vendas do intervalo − compras do intervalo − valor inicial) ÷ (valor inicial + compras do intervalo) × 100`.
 
@@ -97,11 +97,11 @@ Para posições abertas, os lotes FIFO ainda detidos são avaliados desde o pre�
 
 Sem capital inicial nem compras no intervalo, o retorno do período é indisponível. Se faltar um preço inicial necessário, a métrica fica indisponível: nunca se usa custo de compra ou um preço futuro como substituto. No modo aberto só é exigido o preço inicial dos lotes antigos ainda detidos. Um preço zero é válido; uma base nula ou zero não permite calcular a percentagem.
 
-A série, o hover e o valor em destaque usam a mesma base do período. O ponto final «Atual» usa a cotação atual; os outros pontos usam fechos históricos. Este retorno é simples: as compras entram integralmente na base, independentemente da sua data. Não é TWR nem XIRR e o índice não simula os fluxos da carteira.
+A série, o hover e o valor em destaque usam a mesma base do período. O ponto final «Atual» usa a cotação atual; os outros pontos usam fechos históricos. Este retorno é simples: as compras entram integralmente na base, independentemente da sua data. Não é TWR nem XIRR.
 
 Esta versão não faz conversão cambial. Todos os preços de transação de uma carteira devem ser introduzidos na moeda escolhida. Uma cotação aberta noutra moeda ou ausente impede valor, ganho não realizado e ROI globais; os custos e ganhos já realizados continuam disponíveis. Carteiras totalmente fechadas dispensam cotações. Zero é um preço válido, distinto de indisponibilidade.
 
-Sem comissões, impostos, dividendos ou ajustes automáticos das quantidades por splits. O histórico Yahoo pode ser ajustado por splits; adaptar também as transações nesses casos. O ROI não é anualizado, TWR ou XIRR. O benchmark não replica os fluxos da carteira.
+Sem comissões, impostos, dividendos ou ajustes automáticos das quantidades por splits. O histórico Yahoo pode ser ajustado por splits; adaptar também as transações nesses casos. O ROI não é anualizado, TWR ou XIRR.
 
 `yahoo-finance2` é uma integração não oficial e pode sofrer bloqueios, rate limits e atrasos. Falhas não são substituídas por preços fictícios. O cache de cinco minutos pode fazer com que «Atualizar preços» devolva o mesmo valor nesse intervalo.
 
@@ -109,7 +109,7 @@ Sem comissões, impostos, dividendos ou ajustes automáticos das quantidades por
 
 O gráfico soma `valor atual da posição × peso do país no ETF` e agrupa esses valores por continente, usando apenas posições abertas e as mesmas cotações e regras de moeda do dashboard. A interface e a impressão mostram apenas continentes e «Sem classificação», sem lista ou seletor de países. O agrupamento é local e não acrescenta pedidos externos. Sem uma cotação necessária, não apresenta percentagens parciais como se fossem a carteira completa. Um preço zero continua válido.
 
-As cotações e o histórico usam `/api/market`; a composição usa `/api/geography`, que recebe apenas tickers. Os pedidos são independentes: métricas e posições não esperam pelos ficheiros geográficos. A geografia só é pedida na visão geral, para posições abertas; posições fechadas e benchmark não entram nesse pedido. Durante a obtenção inicial, o gráfico mostra carregamento em vez de uma falsa cobertura de 0%.
+As cotações e o histórico usam `/api/market`; a composição usa `/api/geography`, que recebe apenas tickers. Os pedidos são independentes: métricas e posições não esperam pelos ficheiros geográficos. A geografia só é pedida na visão geral, para posições abertas; posições fechadas não entram nesse pedido. Durante a obtenção inicial, o gráfico mostra carregamento em vez de uma falsa cobertura de 0%.
 
 Na sessão da página, composições públicas são reutilizadas por ticker durante 24 horas e indisponibilidades durante cinco minutos. Mudar de aba ou carteira e atualizar preços não repete consultas ainda válidas. Pedidos geográficos em curso podem terminar em segundo plano e alimentar essa cache, sem substituir dados de outra carteira. No servidor, consultas simultâneas do mesmo ticker ou catálogo partilham o mesmo trabalho. O navegador recebe apenas países agregados, fontes e datas; os ficheiros completos são processados no servidor.
 

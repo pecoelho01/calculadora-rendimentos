@@ -274,6 +274,23 @@ export function priceAt(history: PricePoint[], date: string): number | null {
   }
   return value;
 }
+// Use only the portfolio assets' observations, independent of any external index.
+function historyDates(
+  orders: Order[],
+  market: MarketData,
+  start: string,
+  end: string,
+): string[] {
+  return [
+    ...new Set(
+      [...new Set(orders.map((order) => order.ticker))].flatMap((ticker) =>
+        (market[ticker]?.history ?? [])
+          .filter((point) => point.date >= start && point.date <= end)
+          .map((point) => point.date),
+      ),
+    ),
+  ].sort();
+}
 export function calculateHistory(
   orders: Order[],
   market: MarketData,
@@ -282,15 +299,7 @@ export function calculateHistory(
 ) {
   if (!orders.length) return [];
   const first = chronological(orders)[0].date;
-  const benchmark = market["^GSPC"]?.history ?? [];
-  const dates = [
-    ...new Set(
-      benchmark
-        .filter((p) => p.date >= first && p.date <= end)
-        .map((p) => p.date),
-    ),
-  ].sort();
-  const base = dates.length ? priceAt(benchmark, dates[0]) : null;
+  const dates = historyDates(orders, market, first, end);
   // Last trading observation of each ISO week; all transactions up to that day are included.
   const weekly = dates.filter(
     (date, i) =>
@@ -308,12 +317,10 @@ export function calculateHistory(
       historical,
       currency,
     );
-    const close = priceAt(benchmark, date);
     return {
       date,
       roi: p.roi,
       openRoi: p.openRoi,
-      benchmark: base && close !== null ? (close / base - 1) * 100 : null,
     };
   });
 }
@@ -327,7 +334,6 @@ export type PerformancePoint = {
   date: string;
   roi: number | null;
   openRoi: number | null;
-  benchmark: number | null;
   current?: boolean;
 };
 export const performancePeriods = ["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"] as const;
@@ -386,7 +392,6 @@ export function calculatePerformance(
   const boundaryDate = new Date(`${start}T00:00:00Z`);
   boundaryDate.setUTCDate(boundaryDate.getUTCDate() - 1);
   const boundary = boundaryDate.toISOString().slice(0, 10);
-  const benchmark = market["^GSPC"];
 
   if (requestedStart === null) {
     const data: PerformancePoint[] = calculateHistory(
@@ -395,21 +400,11 @@ export function calculatePerformance(
       currency,
       end,
     );
-    const firstIndexDate = benchmark?.history.find(
-      (p) => p.date >= start && p.date <= end,
-    )?.date;
-    const base = firstIndexDate
-      ? priceAt(benchmark?.history ?? [], firstIndexDate)
-      : null;
     if (first) {
       const point: PerformancePoint = {
         date: end,
         roi: current.summary.roi,
         openRoi: current.summary.openRoi,
-        benchmark:
-          base !== null && base > 0 && benchmark?.price != null
-            ? (benchmark.price / base - 1) * 100
-            : null,
         current: true,
       };
       if (data.at(-1)?.date === end) data[data.length - 1] = point;
@@ -431,7 +426,6 @@ export function calculatePerformance(
     openingMarket,
     currency,
   );
-  const base = priceAt(benchmark?.history ?? [], boundary);
   const evaluate = (
     date: string,
     prices: MarketData,
@@ -473,27 +467,16 @@ export function calculatePerformance(
       snapshot.summary.value !== null && openCost !== null && openCost > 0
         ? ((snapshot.summary.value - openCost) / openCost) * 100
         : null;
-    const indexPrice = isCurrent
-      ? (benchmark?.price ?? null)
-      : priceAt(benchmark?.history ?? [], date);
     return {
       date,
       roi,
       openRoi,
-      benchmark:
-        base !== null && base > 0 && indexPrice !== null
-          ? (indexPrice / base - 1) * 100
-          : null,
       ...(isCurrent ? { current: true } : {}),
     };
   };
-  const dates = [
-    ...new Set(
-      (benchmark?.history ?? [])
-        .filter((p) => p.date >= start && p.date < end)
-        .map((p) => p.date),
-    ),
-  ].sort();
+  const dates = historyDates(applicable, market, start, end).filter(
+    (date) => date < end,
+  );
   const sampledDates =
     period === "1D" || period === "5D" || period === "1M"
       ? dates

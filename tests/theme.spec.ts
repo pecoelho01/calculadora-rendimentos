@@ -80,8 +80,6 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({ page
   await page.route("**/api/market?*", (route) => route.fulfill({ json: { assets: {
     TEST: { price: 140, previousClose: 130, currency: "EUR", name: "Teste", asOf: null,
       history: [{ date: "2024-01-05", close: 100 }, { date: "2024-01-12", close: 140 }] },
-    "^GSPC": { price: 4400, previousClose: 4300, currency: "USD", name: "S&P 500", asOf: null,
-      history: [{ date: "2024-01-05", close: 4000 }, { date: "2024-01-12", close: 4400 }] },
   } } }));
   await page.goto("/");
   const theme = page.getByRole("button", { name: /^Ativar tema/ });

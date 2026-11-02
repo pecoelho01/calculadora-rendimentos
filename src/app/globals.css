@@ -34,7 +34,7 @@
   --error-bg: light-dark(#fff1f3, #3c2330);
   --error-text: light-dark(#a3283b, #ff9bac);
   --chart-grid: light-dark(#e9edf2, #344158);
-  --benchmark: light-dark(#78879c, #b2bfd2);
+  --chart-cursor: light-dark(#78879c, #b2bfd2);
   --font: "DM Sans", Arial, sans-serif;
 }
 :root[data-theme="light"] {
@@ -798,9 +798,6 @@ h3 {
 }
 .dot.accent {
   background: var(--accent);
-}
-.dot.gray {
-  background: var(--benchmark);
 }
 .chart-limitations {
   font-size: 12px;

@@ -640,15 +640,13 @@ export function Dashboard() {
                 devem ser superiores a zero. Os valores não incluem
                 comissões nem impostos.
               </p>
-              <h3>Histórico e S&P 500</h3>
+              <h3>Histórico da carteira</h3>
               <p>
                 Reconstruímos a carteira com fechos diários em 1D, 5D e 1M e
                 semanais nos restantes períodos, usando apenas preços desse dia
-                ou anteriores. Não há dados intradiários. O S&P 500
-                é um índice de preços em USD e não simula os mesmos fluxos de
-                caixa. Em Máximo, usa o primeiro fecho disponível desde a
-                primeira transação, e a carteira mantém os custos originais. Em
-                1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais e o índice usam o
+                ou anteriores, nas datas disponíveis dos ativos da carteira.
+                Não há dados intradiários. Em Máximo, a carteira mantém os
+                custos originais. Em 1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais usam o
                 último fecho anterior ao início efetivo do intervalo. A rentabilidade
                 total inclui as compras e vendas do período; nas posições
                 abertas, só contam os lotes ainda detidos, desde o início do
