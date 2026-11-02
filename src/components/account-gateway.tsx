@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
-import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_RECOVERY_CHANGED, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
+import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_RECOVERY_CHANGED, AUTH_SESSION_MESSAGE, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
 import { getRecoverySession, matchesRecoverySession, type RecoverySession } from "@/lib/recovery-session";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
@@ -133,14 +133,21 @@ export function AccountGateway({
         setMessage("");
       }
     });
+    const stopSessionErrors = supabase.onSessionError((message) => {
+      if (!live) return;
+      actions.current++;
+      recoverySession.current = null;
+      apply(null, false);
+      setError(message);
+    });
     void callbackResult.then(async (callback) => {
       const beforeRead = events;
-      const { data, error: sessionError } = await supabase.auth.getSession();
+      const { data, error: sessionError } = await supabase.restoreSession();
       if (!live) return;
       initializing = false;
       if (sessionError) {
         apply(null, false);
-        setError("Não foi possível recuperar a sessão. Podes continuar no modo local ou iniciar sessão novamente.");
+        setError(AUTH_SESSION_MESSAGE);
         return;
       }
       const restored = events === beforeRead ? data.session : latestSession;
@@ -151,16 +158,18 @@ export function AccountGateway({
         recoverySession.current = callback.recovery;
         setForm("password");
       }
-    }).catch(() => {
+    }).catch((error: unknown) => {
       if (!live) return;
       initializing = false;
       apply(null, false);
-      setError("Não foi possível recuperar a sessão. Podes continuar no modo local.");
+      setError(error instanceof Error && [AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE].includes(error.message)
+        ? error.message : AUTH_SESSION_MESSAGE);
     });
     return () => {
       live = false;
       actions.current++;
       subscription.unsubscribe();
+      stopSessionErrors();
     };
   }, []);
 

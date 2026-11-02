@@ -350,6 +350,31 @@ test("confirmação PKCE abre a conta sem autorizar formulário de recuperação
   expect(new URL(page.url()).search).toBe("");
 });
 
+test("recuperação PKCE válida não é apagada pela sessão anterior expirada", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await requestRecovery(page);
+  await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
+  state.failRefresh = true;
+  await page.goto("/?code=recovery-test-code&recovery=1");
+  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toBeVisible();
+  expect(state.authRequests.some((request) => request.grant === "refresh_token")).toBe(false);
+  expect(state.authRequests.filter((request) => request.grant === "pkce")).toHaveLength(1);
+});
+
+test("callback PKCE inválido preserva a renovação da sessão anterior", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.clock.install();
+  await page.goto("/?code=unsolicited-code&recovery=1");
+  await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+  await expect(page.locator(".portfolio-link.selected").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  expect(state.authRequests).toHaveLength(0);
+  await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
+  await page.clock.fastForward(30_000);
+  await expect.poll(() => state.authRequests.filter((request) => request.grant === "refresh_token").length).toBe(1);
+  await expect(page.locator(".portfolio-link.selected").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+});
+
 test("uma sessão recebida após a troca PKCE não herda o formulário de recuperação", async ({ page }) => {
   await setup(page);
   await page.goto("/");
@@ -577,16 +602,109 @@ test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes prote
   await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeEnabled();
 });
 
-test("sem bloqueio seguro entre separadores a conta falha sem enviar credenciais e o modo local funciona", async ({ page }) => {
-  const state = await setup(page);
-  await page.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined }));
+for (const storedSession of [false, true, "expired"] as const) {
+  test(`sem Web Locks não enviar credenciais, incluindo renovação: ${storedSession}`, async ({ page }) => {
+    const state = await setup(page, storedSession);
+    await page.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined }));
+    await page.goto("/");
+    await login(page, "ana@example.test", false);
+    await expect(page.getByText(/Este navegador não permite proteger os pedidos da conta/)).toBeVisible();
+    expect(state.authRequests).toHaveLength(0);
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
+    await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+    await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
+  });
+}
+
+test("sessão expirada não renova com o lock ocupado e permite tentar novamente", async ({ page }) => {
+  const state = await setup(page, "expired");
+  await page.addInitScript(() => {
+    const observed = window as unknown as { releaseAuthAudit: () => void };
+    void navigator.locks.request("rendimentos.auth.mutation.v1", async () => {
+      await new Promise<void>((resolve) => { observed.releaseAuthAudit = resolve; });
+    });
+  });
   await page.goto("/");
-  await login(page, "ana@example.test", false);
-  await expect(page.getByText(/Este navegador não permite proteger os pedidos da conta/)).toBeVisible();
+  await expect(page.getByText(/Há um pedido de conta em curso/)).toBeVisible();
   expect(state.authRequests).toHaveLength(0);
-  await page.getByRole("button", { name: "Fechar", exact: true }).click();
-  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
-  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
+  expect(state.accountReads).toBe(0);
+  await page.evaluate(() => (window as unknown as { releaseAuthAudit: () => void }).releaseAuthAudit());
+  await login(page);
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  expect(state.authRequests.filter((request) => request.grant === "refresh_token")).toHaveLength(1);
+});
+
+test("renovação por temporizador e foco respeita um lock noutro separador", async ({ page, context }) => {
+  const state = await setup(page, true);
+  await page.clock.install();
+  await page.goto("/");
+  await expect(page.locator(".portfolio-link.selected")).toBeVisible();
+  const other = await context.newPage();
+  await other.goto("/icon.svg");
+  await other.evaluate(() => new Promise<void>((ready) => {
+    void navigator.locks.request("rendimentos.auth.mutation.v1", async () => {
+      await new Promise<void>((resolve) => {
+        (window as unknown as { releaseAuthAudit: () => void }).releaseAuthAudit = resolve;
+        ready();
+      });
+    });
+  }));
+  await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
+  await page.clock.fastForward(30_000);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(state.authRequests).toHaveLength(0);
+  await other.evaluate(() => (window as unknown as { releaseAuthAudit: () => void }).releaseAuthAudit());
+  await other.close();
+  await page.clock.fastForward(30_000);
+  await expect.poll(() => state.authRequests.filter((request) => request.grant === "refresh_token").length).toBe(1);
+  await expect(page.getByRole("button", { name: "Sair da conta", exact: true })).toBeEnabled();
+});
+
+test("temporizador não renova durante logout nem restaura a sessão depois", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.clock.install();
+  await page.goto("/");
+  await expect(page.locator(".portfolio-link.selected")).toBeVisible();
+  state.delayAuthPath = "/logout";
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(true);
+  await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
+  await page.clock.fastForward(30_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  expect(state.authRequests.filter((request) => request.grant === "refresh_token")).toHaveLength(0);
+  state.releaseAuth();
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+  await page.clock.fastForward(60_000);
+  expect(state.authRequests.filter((request) => request.grant === "refresh_token")).toHaveLength(0);
+  await expect(page.getByRole("button", { name: "Sair da conta", exact: true })).toHaveCount(0);
+});
+
+test("renovação pendente mantém o lock até persistir e bloqueia logout concorrente", async ({ page, context }) => {
+  const state = await setup(page, true);
+  await page.clock.install();
+  await page.goto("/");
+  await expect(page.locator(".portfolio-link.selected")).toBeVisible();
+  const other = await context.newPage();
+  await other.goto("/icon.svg");
+  state.delayRefresh = true;
+  await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
+  await page.clock.fastForward(30_000);
+  await expect.poll(() => state.authRequests.some((request) => request.grant === "refresh_token")).toBe(true);
+  expect(await other.evaluate(() => navigator.locks.request("rendimentos.auth.mutation.v1", { ifAvailable: true }, (lock) => !!lock))).toBe(false);
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect(page.getByText(/não foi possível terminar a sessão/)).toBeVisible();
+  expect(state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(false);
+  state.releaseRefresh();
+  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).expires_at > Date.now() / 1000, authKey)).toBe(true);
+  await expect.poll(() => other.evaluate(() => navigator.locks.request("rendimentos.auth.mutation.v1", { ifAvailable: true }, (lock) => !!lock))).toBe(true);
+  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+  await page.clock.fastForward(60_000);
+  expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+  await other.close();
 });
 
 test("respostas incluem proteção contra enquadramento e fuga de referrer", async ({ request }) => {
@@ -814,6 +932,7 @@ test("sessão expirada e refresh inválido devolvem a escolha sem montar carteir
   state.failRefresh = true;
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await expect(page.getByText(/Não foi possível recuperar a sessão/)).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
   expect(state.accountReads).toBe(0);
   expect(state.requests).toHaveLength(0);
@@ -821,6 +940,16 @@ test("sessão expirada e refresh inválido devolvem a escolha sem montar carteir
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
   await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+});
+
+test("login pode ser repetido após falhar a recuperação da sessão expirada", async ({ page }) => {
+  const state = await setup(page, "expired");
+  state.failRefresh = true;
+  await page.goto("/");
+  await expect(page.getByText(/Não foi possível recuperar a sessão/)).toBeVisible();
+  state.failRefresh = false;
+  await login(page, "bruno@example.test");
+  await expect(page.locator(".portfolio-link.selected").getByText("Carteira do Bruno", { exact: true })).toBeVisible();
 });
 
 test("modo local continua utilizável se o navegador bloquear sessionStorage", async ({ page }) => {
