@@ -15,6 +15,14 @@ export type Portfolio = {
   orders: Order[];
 };
 export type PricePoint = { date: string; close: number };
+export type Geography = {
+  allocations: { country: string; weight: number }[];
+  asOf: string;
+  source: string;
+  sourceName?: string;
+  method?: "holdings" | "published";
+  holdingsCount?: number;
+};
 export type MarketAsset = {
   price: number | null;
   previousClose: number | null;
@@ -22,6 +30,7 @@ export type MarketAsset = {
   name: string;
   asOf: string | null;
   history: PricePoint[];
+  geography?: Geography | null;
   error?: string;
 };
 export type MarketData = Record<string, MarketAsset>;

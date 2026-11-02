@@ -12,6 +12,8 @@ import { parseCsv, exportCsv } from "@/lib/csv";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
+import { GeographicChart } from "./geographic-chart";
+import { useGeography } from "./use-geography";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
@@ -143,6 +145,18 @@ export function Dashboard() {
   const summary = useMemo(
     () => calculatePortfolio(orders, market, currency),
     [orders, market, currency],
+  );
+  const openTickers = summary.positions
+    .filter((p) => p.shares > 0)
+    .map((p) => p.ticker)
+    .sort()
+    .join(",");
+  const geography = useGeography(openTickers, ready && tab === "overview", refresh);
+  const geographicMarket = Object.fromEntries(
+    Object.entries(market).map(([ticker, asset]) => [
+      ticker,
+      { ...asset, geography: geography.data[ticker] ?? null },
+    ]),
   );
   const money = (n: number | null) =>
     n === null
@@ -788,6 +802,11 @@ export function Dashboard() {
                       </div>
                     )}
                   </section>
+                  <GeographicChart
+                    positions={summary.positions}
+                    market={geographicMarket}
+                    loading={loading || geography.loading}
+                  />
                 </div>
               ) : null}
               <section className="panel holdings">

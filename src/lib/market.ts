@@ -50,6 +50,6 @@ export const getAsset = unstable_cache(
         : { error: "Alguns dados do Yahoo Finance estão indisponíveis." }),
     };
   },
-  ["yahoo-market-v1"],
+  ["yahoo-market-v4"],
   { revalidate: 300 },
 );

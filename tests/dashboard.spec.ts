@@ -27,6 +27,7 @@ const assets = {
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: {} } }));
   await page.route("**/api/market?*", (route) =>
     route.fulfill({ json: { assets } }),
   );
@@ -782,4 +783,181 @@ test("conflito ao renomear mostra erro no diálogo e preserva a versão mais rec
   await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
   await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Versão mais recente" })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("noutro separador");
+});
+
+test("mostrar exposição geográfica ponderada, cobertura e fonte em ecrã e impressão", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: { TEST: {
+              allocations: [
+                { country: "US", weight: 0.6 },
+                { country: "JP", weight: 0.3 },
+              ],
+              asOf: "2026-09-30",
+              source:
+                "https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv",
+              sourceName: "iShares",
+              method: "holdings",
+              holdingsCount: 509,
+            } } } }));
+  await page.goto("/");
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "portfolio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  const chart = page.getByRole("region", {
+    name: "Distribuição por continente",
+    exact: true,
+  });
+  await expect(chart.getByRole("img")).toBeVisible();
+  await expect(chart.locator("svg circle")).toHaveCount(3);
+  await expect(chart.locator(".donut")).toContainText("90%");
+  for (const [name, weight] of [
+    ["América do Norte", "60%"],
+    ["Ásia", "30%"],
+    ["Sem classificação", "10%"],
+  ]) {
+    await expect(
+      chart.locator(".allocation-list > div").filter({ hasText: name }),
+    ).toContainText(weight);
+  }
+  await expect(
+    chart.getByRole("link", { name: "TEST · iShares" }),
+  ).toHaveAttribute("href", /ishares\.com/);
+  await expect(chart).toContainText("30/09/2026");
+  await expect(chart).toContainText("509 posições no ficheiro da gestora");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await chart.screenshot({ path: testInfo.outputPath("geografia.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(chart).toBeVisible();
+  await expect(chart.locator(".allocation-list")).toContainText("60%");
+  await expect(chart).toContainText("30/09/2026");
+  await expect(chart).toContainText("509 posições no ficheiro da gestora");
+});
+
+test("exposição sem composição permanece sem classificação e moeda incompatível impede percentagens", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "portfolio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  const chart = page.getByRole("region", {
+    name: "Distribuição por continente",
+    exact: true,
+  });
+  await expect(chart.locator(".allocation-list")).toContainText(
+    "Sem classificação",
+  );
+  await expect(chart.locator(".allocation-list")).toContainText("100%");
+  await page.route("**/api/market?*", (route) =>
+    route.fulfill({
+      json: {
+        assets: { ...assets, TEST: { ...assets.TEST, currency: "USD" } },
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Atualizar preços" }).click();
+  await expect(chart).toContainText(
+    "São necessárias cotações na moeda da carteira",
+  );
+  await expect(chart.getByRole("img")).toHaveCount(0);
+});
+
+test("agrupar composição completa apenas por continentes em ecrã e impressão", async ({
+  page,
+}, testInfo) => {
+  const countries = [
+    "US",
+    "JP",
+    "GB",
+    "CA",
+    "FR",
+    "DE",
+    "CH",
+    "AU",
+    "NL",
+    "SE",
+    "DK",
+    "ES",
+    "IT",
+    "HK",
+    "SG",
+    "FI",
+    "BE",
+    "NO",
+    "IE",
+    "NZ",
+    "IL",
+    "AT",
+    "PT",
+  ];
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: { TEST: {
+              allocations: countries.map((country) => ({
+                country,
+                weight: 0.04,
+              })),
+              asOf: "2026-10-30",
+              source:
+                "https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv",
+              sourceName: "iShares",
+              method: "holdings",
+              holdingsCount: 1271,
+            } } } }));
+  await page.goto("/");
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "portfolio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  const chart = page.getByRole("region", {
+    name: "Distribuição por continente",
+    exact: true,
+  });
+  await expect(chart.locator(".allocation-list > div")).toHaveCount(5);
+  await expect(chart.locator(".allocation-list")).toContainText("Europa");
+  await expect(chart.locator(".allocation-list")).toContainText("60%");
+  await expect(chart.locator(".allocation-list")).not.toContainText(/Estados Unidos|Japão|Portugal|Outros países/);
+  await expect(chart.getByRole("button", { name: "Países", exact: true })).toHaveCount(0);
+  await expect(chart.locator(".donut")).toContainText("92%");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  const withinPanel = () =>
+    chart.evaluate((panel) => {
+      const bounds = panel.getBoundingClientRect();
+      return [...panel.querySelectorAll(".allocation-list > div")].every(
+        (row) => {
+          const rect = row.getBoundingClientRect();
+          return (
+            rect.left >= bounds.left &&
+            rect.right <= bounds.right &&
+            rect.bottom <= bounds.bottom
+          );
+        },
+      );
+    });
+  expect(await withinPanel()).toBe(true);
+  await chart.screenshot({
+    path: testInfo.outputPath("geografia-completa.png"),
+  });
+  await page.emulateMedia({ media: "print" });
+  await expect(chart).toBeVisible();
+  await expect(chart).toContainText("1271 posições no ficheiro da gestora");
+  expect(await withinPanel()).toBe(true);
 });
