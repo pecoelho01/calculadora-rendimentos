@@ -161,18 +161,18 @@ test("iniciar sessão, alternar modo, sair e trocar utilizador preserva isolamen
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
   await login(page);
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toHaveCount(0);
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Abrir carteiras da conta", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
   expect(await page.evaluate((key) => sessionStorage.getItem(key), entryKey)).toBeNull();
   await login(page, "bruno@example.test");
-  await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira do Bruno", { exact: true })).toBeVisible();
   await expect(page.getByText("Carteira da Ana", { exact: true })).toHaveCount(0);
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
   expect(state.requests).toHaveLength(0);
@@ -182,28 +182,28 @@ test("iniciar sessão, alternar modo, sair e trocar utilizador preserva isolamen
 test("gravar espera pela confirmação da conta, incrementa revisão e não grava localmente", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.delayNextWrite = true;
   await rename(page, "Carteira da Ana", "Conta atualizada");
   await expect(page.getByText("A guardar…", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Renomear carteira" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect.poll(() => state.requests.length).toBe(1);
   expect(state.requests[0].changes[0].expectedRevision).toBe(3);
   state.releaseWrite();
   await expect(page.getByRole("dialog", { name: "Renomear carteira" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Conta atualizada", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Conta atualizada", { exact: true })).toBeVisible();
   expect(state.accounts[userA].portfolios[0].revision).toBe(4);
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Conta atualizada", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Conta atualizada", { exact: true })).toBeVisible();
   await assertNoOverflow(page);
 });
 
 test("conflito entre dispositivos preserva dados e exige recarga explícita", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.accounts[userA].portfolios[0] = { portfolio: { ...state.accounts[userA].portfolios[0].portfolio, name: "Alterada noutro dispositivo" }, revision: 4 };
   await rename(page, "Carteira da Ana", "Alteração antiga");
   await expect(page.getByText(/Esta carteira foi alterada noutro dispositivo/)).toBeVisible();
@@ -211,21 +211,21 @@ test("conflito entre dispositivos preserva dados e exige recarga explícita", as
   expect(state.accounts[userA].portfolios[0].portfolio.name).toBe("Alterada noutro dispositivo");
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
   await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Alterada noutro dispositivo", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Alterada noutro dispositivo", { exact: true })).toBeVisible();
   await rename(page, "Alterada noutro dispositivo", "Nova tentativa");
-  await expect(page.getByRole("heading", { name: "Nova tentativa", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Nova tentativa", { exact: true })).toBeVisible();
   expect(state.requests[1].changes[0].expectedRevision).toBe(4);
 });
 
 test("falha de gravação mantém diálogo e valores confirmados", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.failNextWrite = 503;
   await rename(page, "Carteira da Ana", "Não guardada");
   await expect(page.getByText("Erro ao guardar ou carregar", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog").getByLabel("Nome da carteira")).toHaveValue("Não guardada");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   expect(state.accounts[userA].portfolios[0].revision).toBe(3);
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
 });
@@ -233,7 +233,7 @@ test("falha de gravação mantém diálogo e valores confirmados", async ({ page
 test("migração local explícita é repetível e conserva dados dos dois modos", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(0);
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true }).click();
@@ -280,7 +280,7 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
 test("o parâmetro recovery isolado não autoriza alteração de palavra-passe", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/?recovery=1");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
   expect(state.authRequests.some((request) => request.body.password)).toBe(false);
@@ -290,7 +290,7 @@ test("o parâmetro recovery isolado não autoriza alteração de palavra-passe",
 test("resposta pendente da conta não volta a apresentar dados depois de sair", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.delayNextWrite = true;
   await rename(page, "Carteira da Ana", "Resposta antiga");
   await expect.poll(() => state.requests.length).toBe(1);
@@ -345,7 +345,7 @@ test("confirmação PKCE abre a conta sem autorizar formulário de recuperação
   await expect(page.getByText(/Consulta o teu email para confirmar a conta/)).toBeVisible();
   expect(state.authRequests.find((request) => request.path.endsWith("/signup"))?.body.code_challenge_method).toBe("s256");
   await page.goto("/?code=confirmation-test-code&recovery=1");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(new URL(page.url()).search).toBe("");
 });
@@ -367,7 +367,7 @@ test("uma sessão recebida após a troca PKCE não herda o formulário de recupe
     } });
   }, { authKey, otherSession: session(userB) });
   await page.goto("/?code=recovery-test-code&recovery=1");
-  await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira do Bruno", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
 });
 
@@ -446,7 +446,7 @@ for (const signedIn of [false, true]) {
     await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     if (signedIn) {
-      await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+      await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
       expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).user.id, authKey)).toBe(userA);
     } else {
       await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
@@ -466,7 +466,7 @@ for (const signedIn of [false, true]) {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(state.authRequests).toHaveLength(0);
     expect(new URL(page.url()).search).toBe("");
-    if (signedIn) await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+    if (signedIn) await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
     else expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
   });
 }
@@ -497,10 +497,10 @@ test("login pendente bloqueia fecho, Escape e reentrada até concluir", async ({
   await expect(dialog.getByLabel("Email", { exact: true })).toBeDisabled();
   await expect(dialog.getByRole("button", { name: "A aguardar…", exact: true })).toBeDisabled();
   state.releaseAuth();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
   await login(page, "bruno@example.test");
-  await expect(page.getByRole("heading", { name: "Carteira do Bruno", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira do Bruno", { exact: true })).toBeVisible();
 });
 
 test("pedidos Auth noutro separador não ultrapassam um login pendente", async ({ page, context }) => {
@@ -516,7 +516,7 @@ test("pedidos Auth noutro separador não ultrapassam um login pendente", async (
   await expect(secondPage.getByText(/Há um pedido de conta em curso/)).toBeVisible();
   expect(second.authRequests).toHaveLength(0);
   first.releaseAuth();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await secondPage.close();
 });
 
@@ -565,7 +565,7 @@ test("sem bloqueio seguro entre separadores a conta falha sem enviar credenciais
   expect(state.authRequests).toHaveLength(0);
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
 });
 
 test("respostas incluem proteção contra enquadramento e fuga de referrer", async ({ request }) => {
@@ -602,7 +602,7 @@ test("conta vazia permite criar a primeira carteira sem copiar dados locais", as
   await dialog.getByLabel("Nome da carteira").fill("Primeira carteira na conta");
   await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Primeira carteira na conta", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Primeira carteira na conta", { exact: true })).toBeVisible();
   expect(state.requests[0].changes).toHaveLength(1);
   expect(state.requests[0].changes[0].expectedRevision).toBe(null);
   expect(state.accounts[userA].portfolios).toHaveLength(1);
@@ -623,7 +623,7 @@ test("conta vazia permite criar a primeira carteira sem copiar dados locais", as
 test("eliminar a última carteira da conta mantém a conta vazia após confirmação e recarga", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.delayNextWrite = true;
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Eliminar carteira", exact: true }).click();
@@ -631,7 +631,7 @@ test("eliminar a última carteira da conta mantém a conta vazia após confirma�
   expect(state.requests[0].changes).toEqual([
     { id: "remote-a", portfolio: null, expectedRevision: 3 },
   ]);
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.releaseWrite();
   await expect(page.getByText("A tua conta ainda não tem carteiras.", { exact: false })).toBeVisible();
   await expect(page.locator(".portfolio-row")).toHaveCount(0);
@@ -646,8 +646,32 @@ test("eliminar a última carteira da conta mantém a conta vazia após confirma�
   await dialog.getByLabel("Nome da carteira").fill("Nova carteira após eliminação");
   await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Nova carteira após eliminação", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Nova carteira após eliminação", { exact: true })).toBeVisible();
   expect(state.accounts[userA].portfolios).toHaveLength(1);
+  await assertNoOverflow(page);
+});
+
+test("recarregar conta limpa as pesquisas de todos os separadores e preserva os títulos", async ({ page }) => {
+  const state = await setup(page, true);
+  state.accounts[userA].portfolios[0].portfolio.orders = [
+    { id: "buy-test", date: "2024-01-01", ticker: "TEST", name: "Teste", pricebuy: 100, shares: 10, type: "buy" },
+  ];
+  await page.goto("/");
+  const nav = page.getByRole("navigation", { name: "Navegação principal" });
+  const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
+  for (const tab of ["Visão geral", "Posições", "Transações"]) {
+    await nav.getByRole("button", { name: new RegExp(`^${tab}`) }).click();
+    await expect(page.getByRole("heading", { level: 1, name: new RegExp(`^${tab}$`, "i") })).toBeVisible();
+    await search.fill("sem resultado");
+  }
+  await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+  await expect(search).toHaveValue("");
+  for (const tab of ["Visão geral", "Posições", "Transações"]) {
+    await nav.getByRole("button", { name: new RegExp(`^${tab}`) }).click();
+    await expect(search).toHaveValue("");
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+  }
+  expect(state.requests).toHaveLength(0);
   await assertNoOverflow(page);
 });
 
@@ -656,7 +680,7 @@ test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/da
   const marketRequests: URL[] = [];
   page.on("request", (request) => { if (request.url().includes("/api/market?")) marketRequests.push(new URL(request.url())); });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   const csv = "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-01,TEST,Teste,120,3,sell";
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "ordens.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await expect.poll(() => state.accounts[userA].portfolios[0].portfolio.orders.length).toBe(2);
@@ -676,7 +700,7 @@ test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/da
 test("restauro JSON na conta valida todas as carteiras antes do lote com revisões", async ({ page }) => {
   const state = await setup(page, true);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   const restored: Portfolio = { id: "backup-one", name: "Carteira restaurada", currency: "USD", orders: [] };
   const invalid = JSON.stringify({ version: 1, portfolios: [restored, { ...restored, id: "backup-two", currency: "INVALID" }] });
   await page.getByLabel("Restaurar cópia de segurança", { exact: true }).setInputFiles({ name: "invalido.json", mimeType: "application/json", buffer: Buffer.from(invalid) });
@@ -685,7 +709,7 @@ test("restauro JSON na conta valida todas as carteiras antes do lote com revisõ
   expect(state.accounts[userA].portfolios[0].portfolio.name).toBe("Carteira da Ana");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByLabel("Restaurar cópia de segurança", { exact: true }).setInputFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ version: 1, portfolios: [restored] })) });
-  await expect(page.getByRole("heading", { name: restored.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(restored.name, { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(1);
   expect(state.requests[0].changes).toEqual(expect.arrayContaining([
     { id: "remote-a", portfolio: null, expectedRevision: 3 },
@@ -711,7 +735,7 @@ test("entrada exige escolha, permite teclado e conserva o modo local só na mesm
   await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Criar conta", exact: true })).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toHaveCount(0);
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as Window & { portfolioReads: number }).portfolioReads)).toBe(0);
   expect(state.accountReads).toBe(0);
   expect(state.marketRequests).toBe(0);
@@ -722,11 +746,11 @@ test("entrada exige escolha, permite teclado e conserva o modo local só na mesm
   await continueLocal.focus();
   await expect(continueLocal).toBeFocused();
   await continueLocal.press("Enter");
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   expect(await page.evaluate((key) => sessionStorage.getItem(key), entryKey)).toBe("1");
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
   await page.reload();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toHaveCount(0);
   const other = await context.newPage();
   await other.goto("/");
@@ -755,13 +779,13 @@ test("restaurar uma sessão válida aguarda Auth sem abrir carteiras locais", as
   expect(state.accountReads).toBe(0);
   state.delayRefresh = false;
   state.releaseRefresh();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toHaveCount(0);
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as Window & { portfolioReads: number }).portfolioReads)).toBe(0);
   await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Carteira da Ana", exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
 });
 
 test("sessão expirada e refresh inválido devolvem a escolha sem montar carteiras", async ({ page }) => {
@@ -774,7 +798,7 @@ test("sessão expirada e refresh inválido devolvem a escolha sem montar carteir
   expect(state.requests).toHaveLength(0);
   expect(state.marketRequests).toBe(0);
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
 });
 
@@ -795,7 +819,7 @@ test("modo local continua utilizável se o navegador bloquear sessionStorage", a
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
-  await expect(page.getByRole("heading", { name: localPortfolio.name, exact: true })).toBeVisible();
+  await expect(page.locator(".portfolio-link[aria-current='true']").getByText(localPortfolio.name, { exact: true })).toBeVisible();
 });
 
 test("preservar tema entre entrada, conta, modo local e saída", async ({ page }, testInfo) => {
