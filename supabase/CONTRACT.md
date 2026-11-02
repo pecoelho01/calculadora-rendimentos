@@ -57,4 +57,4 @@ O caminho HTTP continua a normalizar os objetos para Portfolio v1 antes de chama
 
 A migration não altera carteiras, IDs, revisões, tombstones, recibos ou contadores já existentes. Registos históricos com campos adicionais continuam legíveis; podem ser atualizados com o esquema limpo e a revisão atual, ou eliminados. Repetir uma importação histórica que contenha campos adicionais passa a ser rejeitado. Os hashes antigos não permitem reconstruir o conteúdo original: não se garante deduplicação retroativa entre essas importações e versões limpas, nem se reescrevem recibos silenciosamente. Rever esses casos antes de repetir a importação.
 
-A 005 está preparada e verificada apenas em PostgreSQL local via PGlite; não está registada como aplicada no serviço Supabase.
+A 005 foi aplicada e registada no projeto configurado em 2 de novembro de 2026. Foram verificados o corpo da função, o SQL registado, as permissões e a preservação dos dados existentes, conforme [SETUP.md](SETUP.md). Outros projetos exigem aplicação própria.

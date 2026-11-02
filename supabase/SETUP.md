@@ -1,6 +1,6 @@
 # Configuração externa — 30 de outubro de 2026
 
-**Atualização de 2 de novembro de 2026:** a migration 005 de propriedades estritas está preparada para aplicar depois da 004 e ainda não foi aplicada ao Supabase real. Consultar o registo no final e o [contrato](CONTRACT.md).
+**Atualização de 2 de novembro de 2026:** a migration 005 de propriedades estritas foi aplicada e registada no Supabase real depois da 004. Consultar o registo no final e o [contrato](CONTRACT.md).
 
 ## Correções de segurança — migration aplicada, deploy pendente
 
@@ -18,7 +18,7 @@ Validação da primeira correção de segurança, anterior aos ajustes finais do
 
 - Supabase: projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`), organização Vercel Marketplace `pecoelho01's projects`, região `eu-north-1`.
 - Antes das alterações: projeto saudável, sem tabelas da aplicação, funções `account_*`, migrations ou utilizadores Auth. O projeto MetroLiveTime não foi alterado.
-- Migrations aplicadas e registadas: `202610300001`, `202610300002`, `202610300003` (31 de outubro) e `202610310004` (1 de novembro). Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`; o contador privado da 004 não tem acesso direto pelos papéis cliente.
+- Migrations aplicadas e registadas: `202610300001`, `202610300002`, `202610300003` (31 de outubro), `202610310004` (1 de novembro) e `202611020005` (2 de novembro). Tabelas com RLS, leitura limitada ao proprietário, escritas diretas revogadas e RPCs disponíveis apenas a `authenticated`; o contador privado da 004 não tem acesso direto pelos papéis cliente.
 - Auth: email/password e registo ativos, confirmação de email obrigatória, início de sessão sem confirmação desativado e palavra-passe mínima de 8 caracteres.
 - Site URL: `https://calculadora-rendimentos.vercel.app`.
 - Redirects exatos: `https://calculadora-rendimentos.vercel.app/`, `https://calculadora-rendimentos.vercel.app/?recovery=1`, `http://localhost:3000/` e `http://localhost:3000/?recovery=1`.
@@ -137,7 +137,7 @@ Validação Node.js 24.22.2: `npm ci`, arranque de desenvolvimento (entrada 200/
 
 Não foram alteradas migrations, dependências ou configurações externas. A migration 004 aplicada mantém o mesmo checksum. Não se repetiu o harness SQL nesta correção de Auth (foi executado na análise imediatamente anterior, no mesmo SQL); a validação integrada Vercel/Auth/SMTP continua pendente. O build final foi reposto com `.env.local`.
 
-## Propriedades estritas na RPC — migration 005 pendente, 2 de novembro de 2026
+## Validação local de propriedades estritas na RPC — 2 de novembro de 2026
 
 `202611020005_account_strict_properties.sql` substitui apenas o validador privado de carteiras. Rejeita campos fora do esquema v1 em carteiras e transações, antes de guardar ou calcular o hash de importação, mantendo as validações financeiras e permissões existentes. As migrations 001–004 permanecem intactas.
 
@@ -145,7 +145,7 @@ Não reescreve dados, revisões ou recibos históricos. Registos antigos com cam
 
 Validação local em Node.js 24.22.2: 40 testes unitários, typecheck, lint e build aprovados. O harness SQL/PGlite passou com as cinco migrations, incluindo rejeição de campos extra por RPC na criação/atualização/importação, replay com chave existente, preservação de dados/recibos/contadores no upgrade, atualização histórica com CAS e rollback de lote/contador. Os casos anteriores de FIFO, RLS, quotas e fronteira de 3 MB continuam aprovados. Playwright com Auth/API/mercado simulados: 121 aprovados e 11 ignorados (10 exigem build sem configuração; um é exclusivo de desktop). A revisão independente não identificou bloqueios.
 
-A aplicação no Supabase real continua pendente. Não foram alteradas configurações Auth, callbacks, SMTP ou Vercel, nem aplicadas alterações à base remota.
+Esta validação local antecedeu a aplicação no Supabase real, registada no final deste ficheiro. Não alterou configurações Auth, callbacks, SMTP ou Vercel.
 
 ## Rejeição de tokens na query antes da página — 2 de novembro de 2026
 
@@ -155,4 +155,23 @@ Códigos PKCE sem tokens continuam a passar pelo fluxo normal. Fragmentos sem to
 
 Esta proteção reduz a permanência de credenciais na URL, incluindo com scripts atrasados ou desativados. Não impede que o pedido inicial chegue à infraestrutura nem remove logs anteriores. A verificação integrada na Vercel com Auth/SMTP reais continua pendente; não foram alterados redirects Supabase, templates de email, políticas de logs ou configurações externas.
 
-Validação em Node.js 24.22.2: 43 testes unitários, typecheck, lint e builds com/sem configuração Supabase aprovados. Playwright em computador/telemóvel com SDK Auth real e transporte simulado: 133 aprovados e 11 ignorados; os casos de callback/entrada sem configuração passaram separadamente (16 aprovados). Os novos casos verificam HTTP 303/no-store, parâmetros duplicados/percent-encoded, ausência de JavaScript, hidratação bloqueada, substituição de fragmentos, sessão anterior preservada e código PKCE válido contaminado sem consumo do verifier. O teste existente da sidebar falhou uma vez na primeira execução e passou na repetição isolada e na execução completa final. A revisão independente não encontrou bloqueios. O SQL não foi alterado nem novamente aplicado; a migration 005 continua pendente no serviço.
+Validação em Node.js 24.22.2: 43 testes unitários, typecheck, lint e builds com/sem configuração Supabase aprovados. Playwright em computador/telemóvel com SDK Auth real e transporte simulado: 133 aprovados e 11 ignorados; os casos de callback/entrada sem configuração passaram separadamente (16 aprovados). Os novos casos verificam HTTP 303/no-store, parâmetros duplicados/percent-encoded, ausência de JavaScript, hidratação bloqueada, substituição de fragmentos, sessão anterior preservada e código PKCE válido contaminado sem consumo do verifier. O teste existente da sidebar falhou uma vez na primeira execução e passou na repetição isolada e na execução completa final. A revisão independente não encontrou bloqueios. O SQL não foi alterado nem novamente aplicado nessa validação de callbacks; a aplicação posterior da migration 005 está registada na secção seguinte.
+
+## Aplicação da migration 005 no Supabase real — 2 de novembro de 2026
+
+A pedido do utilizador, `202611020005_account_strict_properties.sql` foi aplicada pela Management API no projeto `calculadora-rendimentos` (`bfwetxarkuukaokfllud`), confirmado como saudável. O histórico continha apenas 001–004; o validador correspondia ao corpo da 001 e a função de escrita ao da 004. Os checksums registados de 001, 002 e 004 correspondiam aos ficheiros. O SQL registado da 003 não inclui os comentários iniciais nem os delimitadores de transação do ficheiro local; o restante conteúdo é igual e a função de canonicalização instalada também corresponde ao código.
+
+A substituição do validador e o registo da versão `202611020005`, nome `account_strict_properties`, foram confirmados numa única transação, com timeout de lock de 5 segundos e de instrução de 30 segundos. Locks no histórico, contador e tabelas da aplicação protegeram a comparação de contagens e hashes agregados antes/depois. A transação exigiu a igualdade dos dados de carteiras, recibos e contadores, das restantes funções, dos metadados/permissões e das políticas RLS antes do commit.
+
+Validações executadas na mesma transação:
+
+- Carteira vazia e compra sintética válidas aceites pelo validador.
+- Propriedade extra na carteira (`null`) e na transação (`false`) rejeitadas com SQLSTATE `22023`.
+- Venda sem posição rejeitada com SQLSTATE `22023`.
+- Corpo do validador igual à 005; `search_path` vazio, execução como invocador e metadados preservados.
+- Sem execução direta do validador para `PUBLIC`, `anon` ou `authenticated`.
+- SQL original completo guardado no histórico, com SHA256 `1ab6e9aa8fa493c7dc738f967fc95038d31f12d33f0e933604553bbb2f354d91`, igual ao ficheiro do PR.
+
+Uma nova consulta após o commit confirmou corpo, configuração, permissões e histórico/checksum. Os testes chamaram apenas o validador com JSON sintético: não foram criados utilizadores, gravadas carteiras nem invocada a RPC de escrita. O harness SQL/PGlite completo voltou a passar antes da aplicação, e o envelope transacional foi também executado localmente e revisto de forma independente.
+
+Foi usado um access token pessoal recebido por cartão privado, sem emitir o valor nem o guardar no repositório; o ficheiro privado temporário foi removido após a verificação. Não foram alteradas configurações Auth/SMTP, callbacks ou Vercel. Esta aplicação valida o esquema e o validador reais; a validação integrada da UI com Vercel/Auth/SMTP continua pendente.
