@@ -1589,6 +1589,7 @@ ul.import-help {
     gap: 16px;
   }
   .segments {
+    flex-wrap: wrap;
     width: 100%;
     justify-content: space-between;
   }

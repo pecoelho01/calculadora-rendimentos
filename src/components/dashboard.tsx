@@ -628,16 +628,18 @@ export function Dashboard() {
               </p>
               <h3>Histórico e S&P 500</h3>
               <p>
-                Reconstruímos a carteira até ao último dia de negociação de cada
-                semana, usando apenas preços desse dia ou anteriores. O S&P 500
+                Reconstruímos a carteira com fechos diários em 1D, 5D e 1M e
+                semanais nos restantes períodos, usando apenas preços desse dia
+                ou anteriores. Não há dados intradiários. O S&P 500
                 é um índice de preços em USD e não simula os mesmos fluxos de
                 caixa. Em Máximo, usa o primeiro fecho disponível desde a
                 primeira transação, e a carteira mantém os custos originais. Em
-                3M, 6M, 1A e YTD, as posições iniciais e o índice usam o último
-                fecho anterior ao início efetivo do intervalo. A rentabilidade
+                1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais e o índice usam o
+                último fecho anterior ao início efetivo do intervalo. A rentabilidade
                 total inclui as compras e vendas do período; nas posições
                 abertas, só contam os lotes ainda detidos, desde o início do
-                intervalo ou a aquisição. YTD começa em 1 de janeiro. As compras
+                intervalo ou a aquisição. 1D abrange o dia atual e 5D os últimos
+                cinco dias de calendário. YTD começa em 1 de janeiro. As compras
                 entram integralmente na base, sem ponderação temporal.
               </p>
               <h3>Moedas, preços e limites</h3>

@@ -267,7 +267,7 @@ export type PerformancePoint = {
   benchmark: number | null;
   current?: boolean;
 };
-export const performancePeriods = ["3M", "6M", "1A", "YTD", "Máximo"] as const;
+export const performancePeriods = ["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"] as const;
 export type PerformancePeriod = (typeof performancePeriods)[number];
 
 export function performanceStart(
@@ -277,9 +277,13 @@ export function performanceStart(
   if (period === "Máximo") return null;
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
   const date = new Date(`${end}T00:00:00Z`);
+  if (period === "1D" || period === "5D") {
+    date.setUTCDate(date.getUTCDate() - (period === "5D" ? 4 : 0));
+    return date.toISOString().slice(0, 10);
+  }
   const day = date.getUTCDate();
   date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() - { "3M": 3, "6M": 6, "1A": 12 }[period]);
+  date.setUTCMonth(date.getUTCMonth() - { "1M": 1, "6M": 6, "1A": 12 }[period]);
   const lastDay = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
   ).getUTCDate();
@@ -427,14 +431,17 @@ export function calculatePerformance(
         .map((p) => p.date),
     ),
   ].sort();
-  const weekly = dates.filter(
-    (date, i) =>
-      i === dates.length - 1 || weekKey(date) !== weekKey(dates[i + 1]),
-  );
+  const sampledDates =
+    period === "1D" || period === "5D" || period === "1M"
+      ? dates
+      : dates.filter(
+          (date, i) =>
+            i === dates.length - 1 || weekKey(date) !== weekKey(dates[i + 1]),
+        );
   const data: PerformancePoint[] = first
     ? [
         evaluate(boundary, openingMarket),
-        ...weekly.map((date) => evaluate(date, marketAt(market, date))),
+        ...sampledDates.map((date) => evaluate(date, marketAt(market, date))),
         evaluate(end, market, true),
       ]
     : [];
