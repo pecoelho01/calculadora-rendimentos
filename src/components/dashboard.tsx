@@ -12,6 +12,7 @@ import { parseCsv, exportCsv } from "@/lib/csv";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
+import { AllocationDonut } from "./allocation-donut";
 import { GeographicChart } from "./geographic-chart";
 import { useGeography } from "./use-geography";
 import { Dialog } from "./dialog";
@@ -51,6 +52,7 @@ export function Dashboard() {
   const [storageBroken, setStorageBroken] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
   const [modal, setModal] = useState<Modal>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
@@ -728,85 +730,65 @@ export function Dashboard() {
                     market={market}
                     currency={currency}
                   />
-                  <section className="panel allocation">
+                  <section className="panel allocation-card" aria-label="Distribuição da carteira">
                     <div className="panel-heading">
                       <div>
                         <h2>Onde estás a investir</h2>
                       </div>
                       <span className="subtle">{currency}</span>
                     </div>
-                    {summary.value !== null && summary.value > 0 ? (
-                      <>
-                        <div
-                          className="donut"
-                          role="img"
-                          aria-label="Alocação da carteira por valor de mercado"
-                          style={{
-                            background: `conic-gradient(${summary.positions
-                              .filter((p) => (p.value ?? 0) > 0)
-                              .map((p, i, a) => {
-                                const previous =
-                                  (a
-                                    .slice(0, i)
-                                    .reduce((n, v) => n + (v.value ?? 0), 0) /
-                                    summary.value!) *
-                                  100;
-                                return `${colors[i % colors.length]} ${previous}% ${previous + ((p.value ?? 0) / summary.value!) * 100}%`;
-                              })
-                              .join(",")})`,
-                          }}
-                        >
-                          <div>
-                            <small>Ativos</small>
-                            <strong>
-                              {
-                                summary.positions.filter((p) => p.shares > 0)
-                                  .length
-                              }
-                            </strong>
+                    <div
+                      className="segments allocation-toggle no-print"
+                      role="group"
+                      aria-label="Tipo de distribuição"
+                    >
+                      <button
+                        aria-pressed={allocationView === "assets"}
+                        onClick={() => setAllocationView("assets")}
+                      >
+                        ETFs
+                      </button>
+                      <button
+                        aria-pressed={allocationView === "geography"}
+                        onClick={() => setAllocationView("geography")}
+                      >
+                        Geografia
+                      </button>
+                    </div>
+                    <div className="allocation-content">
+                      <div className="allocation asset-allocation" hidden={allocationView !== "assets"}>
+                        {summary.value !== null && summary.value > 0 ? (
+                          <AllocationDonut
+                            slices={summary.positions.filter((position) => position.shares > 0).map((position, index) => ({
+                              id: position.ticker,
+                              label: position.ticker,
+                              percent: ((position.value ?? 0) / summary.value!) * 100,
+                              color: colors[index % colors.length],
+                            }))}
+                            label="Alocação da carteira por valor de mercado"
+                            centerLabel="Ativos"
+                            centerValue={String(summary.positions.filter((position) => position.shares > 0).length)}
+                          />
+                        ) : (
+                          <div className="allocation-empty">
+                            <div className="empty-ring" />
+                            <p>
+                              A distribuição dos teus ativos
+                              <br />
+                              vai aparecer aqui.
+                            </p>
                           </div>
-                        </div>
-                        <div className="allocation-list">
-                          {summary.positions
-                            .filter((p) => p.shares > 0)
-                            .map((p, i) => (
-                              <div key={p.ticker}>
-                                <span>
-                                  <i
-                                    className="dot"
-                                    style={{
-                                      background: colors[i % colors.length],
-                                    }}
-                                  />
-                                  {p.ticker}
-                                </span>
-                                <strong>
-                                  {(
-                                    ((p.value ?? 0) / summary.value!) *
-                                    100
-                                  ).toFixed(1)}
-                                  %
-                                </strong>
-                              </div>
-                            ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="allocation-empty">
-                        <div className="empty-ring" />
-                        <p>
-                          A distribuição dos teus ativos
-                          <br />
-                          vai aparecer aqui.
-                        </p>
+                        )}
                       </div>
-                    )}
+                      <div className="geographic-view" hidden={allocationView !== "geography"}>
+                        <GeographicChart
+                          positions={summary.positions}
+                          market={geographicMarket}
+                          loading={loading || geography.loading}
+                        />
+                      </div>
+                    </div>
                   </section>
-                  <GeographicChart
-                    positions={summary.positions}
-                    market={geographicMarket}
-                    loading={loading || geography.loading}
-                  />
                 </div>
               ) : null}
               <section className="panel holdings">

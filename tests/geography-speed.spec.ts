@@ -75,6 +75,7 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   });
   await page.goto("/");
   await expect(page.locator(".metric").first()).toContainText("1400,00");
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
@@ -123,6 +124,7 @@ test("resposta antiga não altera a geografia da carteira selecionada", async ({
     });
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
@@ -149,6 +151,7 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
   });
   await page.goto("/");
   await expect(page.locator(".metric").first()).toContainText("1400,00");
+  await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
     exact: true,
