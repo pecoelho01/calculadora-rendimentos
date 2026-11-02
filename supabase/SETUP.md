@@ -1,5 +1,7 @@
 # Configuração externa — 30 de outubro de 2026
 
+**Atualização de 2 de novembro de 2026:** a migration 005 de propriedades estritas está preparada para aplicar depois da 004 e ainda não foi aplicada ao Supabase real. Consultar o registo no final e o [contrato](CONTRACT.md).
+
 ## Correções de segurança — migration aplicada, deploy pendente
 
 A revisão do HEAD `569481d766fda927484ad50470e8cecc3c35c638` identificou aceitação de sessões implícitas por URL, concorrência de pedidos Auth e crescimento ilimitado de recibos/tombstones. A correção local passa a usar troca explícita PKCE vinculada ao navegador, rejeita/limpa ligações com tokens e serializa mutações Auth entre separadores com Web Locks. A confirmação e a recuperação exigem agora o navegador e a origem onde o pedido começou; ligações implícitas antigas têm de ser renovadas. Os redirects exatos existentes (`/` e `/?recovery=1`) mantêm-se, sem necessidade de wildcards.
@@ -134,3 +136,13 @@ A recuperação guarda agora o par `user.id`/`session_id` até terminar ou ser a
 Validação Node.js 24.22.2: `npm ci`, arranque de desenvolvimento (entrada 200/API sem sessão 401), 40 testes unitários, typecheck, lint e builds passaram. E2E com configuração fictícia: 113 aprovados e 11 ignorados (10 exigem build sem configuração válida; um é exclusivo de desktop). Os 10 casos de configuração foram executados separadamente e passaram com variáveis vazias e novamente com uma URL HTTP remota rejeitada, em computador e telemóvel. Os novos testes verificam refresh na mesma sessão, nova sessão do mesmo utilizador, SID inválido, submissão antes de chegar o evento de mudança e remoção de tokens/código/erro da URL sem pedidos Auth. A revisão independente do diff não encontrou bloqueios adicionais.
 
 Não foram alteradas migrations, dependências ou configurações externas. A migration 004 aplicada mantém o mesmo checksum. Não se repetiu o harness SQL nesta correção de Auth (foi executado na análise imediatamente anterior, no mesmo SQL); a validação integrada Vercel/Auth/SMTP continua pendente. O build final foi reposto com `.env.local`.
+
+## Propriedades estritas na RPC — migration 005 pendente, 2 de novembro de 2026
+
+`202611020005_account_strict_properties.sql` substitui apenas o validador privado de carteiras. Rejeita campos fora do esquema v1 em carteiras e transações, antes de guardar ou calcular o hash de importação, mantendo as validações financeiras e permissões existentes. As migrations 001–004 permanecem intactas.
+
+Não reescreve dados, revisões ou recibos históricos. Registos antigos com campos adicionais continuam legíveis e aceitam atualização com esquema limpo e revisão atual; repetições de importações com esses campos passam a ser rejeitadas. Não há garantia retroativa de deduplicação entre esses históricos e versões limpas, conforme [CONTRACT.md](CONTRACT.md).
+
+Validação local em Node.js 24.22.2: 40 testes unitários, typecheck, lint e build aprovados. O harness SQL/PGlite passou com as cinco migrations, incluindo rejeição de campos extra por RPC na criação/atualização/importação, replay com chave existente, preservação de dados/recibos/contadores no upgrade, atualização histórica com CAS e rollback de lote/contador. Os casos anteriores de FIFO, RLS, quotas e fronteira de 3 MB continuam aprovados. Playwright com Auth/API/mercado simulados: 121 aprovados e 11 ignorados (10 exigem build sem configuração; um é exclusivo de desktop). A revisão independente não identificou bloqueios.
+
+A aplicação no Supabase real continua pendente. Não foram alteradas configurações Auth, callbacks, SMTP ou Vercel, nem aplicadas alterações à base remota.

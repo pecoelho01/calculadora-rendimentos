@@ -48,3 +48,13 @@ Aplicar `202610310004_account_resource_limits.sql` depois da 003, antes de dispo
 - O limite e as quotas são aplicados pela RPC, incluindo chamadas diretas à Data API. A tabela e a função auxiliar privadas não têm acesso direto para `anon` ou `authenticated`; a linha do contador é removida por cascata ao remover a conta Auth.
 
 O harness PGlite verifica fronteiras de recibos e IDs incluindo tombstones, rejeição de crescimento por RPC direta, preservação de uma conta acima das quotas antes do upgrade, CAS após recriação, repetição após editar/apagar, rollback de lotes e contadores, isolamento por utilizador, limite 60/61 e renovação da janela sem esperar pelo relógio. A passagem do tempo é simulada apenas nas fixtures privilegiadas da base de dados local. Uma ligação PGlite não comprova concorrência real entre ligações, Auth/PostgREST HTTP nem aplicação da migration no Supabase.
+
+## Esquema estrito de propriedades (migration 005)
+
+Aplicar `202611020005_account_strict_properties.sql` depois da 004. A RPC rejeita propriedades desconhecidas, mesmo com valor `null`, com SQLSTATE `22023`: uma carteira admite apenas `id`, `name`, `currency` e `orders`; cada transação admite apenas `id`, `date`, `ticker`, `name`, `type`, `pricebuy` e `shares`. Mantêm-se as validações de tipos, valores, datas, quantidades e vendas. A validação ocorre antes de persistir, calcular hashes ou consultar recibos de importação, incluindo repetições com chave conhecida. Um lote inválido reverte também as alterações anteriores e o contador de escrita.
+
+O caminho HTTP continua a normalizar os objetos para Portfolio v1 antes de chamar a RPC. O esquema estrito na base de dados impede que chamadas diretas persistam campos que a API removeria na leitura, alterando o hash sem alterar a carteira visível. Importações válidas continuam idempotentes com a mesma chave ou uma chave nova para o mesmo conteúdo.
+
+A migration não altera carteiras, IDs, revisões, tombstones, recibos ou contadores já existentes. Registos históricos com campos adicionais continuam legíveis; podem ser atualizados com o esquema limpo e a revisão atual, ou eliminados. Repetir uma importação histórica que contenha campos adicionais passa a ser rejeitado. Os hashes antigos não permitem reconstruir o conteúdo original: não se garante deduplicação retroativa entre essas importações e versões limpas, nem se reescrevem recibos silenciosamente. Rever esses casos antes de repetir a importação.
+
+A 005 está preparada e verificada apenas em PostgreSQL local via PGlite; não está registada como aplicada no serviço Supabase.

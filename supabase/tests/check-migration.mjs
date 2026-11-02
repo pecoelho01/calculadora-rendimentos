@@ -26,6 +26,12 @@ await db.exec(`
 const grandfatherUser = "44444444-4444-4444-8444-444444444444";
 const historicalPortfolio = { id: "historical-active", name: "Histórico preservado", currency: "EUR", orders: [] };
 const historicalKey = "8".repeat(64);
+const extraFieldsUser = "77777777-7777-4777-8777-777777777777";
+const historicalExtraPortfolio = {
+  id: "old-extra", name: "Histórico com campos adicionais", currency: "EUR", extra: null,
+  orders: [{ id: "old-order", date: "2024-01-01", ticker: "TEST", name: "Teste", type: "buy", shares: 1, pricebuy: 10, extra: { note: "preservar" } }],
+};
+const historicalExtraMigration = { key: "9".repeat(64), portfolios: [historicalExtraPortfolio] };
 const migrations = new URL("../migrations/", import.meta.url);
 for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort()) {
   if (file.startsWith("202610300003")) {
@@ -56,6 +62,18 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
       values($1,$2,encode(sha256(convert_to(private.account_canonical_json($3::jsonb)::text,'UTF8')),'hex'))`,
       [grandfatherUser, historicalKey, JSON.stringify([historicalPortfolio])]);
     await db.exec(await readFile(new URL(file, migrations), "utf8"));
+  } else if (file.startsWith("202611020005")) {
+    // Create these records through the old RPC, before strict validation exists.
+    await db.query("insert into auth.users values ($1)", [extraFieldsUser]);
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [extraFieldsUser]);
+    await db.query("select public.account_apply('[]'::jsonb,$1::jsonb)", [JSON.stringify(historicalExtraMigration)]);
+    const storedState = async () => (await db.query(`select
+      (select jsonb_agg(to_jsonb(p) order by id) from public.account_portfolios p) as portfolios,
+      (select jsonb_agg(to_jsonb(m) order by user_id,key) from public.account_migrations m) as receipts,
+      (select jsonb_agg(to_jsonb(l) order by user_id) from private.account_write_limits l) as limits`)).rows[0];
+    const beforeUpgrade = await storedState();
+    await db.exec(await readFile(new URL(file, migrations), "utf8"));
+    assert.deepEqual(await storedState(), beforeUpgrade, "005 must not rewrite existing records, receipts or counters.");
   } else await db.exec(await readFile(new URL(file, migrations), "utf8"));
 }
 // Check binary rounding matches the existing JavaScript shareUnits contract.
@@ -240,8 +258,9 @@ await db.exec("reset role");
 for (const role of ["anon", "authenticated"]) {
   const privileges = (await db.query(`select
     has_table_privilege($1,'private.account_write_limits','SELECT,INSERT,UPDATE,DELETE') as table_access,
-    has_function_privilege($1,'private.account_check_write_rate(uuid)','EXECUTE') as helper_access`, [role])).rows[0];
-  assert.deepEqual(privileges, { table_access: false, helper_access: false });
+    has_function_privilege($1,'private.account_check_write_rate(uuid)','EXECUTE') as helper_access,
+    has_function_privilege($1,'private.account_validate(jsonb)','EXECUTE') as validator_access`, [role])).rows[0];
+  assert.deepEqual(privileges, { table_access: false, helper_access: false, validator_access: false });
 }
 await db.query("insert into auth.users values ($1),($2)", [resourceUser, rateUser]);
 const setOwner = async (id) => {
@@ -354,6 +373,65 @@ await db.exec("reset role");
 await db.query("delete from auth.users where id=$1", [rateUser]);
 assert.equal((await db.query("select count(*)::int as total from private.account_write_limits where user_id=$1", [rateUser])).rows[0].total, 0);
 console.log("SQL/PGlite: quotas de IDs/recibos, upgrade sem perda, rollback, isolamento e 60 escritas/minuto verificados.");
+
+// The RPC itself must reject extra keys, including null-valued or nested keys,
+// before persistence, receipt lookup or content hashing. No HTTP validator is used.
+await setOwner(extraFieldsUser);
+const historicalExtras = await snap();
+assert.equal(historicalExtras.portfolios[0].portfolio.extra, null);
+assert.deepEqual(historicalExtras.portfolios[0].portfolio.orders[0].extra, { note: "preservar" });
+await rejectsCode(() => apply([], historicalExtraMigration), "22023");
+const cleanImport = { key: "a".repeat(64), portfolios: [p] };
+const withCleanImport = await apply([], cleanImport);
+const beforeInvalid = await resourceCounts(extraFieldsUser);
+for (const value of [null, false, { nested: [1, 2] }]) {
+  for (const invalid of [
+    { ...p, extra: value },
+    { ...p, orders: p.orders.map((order, i) => i === 0 ? { ...order, extra: value } : order) },
+  ]) {
+    await rejectsCode(() => apply([change(invalid)]), "22023");
+    await rejectsCode(() => apply([], { key: "b".repeat(64), portfolios: [invalid] }), "22023");
+    // Even a known key must not bypass validation by returning an old receipt.
+    await rejectsCode(() => apply([], { ...cleanImport, portfolios: [invalid] }), "22023");
+    assert.deepEqual(await snap(), withCleanImport);
+    assert.deepEqual(await resourceCounts(extraFieldsUser), beforeInvalid);
+  }
+}
+assert.deepEqual(await apply([], { ...cleanImport, key: "c".repeat(64) }), withCleanImport);
+await rejectsCode(() => db.query("select private.account_validate($1::jsonb)", [JSON.stringify(p)]), "42501");
+// A later invalid write must roll back the earlier valid write and rate counter.
+const cleanRecord = withCleanImport.portfolios.find((item) => !Object.hasOwn(item.portfolio, "extra"));
+const beforeBatch = await resourceCounts(extraFieldsUser);
+await rejectsCode(() => apply([change({
+  ...cleanRecord.portfolio,
+  orders: cleanRecord.portfolio.orders.map((order, i) => i === 0 ? { ...order, extra: null } : order),
+}, cleanRecord.revision)]), "22023");
+assert.deepEqual(await snap(), withCleanImport);
+assert.deepEqual(await resourceCounts(extraFieldsUser), beforeBatch);
+await rejectsCode(() => apply([
+  change({ ...cleanRecord.portfolio, name: "Must roll back" }, cleanRecord.revision),
+  change({ ...p, id: "invalid-batch", orders: [{ ...p.orders[0], extra: true }] }),
+]), "22023");
+assert.deepEqual(await snap(), withCleanImport);
+assert.deepEqual(await resourceCounts(extraFieldsUser), beforeBatch);
+// Historical rows remain readable and can be edited with a clean payload and CAS.
+const oldRecord = historicalExtras.portfolios[0];
+await rejectsCode(() => apply([change(oldRecord.portfolio, oldRecord.revision)]), "22023");
+const cleanHistorical = { ...oldRecord.portfolio };
+delete cleanHistorical.extra;
+cleanHistorical.orders = cleanHistorical.orders.map((order) => {
+  const clean = { ...order };
+  delete clean.extra;
+  return clean;
+});
+const editedHistorical = await apply([change(cleanHistorical, oldRecord.revision)]);
+const updated = editedHistorical.portfolios.find((item) => item.portfolio.id === cleanHistorical.id);
+assert.deepEqual(updated.portfolio, cleanHistorical);
+assert.equal(updated.revision, oldRecord.revision + 1);
+await rejectsCode(() => apply([change(cleanHistorical, oldRecord.revision)]), "PT409");
+await apply([{ id: cleanHistorical.id, portfolio: null, expectedRevision: updated.revision }]);
+assert.equal((await snap()).portfolios.length, 1);
+console.log("SQL/PGlite: propriedades desconhecidas rejeitadas por RPC; recibos, rollback e histórico da 005 verificados.");
 await db.exec("reset role; set role anon; select set_config('request.jwt.claim.sub','',false)");
 await rejectsCode(() => snap(), "42501");
 await rejectsCode(() => apply([change(p)]), "42501");
