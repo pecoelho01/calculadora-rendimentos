@@ -438,27 +438,29 @@ test("revalidar a sessão dentro do lock impede submissão sem evento de mudanç
 });
 
 for (const signedIn of [false, true]) {
-  test(`rejeitar sessão por tokens na ligação e preservar sessão anterior: ${signedIn}`, async ({ page }) => {
-    const state = await setup(page, signedIn);
-    const attackerSession = session(userB);
-    const hash = new URLSearchParams({ access_token: attackerSession.access_token, refresh_token: attackerSession.refresh_token, expires_in: "3600", token_type: "bearer", type: "recovery" });
-    await page.goto(`/?recovery=1#${hash}`);
-    await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    if (signedIn) {
-      await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
-      expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).user.id, authKey)).toBe(userA);
-    } else {
-      await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toHaveCount(0);
-      expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
-    }
-    expect(state.authRequests).toHaveLength(0);
-    expect(state.requests).toHaveLength(0);
-    expect(new URL(page.url()).hash).toBe("");
-    expect(new URL(page.url()).search).toBe("");
-    expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
-  });
+  for (const transport of ["fragmento", "query"]) {
+    test(`rejeitar sessão por tokens na ligação e preservar sessão anterior: ${signedIn}, ${transport}`, async ({ page }) => {
+      const state = await setup(page, signedIn);
+      const attackerSession = session(userB);
+      const hash = new URLSearchParams({ access_token: attackerSession.access_token, refresh_token: attackerSession.refresh_token, expires_in: "3600", token_type: "bearer", type: "recovery" });
+      await page.goto(transport === "fragmento" ? `/?recovery=1#${hash}` : `/?recovery=1&code=discarded-code&${hash}#access_token=discarded-fragment`);
+      await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      if (signedIn) {
+        await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
+        expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).user.id, authKey)).toBe(userA);
+      } else {
+        await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toHaveCount(0);
+        expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+      }
+      expect(state.authRequests).toHaveLength(0);
+      expect(state.requests).toHaveLength(0);
+      expect(new URL(page.url()).hash).toBe("");
+      expect(new URL(page.url()).search).toBe("");
+      expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+    });
+  }
   test(`código sem verifier não inicia sessão nem substitui sessão anterior: ${signedIn}`, async ({ page }) => {
     const state = await setup(page, signedIn);
     await page.goto("/?code=unsolicited-code&recovery=1");
@@ -470,6 +472,25 @@ for (const signedIn of [false, true]) {
     else expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
   });
 }
+
+test("query contaminada rejeita código PKCE válido sem consumir o verifier nem a sessão anterior", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await requestRecovery(page);
+  const prior = session();
+  await page.evaluate(({ key, prior }) => localStorage.setItem(key, JSON.stringify(prior)), { key: authKey, prior });
+  const verifier = await page.evaluate((key) => localStorage.getItem(`${key}-code-verifier`), authKey);
+  expect(verifier).toBeTruthy();
+  const beforeAuth = state.authRequests.length;
+  await page.goto("/?preservar=1&code=recovery-test-code&recovery=1&access_token=synthetic&refresh_token=synthetic");
+  await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+  expect(state.authRequests).toHaveLength(beforeAuth);
+  expect(await page.evaluate((key) => localStorage.getItem(`${key}-code-verifier`), authKey)).toBe(verifier);
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).access_token, authKey)).toBe(prior.access_token);
+  expect(new URL(page.url()).search).toBe("?preservar=1");
+  expect(new URL(page.url()).hash).toBe("");
+});
 
 test("código com verifier incorreto é rejeitado sem alterar carteiras", async ({ page }) => {
   const state = await setup(page);
