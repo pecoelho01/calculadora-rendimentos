@@ -47,6 +47,7 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
     state.marketRequests++;
     return route.fulfill({ json: { assets: {} } });
   });
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: {} } }));
   await page.route("https://rendimentos-test.supabase.co/auth/v1/**", async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") {
@@ -817,7 +818,11 @@ test("recarregar conta limpa as pesquisas de todos os separadores e preserva os 
 test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/data ao mercado", async ({ page }) => {
   const state = await setup(page, true);
   const marketRequests: URL[] = [];
-  page.on("request", (request) => { if (request.url().includes("/api/market?")) marketRequests.push(new URL(request.url())); });
+  const geographyRequests: URL[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/market?")) marketRequests.push(new URL(request.url()));
+    if (request.url().includes("/api/geography?")) geographyRequests.push(new URL(request.url()));
+  });
   await page.goto("/");
   await expect(page.locator(".portfolio-link[aria-current='true']").getByText("Carteira da Ana", { exact: true })).toBeVisible();
   const csv = "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-01,TEST,Teste,120,3,sell";
@@ -828,6 +833,11 @@ test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/da
   await expect.poll(() => marketRequests.length).toBeGreaterThan(0);
   expect([...marketRequests[0].searchParams.keys()].sort()).toEqual(["start", "tickers"]);
   expect(marketRequests[0].searchParams.get("tickers")).toBe("TEST");
+  await expect.poll(() => geographyRequests.length).toBeGreaterThan(0);
+  for (const url of geographyRequests) {
+    expect([...url.searchParams.keys()]).toEqual(["tickers"]);
+    expect(url.searchParams.get("tickers")).toBe("TEST");
+  }
   const invalid = "date,ticker,name,pricebuy,shares,type\n2024-01-02,TEST,Teste,120,8,sell\n2024-01-03,TEST,Teste,120,1,buy";
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "venda-invalida.csv", mimeType: "text/csv", buffer: Buffer.from(invalid) });
   await expect(page.getByText(/venda superior à posição disponível/)).toBeVisible();

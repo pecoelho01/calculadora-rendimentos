@@ -1,4 +1,5 @@
-import type { Currency, MarketData, Order, PricePoint } from "./types";
+import type { Currency, Geography, MarketData, Order, PricePoint } from "./types";
+import { continentForCountry, type Continent } from "./continents";
 import { chronological, validateOrders, shareUnits } from "./validation";
 export type Position = {
   ticker: string;
@@ -23,6 +24,68 @@ export type OrderGain = {
   percent: number | null;
   shares: number;
 };
+
+export function geographicAllocation(
+  positions: Position[],
+  market: MarketData,
+) {
+  const open = positions.filter((p) => p.shares > 0);
+  if (open.some((p) => p.value === null)) return null;
+  const total = open.reduce((n, p) => n + p.value!, 0);
+  const values = new Map<Continent, number>();
+  const sources: (Pick<
+    Geography,
+    "asOf" | "source" | "sourceName" | "method" | "holdingsCount"
+  > & { ticker: string })[] = [];
+  for (const p of open) {
+    if (!p.value) continue;
+    const data = market[p.ticker]?.geography;
+    const sum = data?.allocations.reduce((n, a) => n + a.weight, 0) ?? 0;
+    const valid =
+      data &&
+      data.allocations.length > 0 &&
+      sum > 0 &&
+      sum <= 1.00000001 &&
+      data.allocations.every(
+        (a) => Number.isFinite(a.weight) && a.weight >= 0 && a.weight <= 1,
+      );
+    if (valid) {
+      for (const a of data.allocations) {
+        const continent = continentForCountry(a.country);
+        values.set(continent, (values.get(continent) ?? 0) + p.value * a.weight);
+      }
+      sources.push({
+        ticker: p.ticker,
+        asOf: data.asOf,
+        source: data.source,
+        sourceName: data.sourceName,
+        method: data.method,
+        holdingsCount: data.holdingsCount,
+      });
+    }
+    const covered = valid
+      ? Math.abs(1 - sum) < 1e-10
+        ? 1
+        : Math.min(sum, 1)
+      : 0;
+    const missing = p.value * (1 - covered);
+    if (missing > 0)
+      values.set("UNKNOWN", (values.get("UNKNOWN") ?? 0) + missing);
+  }
+  return {
+    total,
+    allocations: [...values]
+      .filter(([, value]) => value > 0)
+      .map(([continent, value]) => ({
+        continent,
+        value,
+        percent: total > 0 ? (value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value),
+    sources,
+    coverage: total > 0 ? (1 - (values.get("UNKNOWN") ?? 0) / total) * 100 : 0,
+  };
+}
 
 const gainPercent = (gain: number | null, cost: number) =>
   gain !== null && cost > 0 ? (gain / cost) * 100 : null;
@@ -211,6 +274,23 @@ export function priceAt(history: PricePoint[], date: string): number | null {
   }
   return value;
 }
+// Use only the portfolio assets' observations, independent of any external index.
+function historyDates(
+  orders: Order[],
+  market: MarketData,
+  start: string,
+  end: string,
+): string[] {
+  return [
+    ...new Set(
+      [...new Set(orders.map((order) => order.ticker))].flatMap((ticker) =>
+        (market[ticker]?.history ?? [])
+          .filter((point) => point.date >= start && point.date <= end)
+          .map((point) => point.date),
+      ),
+    ),
+  ].sort();
+}
 export function calculateHistory(
   orders: Order[],
   market: MarketData,
@@ -219,15 +299,7 @@ export function calculateHistory(
 ) {
   if (!orders.length) return [];
   const first = chronological(orders)[0].date;
-  const benchmark = market["^GSPC"]?.history ?? [];
-  const dates = [
-    ...new Set(
-      benchmark
-        .filter((p) => p.date >= first && p.date <= end)
-        .map((p) => p.date),
-    ),
-  ].sort();
-  const base = dates.length ? priceAt(benchmark, dates[0]) : null;
+  const dates = historyDates(orders, market, first, end);
   // Last trading observation of each ISO week; all transactions up to that day are included.
   const weekly = dates.filter(
     (date, i) =>
@@ -245,12 +317,10 @@ export function calculateHistory(
       historical,
       currency,
     );
-    const close = priceAt(benchmark, date);
     return {
       date,
       roi: p.roi,
       openRoi: p.openRoi,
-      benchmark: base && close !== null ? (close / base - 1) * 100 : null,
     };
   });
 }
@@ -264,10 +334,9 @@ export type PerformancePoint = {
   date: string;
   roi: number | null;
   openRoi: number | null;
-  benchmark: number | null;
   current?: boolean;
 };
-export const performancePeriods = ["3M", "6M", "1A", "YTD", "Máximo"] as const;
+export const performancePeriods = ["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"] as const;
 export type PerformancePeriod = (typeof performancePeriods)[number];
 
 export function performanceStart(
@@ -277,9 +346,13 @@ export function performanceStart(
   if (period === "Máximo") return null;
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
   const date = new Date(`${end}T00:00:00Z`);
+  if (period === "1D" || period === "5D") {
+    date.setUTCDate(date.getUTCDate() - (period === "5D" ? 4 : 0));
+    return date.toISOString().slice(0, 10);
+  }
   const day = date.getUTCDate();
   date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() - { "3M": 3, "6M": 6, "1A": 12 }[period]);
+  date.setUTCMonth(date.getUTCMonth() - { "1M": 1, "6M": 6, "1A": 12 }[period]);
   const lastDay = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
   ).getUTCDate();
@@ -319,7 +392,6 @@ export function calculatePerformance(
   const boundaryDate = new Date(`${start}T00:00:00Z`);
   boundaryDate.setUTCDate(boundaryDate.getUTCDate() - 1);
   const boundary = boundaryDate.toISOString().slice(0, 10);
-  const benchmark = market["^GSPC"];
 
   if (requestedStart === null) {
     const data: PerformancePoint[] = calculateHistory(
@@ -328,21 +400,11 @@ export function calculatePerformance(
       currency,
       end,
     );
-    const firstIndexDate = benchmark?.history.find(
-      (p) => p.date >= start && p.date <= end,
-    )?.date;
-    const base = firstIndexDate
-      ? priceAt(benchmark?.history ?? [], firstIndexDate)
-      : null;
     if (first) {
       const point: PerformancePoint = {
         date: end,
         roi: current.summary.roi,
         openRoi: current.summary.openRoi,
-        benchmark:
-          base !== null && base > 0 && benchmark?.price != null
-            ? (benchmark.price / base - 1) * 100
-            : null,
         current: true,
       };
       if (data.at(-1)?.date === end) data[data.length - 1] = point;
@@ -364,7 +426,6 @@ export function calculatePerformance(
     openingMarket,
     currency,
   );
-  const base = priceAt(benchmark?.history ?? [], boundary);
   const evaluate = (
     date: string,
     prices: MarketData,
@@ -406,35 +467,27 @@ export function calculatePerformance(
       snapshot.summary.value !== null && openCost !== null && openCost > 0
         ? ((snapshot.summary.value - openCost) / openCost) * 100
         : null;
-    const indexPrice = isCurrent
-      ? (benchmark?.price ?? null)
-      : priceAt(benchmark?.history ?? [], date);
     return {
       date,
       roi,
       openRoi,
-      benchmark:
-        base !== null && base > 0 && indexPrice !== null
-          ? (indexPrice / base - 1) * 100
-          : null,
       ...(isCurrent ? { current: true } : {}),
     };
   };
-  const dates = [
-    ...new Set(
-      (benchmark?.history ?? [])
-        .filter((p) => p.date >= start && p.date < end)
-        .map((p) => p.date),
-    ),
-  ].sort();
-  const weekly = dates.filter(
-    (date, i) =>
-      i === dates.length - 1 || weekKey(date) !== weekKey(dates[i + 1]),
+  const dates = historyDates(applicable, market, start, end).filter(
+    (date) => date < end,
   );
+  const sampledDates =
+    period === "1D" || period === "5D" || period === "1M"
+      ? dates
+      : dates.filter(
+          (date, i) =>
+            i === dates.length - 1 || weekKey(date) !== weekKey(dates[i + 1]),
+        );
   const data: PerformancePoint[] = first
     ? [
         evaluate(boundary, openingMarket),
-        ...weekly.map((date) => evaluate(date, marketAt(market, date))),
+        ...sampledDates.map((date) => evaluate(date, marketAt(market, date))),
         evaluate(end, market, true),
       ]
     : [];

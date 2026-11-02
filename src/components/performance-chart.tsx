@@ -72,7 +72,7 @@ export function PerformanceChart({
   const activeIndex = selection?.data === data ? selection.index : null;
   const active = activeIndex === null ? null : points[activeIndex];
   const values = points
-    .flatMap((p) => [p.roi, p.benchmark])
+    .map((p) => p.roi)
     .filter((n): n is number => n !== null);
   const min = Math.min(0, ...values),
     max = Math.max(1, ...values),
@@ -86,11 +86,11 @@ export function PerformanceChart({
     (timeSpan ? (Date.parse(points[i].date) - firstTime) / timeSpan : 0) *
       plotWidth;
   const y = (v: number) => 195 - ((v - min) / span) * 160;
-  const path = (key: "roi" | "benchmark") => {
+  const path = () => {
     let connected = false;
     return points
       .map((p, i) => {
-        const v = p[key];
+        const v = p.roi;
         if (v === null) {
           connected = false;
           return "";
@@ -195,13 +195,10 @@ export function PerformanceChart({
                 <span>
                   {modeLabel} <strong>{percent(active.roi)}</strong>
                 </span>
-                <span>
-                  S&P 500 <strong>{percent(active.benchmark)}</strong>
-                </span>
               </>
             ) : (
               <span>
-                Seleciona uma data para consultar a rentabilidade semanal.
+                Seleciona uma data para consultar a rentabilidade.
               </span>
             )}
           </div>
@@ -213,7 +210,7 @@ export function PerformanceChart({
             aria-valuemin={0}
             aria-valuemax={points.length - 1}
             aria-valuenow={activeIndex ?? points.length - 1}
-            aria-valuetext={`${dateLabel((active ?? points[points.length - 1]).date)}: ${modeLabel.toLowerCase()} ${percent((active ?? points[points.length - 1]).roi)}, S&P 500 ${percent((active ?? points[points.length - 1]).benchmark)}`}
+            aria-valuetext={`${dateLabel((active ?? points[points.length - 1]).date)}: ${modeLabel.toLowerCase()} ${percent((active ?? points[points.length - 1]).roi)}`}
             onFocus={() => setSelection({ data, index: points.length - 1 })}
             onBlur={() => setSelection(null)}
             onPointerLeave={(event) => {
@@ -246,9 +243,9 @@ export function PerformanceChart({
               ref={svgRef}
               viewBox={`0 0 ${chartWidth} 235`}
               role="img"
-              aria-label={`${modeLabel} e rentabilidade do S&P 500 por semana`}
+              aria-label={modeLabel}
             >
-              <title>Rentabilidade semanal em percentagem</title>
+              <title>Rentabilidade em percentagem</title>
               {[0, 1, 2, 3, 4].map((i) => {
                 const v = min + (span * i) / 4;
                 return (
@@ -273,14 +270,7 @@ export function PerformanceChart({
                 );
               })}
               <path
-                d={path("benchmark")}
-                stroke="var(--benchmark)"
-                strokeWidth="2"
-                fill="none"
-                strokeDasharray="5 5"
-              />
-              <path
-                d={path("roi")}
+                d={path()}
                 stroke="var(--accent)"
                 strokeWidth="3"
                 fill="none"
@@ -306,7 +296,7 @@ export function PerformanceChart({
                     x2={x(activeIndex)}
                     y1="30"
                     y2="200"
-                    stroke="var(--benchmark)"
+                    stroke="var(--chart-cursor)"
                     strokeDasharray="4 4"
                   />
                   {active.roi !== null ? (
@@ -347,13 +337,9 @@ export function PerformanceChart({
             <span>
               <i className="dot accent" /> {modeLabel}
             </span>
-            <span>
-              <i className="dot gray" /> S&P 500 · índice em USD
-            </span>
           </div>
           <p className="chart-limitations">
-            Retorno simples · Sem dividendos, comissões ou câmbio. O S&amp;P 500
-            é um índice em USD e não replica os fluxos da carteira.
+            Retorno simples · Sem dividendos, comissões ou câmbio.
           </p>
           <details className="chart-methodology">
             <summary>
@@ -366,9 +352,9 @@ export function PerformanceChart({
                   : "Inclui ganhos realizados e não realizados apenas no período selecionado."
                 : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
               {period === "Máximo"
-                ? "O índice usa o primeiro fecho disponível desde a primeira transação."
-                : "As posições iniciais e o índice usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
-              O índice não replica os fluxos da carteira. Retorno simples; não é
+                ? "A carteira mantém os custos originais das compras."
+                : "As posições iniciais usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
+              Retorno simples; não é
               TWR nem anualizado. Sem dividendos, comissões ou conversão
               cambial. As falhas de preços aparecem como interrupções.
             </p>

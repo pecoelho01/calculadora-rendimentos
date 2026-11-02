@@ -12,6 +12,9 @@ import { parseCsv, exportCsv } from "@/lib/csv";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
+import { AllocationDonut } from "./allocation-donut";
+import { GeographicChart } from "./geographic-chart";
+import { useGeography } from "./use-geography";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
@@ -128,6 +131,7 @@ export function Dashboard({ identity = null, accountControls }: {
   const [storageBroken, setStorageBroken] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
   const [modal, setModal] = useState<Modal>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
@@ -234,6 +238,18 @@ export function Dashboard({ identity = null, accountControls }: {
   const summary = useMemo(
     () => calculatePortfolio(orders, market, currency),
     [orders, market, currency],
+  );
+  const openTickers = summary.positions
+    .filter((p) => p.shares > 0)
+    .map((p) => p.ticker)
+    .sort()
+    .join(",");
+  const geography = useGeography(openTickers, ready && tab === "overview", refresh);
+  const geographicMarket = Object.fromEntries(
+    Object.entries(market).map(([ticker, asset]) => [
+      ticker,
+      { ...asset, geography: geography.data[ticker] ?? null },
+    ]),
   );
   const money = (n: number | null) =>
     n === null
@@ -761,18 +777,18 @@ export function Dashboard({ identity = null, accountControls }: {
                 devem ser superiores a zero. Os valores não incluem
                 comissões nem impostos.
               </p>
-              <h3>Histórico e S&P 500</h3>
+              <h3>Histórico da carteira</h3>
               <p>
-                Reconstruímos a carteira até ao último dia de negociação de cada
-                semana, usando apenas preços desse dia ou anteriores. O S&P 500
-                é um índice de preços em USD e não simula os mesmos fluxos de
-                caixa. Em Máximo, usa o primeiro fecho disponível desde a
-                primeira transação, e a carteira mantém os custos originais. Em
-                3M, 6M, 1A e YTD, as posições iniciais e o índice usam o último
-                fecho anterior ao início efetivo do intervalo. A rentabilidade
+                Reconstruímos a carteira com fechos diários em 1D, 5D e 1M e
+                semanais nos restantes períodos, usando apenas preços desse dia
+                ou anteriores, nas datas disponíveis dos ativos da carteira.
+                Não há dados intradiários. Em Máximo, a carteira mantém os
+                custos originais. Em 1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais usam o
+                último fecho anterior ao início efetivo do intervalo. A rentabilidade
                 total inclui as compras e vendas do período; nas posições
                 abertas, só contam os lotes ainda detidos, desde o início do
-                intervalo ou a aquisição. YTD começa em 1 de janeiro. As compras
+                intervalo ou a aquisição. 1D abrange o dia atual e 5D os últimos
+                cinco dias de calendário. YTD começa em 1 de janeiro. As compras
                 entram integralmente na base, sem ponderação temporal.
               </p>
               <h3>Moedas, preços e limites</h3>
@@ -847,79 +863,64 @@ export function Dashboard({ identity = null, accountControls }: {
                     market={market}
                     currency={currency}
                   />
-                  <section className="panel allocation">
+                  <section className="panel allocation-card" aria-label="Distribuição da carteira">
                     <div className="panel-heading">
                       <div>
                         <h2>Onde estás a investir</h2>
                       </div>
                       <span className="subtle">{currency}</span>
                     </div>
-                    {summary.value !== null && summary.value > 0 ? (
-                      <>
-                        <div
-                          className="donut"
-                          role="img"
-                          aria-label="Alocação da carteira por valor de mercado"
-                          style={{
-                            background: `conic-gradient(${summary.positions
-                              .filter((p) => (p.value ?? 0) > 0)
-                              .map((p, i, a) => {
-                                const previous =
-                                  (a
-                                    .slice(0, i)
-                                    .reduce((n, v) => n + (v.value ?? 0), 0) /
-                                    summary.value!) *
-                                  100;
-                                return `${colors[i % colors.length]} ${previous}% ${previous + ((p.value ?? 0) / summary.value!) * 100}%`;
-                              })
-                              .join(",")})`,
-                          }}
-                        >
-                          <div>
-                            <small>Ativos</small>
-                            <strong>
-                              {
-                                summary.positions.filter((p) => p.shares > 0)
-                                  .length
-                              }
-                            </strong>
+                    <div
+                      className="segments allocation-toggle no-print"
+                      role="group"
+                      aria-label="Tipo de distribuição"
+                    >
+                      <button
+                        aria-pressed={allocationView === "assets"}
+                        onClick={() => setAllocationView("assets")}
+                      >
+                        ETFs
+                      </button>
+                      <button
+                        aria-pressed={allocationView === "geography"}
+                        onClick={() => setAllocationView("geography")}
+                      >
+                        Geografia
+                      </button>
+                    </div>
+                    <div className="allocation-content">
+                      <div className="allocation asset-allocation" hidden={allocationView !== "assets"}>
+                        {summary.value !== null && summary.value > 0 ? (
+                          <AllocationDonut
+                            slices={summary.positions.filter((position) => position.shares > 0).map((position, index) => ({
+                              id: position.ticker,
+                              label: position.ticker,
+                              percent: ((position.value ?? 0) / summary.value!) * 100,
+                              color: colors[index % colors.length],
+                            }))}
+                            label="Alocação da carteira por valor de mercado"
+                            centerLabel="Ativos"
+                            centerValue={String(summary.positions.filter((position) => position.shares > 0).length)}
+                          />
+                        ) : (
+                          <div className="allocation-empty">
+                            <div className="empty-ring" />
+                            <p>
+                              A distribuição dos teus ativos
+                              <br />
+                              vai aparecer aqui.
+                            </p>
                           </div>
-                        </div>
-                        <div className="allocation-list">
-                          {summary.positions
-                            .filter((p) => p.shares > 0)
-                            .map((p, i) => (
-                              <div key={p.ticker}>
-                                <span>
-                                  <i
-                                    className="dot"
-                                    style={{
-                                      background: colors[i % colors.length],
-                                    }}
-                                  />
-                                  {p.ticker}
-                                </span>
-                                <strong>
-                                  {(
-                                    ((p.value ?? 0) / summary.value!) *
-                                    100
-                                  ).toFixed(1)}
-                                  %
-                                </strong>
-                              </div>
-                            ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="allocation-empty">
-                        <div className="empty-ring" />
-                        <p>
-                          A distribuição dos teus ativos
-                          <br />
-                          vai aparecer aqui.
-                        </p>
+                        )}
                       </div>
-                    )}
+                      <div className="geographic-view" hidden={allocationView !== "geography"}>
+                        <GeographicChart
+                          positions={summary.positions}
+                          market={geographicMarket}
+                          loading={loading || geography.loading}
+                        />
+                      </div>
+                    </div>
                   </section>
                 </div>
               ) : null}
