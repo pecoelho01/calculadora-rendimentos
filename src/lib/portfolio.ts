@@ -1,4 +1,5 @@
-import type { Currency, MarketData, Order, PricePoint } from "./types";
+import type { Currency, Geography, MarketData, Order, PricePoint } from "./types";
+import { continentForCountry, type Continent } from "./continents";
 import { chronological, validateOrders, shareUnits } from "./validation";
 export type Position = {
   ticker: string;
@@ -23,6 +24,68 @@ export type OrderGain = {
   percent: number | null;
   shares: number;
 };
+
+export function geographicAllocation(
+  positions: Position[],
+  market: MarketData,
+) {
+  const open = positions.filter((p) => p.shares > 0);
+  if (open.some((p) => p.value === null)) return null;
+  const total = open.reduce((n, p) => n + p.value!, 0);
+  const values = new Map<Continent, number>();
+  const sources: (Pick<
+    Geography,
+    "asOf" | "source" | "sourceName" | "method" | "holdingsCount"
+  > & { ticker: string })[] = [];
+  for (const p of open) {
+    if (!p.value) continue;
+    const data = market[p.ticker]?.geography;
+    const sum = data?.allocations.reduce((n, a) => n + a.weight, 0) ?? 0;
+    const valid =
+      data &&
+      data.allocations.length > 0 &&
+      sum > 0 &&
+      sum <= 1.00000001 &&
+      data.allocations.every(
+        (a) => Number.isFinite(a.weight) && a.weight >= 0 && a.weight <= 1,
+      );
+    if (valid) {
+      for (const a of data.allocations) {
+        const continent = continentForCountry(a.country);
+        values.set(continent, (values.get(continent) ?? 0) + p.value * a.weight);
+      }
+      sources.push({
+        ticker: p.ticker,
+        asOf: data.asOf,
+        source: data.source,
+        sourceName: data.sourceName,
+        method: data.method,
+        holdingsCount: data.holdingsCount,
+      });
+    }
+    const covered = valid
+      ? Math.abs(1 - sum) < 1e-10
+        ? 1
+        : Math.min(sum, 1)
+      : 0;
+    const missing = p.value * (1 - covered);
+    if (missing > 0)
+      values.set("UNKNOWN", (values.get("UNKNOWN") ?? 0) + missing);
+  }
+  return {
+    total,
+    allocations: [...values]
+      .filter(([, value]) => value > 0)
+      .map(([continent, value]) => ({
+        continent,
+        value,
+        percent: total > 0 ? (value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value),
+    sources,
+    coverage: total > 0 ? (1 - (values.get("UNKNOWN") ?? 0) / total) * 100 : 0,
+  };
+}
 
 const gainPercent = (gain: number | null, cost: number) =>
   gain !== null && cost > 0 ? (gain / cost) * 100 : null;

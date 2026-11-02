@@ -28,6 +28,7 @@ Não são necessárias chaves de API nem variáveis de ambiente nesta versão.
 - Preços e histórico Yahoo Finance no servidor, com cache de cinco minutos e indicação de timestamp/indisponibilidade.
 - Gráfico interativo com toggle «Rentabilidade total» / «Posições abertas» (predefinição), percentagem atual, consulta por rato, toque ou teclado (setas, Home e End) e comparação com o S&P 500. O histórico pode diferir da cotação atual.
 - Tabela de posições abertas e fechadas, pesquisa e alocação por valor de mercado.
+- Gráfico circular de distribuição dos ETFs exclusivamente por continente, ponderado pelo valor atual, com cobertura, fonte e data da composição. Composição completa da iShares e alternativa justETF, carregadas em separado dos preços; ativos sem dados permanecem «Sem classificação».
 - Importação/exportação de CSV compatível com a aplicação anterior.
 - Persistência local no navegador e cópia de segurança/restauro de todas as carteiras em JSON.
 - Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador.
@@ -42,7 +43,7 @@ A aplicação inicia vazia. «Explorar uma carteira de exemplo» cria uma cartei
 
 As carteiras são guardadas em `localStorage`, sem conta ou sincronização. Limpar os dados do navegador remove-as; exportar uma cópia JSON regularmente. A importação CSV acrescenta transações à carteira selecionada; importar o mesmo ficheiro duas vezes duplica as transações. O restauro JSON substitui todas as carteiras após confirmação.
 
-Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e ao Yahoo Finance. Quantidades, preços de compra e nomes das carteiras ficam no navegador. A cache do servidor contém apenas dados públicos de mercado. O armazenamento local não é cifrado e é partilhado pelos separadores da mesma origem; uma gravação deteta alterações feitas noutro separador, carrega a versão mais recente e pede para repetir a operação.
+Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e ao Yahoo Finance. Para a composição geográfica, o servidor pesquisa também o símbolo público do ETF no justETF e consulta catálogos e ficheiros públicos da iShares; nenhuma quantidade, preço de compra ou carteira é enviada a essas fontes. Quantidades, preços de compra e nomes das carteiras ficam no navegador. A cache do servidor contém apenas dados públicos de mercado. O armazenamento local não é cifrado e é partilhado pelos separadores da mesma origem; uma gravação deteta alterações feitas noutro separador, carrega a versão mais recente e pede para repetir a operação.
 
 ## CSV
 
@@ -103,6 +104,24 @@ Esta versão não faz conversão cambial. Todos os preços de transação de uma
 Sem comissões, impostos, dividendos ou ajustes automáticos das quantidades por splits. O histórico Yahoo pode ser ajustado por splits; adaptar também as transações nesses casos. O ROI não é anualizado, TWR ou XIRR. O benchmark não replica os fluxos da carteira.
 
 `yahoo-finance2` é uma integração não oficial e pode sofrer bloqueios, rate limits e atrasos. Falhas não são substituídas por preços fictícios. O cache de cinco minutos pode fazer com que «Atualizar preços» devolva o mesmo valor nesse intervalo.
+
+## Distribuição geográfica
+
+O gráfico soma `valor atual da posição × peso do país no ETF` e agrupa esses valores por continente, usando apenas posições abertas e as mesmas cotações e regras de moeda do dashboard. A interface e a impressão mostram apenas continentes e «Sem classificação», sem lista ou seletor de países. O agrupamento é local e não acrescenta pedidos externos. Sem uma cotação necessária, não apresenta percentagens parciais como se fossem a carteira completa. Um preço zero continua válido.
+
+As cotações e o histórico usam `/api/market`; a composição usa `/api/geography`, que recebe apenas tickers. Os pedidos são independentes: métricas e posições não esperam pelos ficheiros geográficos. A geografia só é pedida na visão geral, para posições abertas; posições fechadas e benchmark não entram nesse pedido. Durante a obtenção inicial, o gráfico mostra carregamento em vez de uma falsa cobertura de 0%.
+
+Na sessão da página, composições públicas são reutilizadas por ticker durante 24 horas e indisponibilidades durante cinco minutos. Mudar de aba ou carteira e atualizar preços não repete consultas ainda válidas. Pedidos geográficos em curso podem terminar em segundo plano e alimentar essa cache, sem substituir dados de outra carteira. No servidor, consultas simultâneas do mesmo ticker ou catálogo partilham o mesmo trabalho. O navegador recebe apenas países agregados, fontes e datas; os ficheiros completos são processados no servidor.
+
+A fonte preferencial é a composição completa da iShares, descarregada diretamente da gestora. Para ETFs europeus, o justETF identifica um único ISIN e confirma o ticker na bolsa; esse ISIN é associado ao produto no catálogo oficial da iShares. São reconhecidos os sufixos Yahoo `.DE` (Xetra), `.AS` (Amesterdão), `.L` (Londres), `.PA` (Paris), `.MI` (Milão) e `.SW` (Suíça). Para tickers americanos sem sufixo, a associação é feita diretamente pelo ticker exato no catálogo oficial americano. Não há procura por semelhança de nomes nem dedução pela moeda, bolsa ou domicílio do ETF.
+
+Nos ficheiros iShares, os valores de mercado são reportados na moeda base do fundo. A aplicação verifica os pesos publicados contra o denominador comum (soma dos valores de todas as posições) antes de agregar os ativos por país. Esta verificação evita acumular o arredondamento dos pesos publicados a duas casas decimais e rejeita subconjuntos materialmente incompletos ou valores inconsistentes. A tolerância por posição é de 0,01 pontos percentuais. Não há conversão cambial de carteiras nem uso do preço de compra neste cálculo.
+
+Apenas ações e obrigações com localização e continente reconhecidos são classificadas. O mapa local segue o Unicode CLDR 49, com América do Norte a incluir América Central e Caraíbas, América do Sul separada e Antártida própria. Mantém uma convenção única para localizações transcontinentais (por exemplo, Rússia na Europa e Turquia, Chipre e Cazaquistão na Ásia); os dados e a licença estão identificados em `THIRD_PARTY_NOTICES.md`. Caixa, derivados, fundos subjacentes não analisados e localizações ausentes permanecem sem classificação. Swaps, pesos negativos e exposições incompatíveis com um círculo limitado a 100% impedem o uso desse ficheiro. A localização publicada pela gestora representa a classificação do ativo, não os países onde a empresa obtém receitas. A data, a fonte e o número de posições do ficheiro são apresentados no gráfico e na impressão.
+
+Se não houver composição direta utilizável, os ETFs europeus conservam a alternativa do justETF, com os países e «Outros países» publicados na tabela inicial. Essa alternativa não desagrega o grupo «Outros países»: sem continente identificável, esse peso passa a «Sem classificação» e reduz a cobertura continental. A cobertura exclui todas as parcelas sem classificação; as percentagens usam sempre o valor total da carteira. Ativos não cobertos, pesquisas ambíguas e falhas das fontes permanecem sem classificação. O suporte direto de outras gestoras e a análise recursiva de fundos dentro de fundos ainda não estão implementados.
+
+Estas integrações públicas não oficiais não precisam de chave de API. Os catálogos e as composições válidas têm cache diário. Há uma cache pública adicional de cinco minutos para os resultados geográficos, incluindo indisponibilidade, para evitar repetir downloads que falharam. O resultado de mercado mantém cache de cinco minutos. Cada fonte tem timeout (dez segundos na composição, oito no catálogo) e limite de resposta; os ficheiros iShares são limitados a 8 MB durante a leitura. Uma consulta europeia usa até três pedidos justETF, um catálogo iShares partilhado e um ficheiro de posições; a americana usa o catálogo e o ficheiro. As fontes podem mudar ou bloquear pedidos. Uma falha geográfica não impede cotações Yahoo, nem altera CSV, backups ou persistência.
 
 ## Deploy na Vercel
 

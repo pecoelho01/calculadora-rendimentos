@@ -76,6 +76,7 @@ test("permitir mudar tema quando o armazenamento está bloqueado", async ({ page
 });
 
 test("apresentar dados e diálogos em escuro e imprimir em claro", async ({ page }, testInfo) => {
+  await page.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: {} } }));
   await page.route("**/api/market?*", (route) => route.fulfill({ json: { assets: {
     TEST: { price: 140, previousClose: 130, currency: "EUR", name: "Teste", asOf: null,
       history: [{ date: "2024-01-05", close: 100 }, { date: "2024-01-12", close: 140 }] },
