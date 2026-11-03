@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Icon } from "./icon";
 export function Dialog({
   title,
@@ -13,8 +13,16 @@ export function Dialog({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
+  useLayoutEffect(() => {
+    const dialog = ref.current!;
+    const trigger = document.activeElement;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      if (trigger instanceof HTMLElement && trigger.isConnected) {
+        trigger.focus({ preventScroll: true });
+      }
+    };
   }, []);
   return (
     <dialog ref={ref} onCancel={(event) => {

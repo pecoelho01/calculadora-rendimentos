@@ -333,11 +333,6 @@ export function PerformanceChart({
               ))}
             </svg>
           </div>
-          <div className="legend">
-            <span>
-              <i className="dot accent" /> {modeLabel}
-            </span>
-          </div>
           <p className="chart-limitations">
             Retorno simples · Sem dividendos, comissões ou câmbio.
           </p>
@@ -354,9 +349,8 @@ export function PerformanceChart({
               {period === "Máximo"
                 ? "A carteira mantém os custos originais das compras."
                 : "As posições iniciais usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
-              Retorno simples; não é
-              TWR nem anualizado. Sem dividendos, comissões ou conversão
-              cambial. As falhas de preços aparecem como interrupções.
+              Este retorno não é TWR nem anualizado.
+              As falhas de preços aparecem como interrupções.
             </p>
           </details>
         </>
@@ -365,11 +359,11 @@ export function PerformanceChart({
           <span className="empty-symbol">
             <Icon name="trend" />
           </span>
-          <h3>O teu percurso começa aqui</h3>
+          <h3>Sem rentabilidade neste período</h3>
           <p>
             {mode === "open"
-              ? "Sem rentabilidade disponível para as posições abertas neste intervalo. Verifica as posições e os preços históricos necessários."
-              : "Sem rentabilidade disponível neste intervalo. Verifica as transações e os preços históricos necessários."}
+              ? "Verifica as posições abertas e os preços históricos."
+              : "Verifica as transações e os preços históricos."}
           </p>
         </div>
       )}

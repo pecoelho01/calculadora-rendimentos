@@ -5,7 +5,7 @@
   flex-wrap: wrap;
   gap: 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--surface);
   padding: 18px 20px;
   margin-bottom: 24px;
@@ -67,7 +67,7 @@
   display: grid;
   place-items: center;
   padding: 48px 24px;
-  background: radial-gradient(ellipse at top left, light-dark(#eaf1ff, #172c48), transparent 65%), var(--bg);
+  background: var(--bg);
 }
 .entry-layout {
   width: min(100%, 1000px);
@@ -89,7 +89,7 @@
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: var(--featured-bg);
+  background: var(--button-bg);
   color: white;
   border-radius: 9px;
 }
@@ -104,28 +104,13 @@
   font-size: 16px;
   color: var(--muted);
 }
-.entry-features {
-  display: grid;
-  gap: 22px;
-  margin: 32px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.entry-features li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  color: var(--muted);
-}
-.entry-features .icon { color: var(--accent); flex-shrink: 0; margin-top: 3px; }
-.entry-features strong { display: block; color: var(--ink); margin-bottom: 3px; }
 .entry-card {
   min-width: 0;
   padding: 32px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 16px 48px #17203308;
+  box-shadow: 0 4px 24px #1d222808;
 }
 .entry-card h2 { font-size: 23px; letter-spacing: -.5px; margin: 0 0 20px; }
 .entry-card .account-controls { border: 0; padding: 0; margin-bottom: 24px; gap: 24px; }
@@ -138,7 +123,6 @@
   .entry-page { padding: 28px 20px; }
   .entry-layout { grid-template-columns: 1fr; gap: 28px; max-width: 480px; }
   .entry-brand { margin-bottom: 28px; }
-  .entry-features { display: none; }
   .entry-card { padding: 24px; }
 }
 /* The heading receives screen-reader focus after entry transitions, not keyboard input. */

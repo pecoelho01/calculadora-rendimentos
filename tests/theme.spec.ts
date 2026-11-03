@@ -35,7 +35,7 @@ test("seguir o sistema e manter a escolha explícita após recarregar", async ({
   await expect(theme.locator(".theme-sun")).toBeVisible();
   await expect(theme.locator(".theme-moon")).toBeHidden();
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
-  await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1440) > 800) await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
   await expect(theme).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(errors).toEqual([]);

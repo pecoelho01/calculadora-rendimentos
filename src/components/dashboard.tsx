@@ -239,6 +239,7 @@ export function Dashboard({ identity = null, accountControls }: {
     () => calculatePortfolio(orders, market, currency),
     [orders, market, currency],
   );
+  const openPositionCount = summary.positions.filter((p) => p.shares > 0).length;
   const openTickers = summary.positions
     .filter((p) => p.shares > 0)
     .map((p) => p.ticker)
@@ -401,7 +402,7 @@ export function Dashboard({ identity = null, accountControls }: {
         const imported = parseCsv(text);
         if (portfolio && await update({ ...portfolio, orders: [...orders, ...imported] }))
           setMessage(
-            `${imported.length} transações importadas. Confirma a moeda dos ativos antes de analisar os totais.`,
+            `${imported.length} ${imported.length === 1 ? "transação importada" : "transações importadas"}. Confirma a moeda dos ativos antes de analisar os totais.`,
           );
       }
     } catch (e) {
@@ -480,9 +481,11 @@ export function Dashboard({ identity = null, accountControls }: {
     );
   return (
     <WorkspaceShell
+      portfolioName={portfolio?.name ?? "As tuas carteiras"}
+      currency={portfolio?.currency}
       sidebar={
         <>
-          <span className="workspace-label">O TEU ESPAÇO</span>
+          <span className="workspace-label">ESPAÇO PESSOAL</span>
           <nav aria-label="Navegação principal">
             {(
               [
@@ -499,13 +502,15 @@ export function Dashboard({ identity = null, accountControls }: {
               <button
                 key={n.key}
                 className={tab === n.key ? "nav-item active" : "nav-item"}
+                aria-label={n.text}
+                title={n.text}
                 aria-current={tab === n.key ? "page" : undefined}
                 onClick={() => setTab(n.key)}
               >
                 <Icon name={n.icon} />
-                {n.text}
+                <span className="nav-label">{n.text}</span>
                 {n.key === "positions" ? (
-                  <small>
+                  <small aria-hidden="true">
                     {summary.positions.filter((p) => p.shares > 0).length}
                   </small>
                 ) : null}
@@ -514,7 +519,7 @@ export function Dashboard({ identity = null, accountControls }: {
           </nav>
           <div className="sidebar-portfolios">
             <div className="side-heading">
-              <span>AS TUAS CARTEIRAS</span>
+              <span>CARTEIRAS</span>
               <button
                 aria-label="Criar carteira"
                 onClick={() => openModal("portfolio")}
@@ -550,8 +555,7 @@ export function Dashboard({ identity = null, accountControls }: {
                   title="Botão direito para renomear"
                 >
                   <i className="portfolio-dot" />
-                  <span className="portfolio-name">{p.name}</span>
-                  <small>{p.currency}</small>
+                  <span className="portfolio-identity"><span className="portfolio-name">{p.name}</span><small>{p.currency}</small></span>
                 </button>
                 <button
                   className="portfolio-rename icon-button"
@@ -567,9 +571,10 @@ export function Dashboard({ identity = null, accountControls }: {
             <div className="local-badge">
               <Icon name="shield" />
               <div>
-                <strong>{identity ? "Carteiras da conta" : "Guardado neste navegador"}</strong>
+                <strong>{identity ? "Modo conta" : "Modo local"}</strong>
               </div>
             </div>
+            {accountControls ? <a className="manage-account" href="#workspace-account">Gerir conta <Icon name="chevron" /></a> : null}
             <a
               href="https://github.com/pecoelho01"
               target="_blank"
@@ -589,13 +594,13 @@ export function Dashboard({ identity = null, accountControls }: {
           <div className="topbar-right">
             <span className="market-source">
               <Icon name="shield" />
-              {identity ? "Dados na conta" : "Dados locais"} · Mercado via Yahoo Finance
+              Mercado via Yahoo Finance
             </span>
             <ThemeControl />
           </div>
         </header>
         <main className="content">
-          {accountControls}
+          <div id="workspace-account">{accountControls}</div>
           {identity ? (
             <div className="account-storage no-print" aria-busy={saveState === "saving"}>
               <span aria-live="polite">{saveState === "saving" ? "A guardar…" : saveState === "error" ? "Erro ao guardar ou carregar" : "Guardado na conta"}</span>
@@ -826,7 +831,7 @@ export function Dashboard({ identity = null, accountControls }: {
                   <Metric
                     label="Valor da carteira"
                     value={money(summary.value)}
-                    detail={`${summary.positions.filter((p) => p.shares > 0).length} posições abertas`}
+                    detail={`${openPositionCount} ${openPositionCount === 1 ? "posição aberta" : "posições abertas"}`}
                     featured
                   />
                   <Metric
@@ -838,7 +843,6 @@ export function Dashboard({ identity = null, accountControls }: {
                   <Metric
                     label="Ganho realizado"
                     value={money(summary.realized)}
-                    detail="Resultado das tuas vendas"
                     trend={summary.realized}
                   />
                   <Metric
@@ -964,11 +968,9 @@ export function Dashboard({ identity = null, accountControls }: {
                       <Icon name="positions" />
                     </div>
                     <h3>
-                      {tab === "transactions"
-                        ? "Ainda não tens transações"
-                        : tab === "positions"
-                          ? "Ainda não tens posições"
-                          : "Um novo capítulo para os teus investimentos"}
+                      {tab === "positions"
+                        ? "Ainda não tens posições"
+                        : "Ainda não tens transações"}
                     </h3>
                     <p>
                       {portfolio
@@ -1025,8 +1027,7 @@ export function Dashboard({ identity = null, accountControls }: {
                 )}
                 <div className="table-footer">
                   <span>
-                    Valores em {currency} · Preços sujeitos a atraso · Cache de
-                    5 minutos
+                    Valores em {currency} · Cotações sujeitas a atraso
                     {tab === "transactions" ? (
                       <span className="transaction-gain-note">
                         Compras: ganho total do lote (realizado + não realizado), % sobre o custo original.
@@ -1039,8 +1040,7 @@ export function Dashboard({ identity = null, accountControls }: {
               </section>
               <div className="bottom-actions no-print">
                 <span>
-                  <Icon name="shield" /> {identity ? "Guardado na conta." : "Guardado apenas neste navegador."}
-                  Exporta uma cópia regularmente.
+                  <Icon name="download" /> Exporta uma cópia regularmente.
                 </span>
                 <button onClick={removePortfolio}>Eliminar carteira</button>
               </div>
