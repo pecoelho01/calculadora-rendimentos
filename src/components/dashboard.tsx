@@ -469,7 +469,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   if (storageBroken !== null && !accountPage)
     return (
       <main className="boot">
-        {accountControls}
+        {accountControls ?? <Link className="button secondary" href="/conta">Aceder à conta</Link>}
         <h1>Recuperar carteiras</h1>
         <p role="alert">{message}</p>
         <button

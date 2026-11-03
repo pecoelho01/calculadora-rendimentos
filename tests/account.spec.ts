@@ -1188,3 +1188,24 @@ test("definições mantêm acesso à conta e bloqueiam carteiras locais corrompi
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe("original-corrompido");
   expect(state.requests).toHaveLength(0);
 });
+
+
+test("recuperação local permite iniciar sessão sem repor dados corrompidos", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await page.evaluate((key) => localStorage.setItem(key, "original-corrompido"), storageKey);
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recuperar carteiras", exact: true })).toBeVisible();
+  await assertNoOverflow(page);
+  await page.getByRole("link", { name: "Aceder à conta", exact: true }).click();
+  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await openSidebar(page);
+  await expect(page.locator("#workspace-sidebar").getByRole("button", { name: "Criar conta", exact: true })).toBeVisible();
+  await login(page);
+  await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe("original-corrompido");
+  expect(state.requests).toHaveLength(0);
+  await assertNoOverflow(page);
+});
