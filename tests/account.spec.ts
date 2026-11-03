@@ -1163,3 +1163,28 @@ for (const localMode of [false, true]) {
     await assertNoOverflow(page);
   });
 }
+
+
+test("definições mantêm acesso à conta e bloqueiam carteiras locais corrompidas", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.goto("/");
+  await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  await page.evaluate((key) => localStorage.setItem(key, "original-corrompido"), storageKey);
+  await openAccountSettings(page);
+  await page.locator(".account-actions").getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await expect(page.getByText("ana@example.test", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Recupera os dados");
+  await assertNoOverflow(page);
+  await openSidebar(page);
+  await expect(page.locator("#workspace-sidebar").getByRole("button", { name: "Criar carteira", exact: true })).toBeDisabled();
+  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.getByRole("button", { name: "Fechar menu", exact: true }).click();
+  await expect(page.locator(".account-actions").getByRole("button", { name: "Sair da conta", exact: true })).toBeEnabled();
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe("original-corrompido");
+  await page.getByRole("link", { name: "Recuperar carteiras", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recuperar carteiras", exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Repor armazenamento", exact: true }).click();
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe("original-corrompido");
+  expect(state.requests).toHaveLength(0);
+});

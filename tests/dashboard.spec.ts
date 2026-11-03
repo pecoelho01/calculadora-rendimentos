@@ -443,14 +443,24 @@ test("armazenamento corrompido preserva dados até reposição explícita", asyn
   ).toBe("conteudo-invalido");
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar dados originais" }).click();
-  expect((await downloaded).suggestedFilename()).toBe(
-    "carteiras-recuperacao.txt",
-  );
+  const originalDownload = await downloaded;
+  expect(originalDownload.suggestedFilename()).toBe("carteiras-recuperacao.txt");
+  expect(await readFile((await originalDownload.path())!, "utf8")).toBe("conteudo-invalido");
+  page.once("dialog", (d) => d.dismiss());
+  await page.getByRole("button", { name: "Repor armazenamento" }).click();
+  expect(await page.evaluate(() => localStorage.getItem("rendimentos.portfolios.v1"))).toBe("conteudo-invalido");
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Repor armazenamento" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true }),
   ).toBeVisible();
+  await openSidebar(page);
+  await page.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Criar carteira", exact: true });
+  await dialog.getByLabel("Nome da carteira").fill("Carteira após recuperação");
+  await dialog.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios.map((p: { name: string }) => p.name))).toContain("Carteira após recuperação");
 });
 
 test("explorar rentabilidade por rato, toque e teclado sem confundir o histórico com o valor atual", async ({ page }, testInfo) => {
@@ -1461,4 +1471,18 @@ test("acomodar totais elevados nos cartões e recuperar de um filtro sem vendas"
     }))).toBe(true);
   }
   await page.screenshot({ path: testInfo.outputPath("transactions-large-amount.png"), fullPage: true });
+});
+
+
+test("reposição de armazenamento corrompido preserva alterações noutro separador", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("rendimentos.portfolios.v1", "original-corrompido"));
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recuperar carteiras", exact: true })).toBeVisible();
+  const replacement = JSON.stringify({ version: 1, portfolios: [{ id: "recuperada-noutro-separador", name: "Dados mais recentes", currency: "EUR", orders: [] }] });
+  await page.evaluate((value) => localStorage.setItem("rendimentos.portfolios.v1", value), replacement);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Repor armazenamento", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("alterado noutro separador");
+  expect(await page.evaluate(() => localStorage.getItem("rendimentos.portfolios.v1"))).toBe(replacement);
 });

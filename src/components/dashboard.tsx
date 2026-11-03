@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
@@ -266,8 +267,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           currency,
           maximumFractionDigits: 2,
         });
-  async function persist(next: Portfolio[], id = selected): Promise<boolean> {
-    if (!mounted.current || writing.current) return false;
+  async function persist(next: Portfolio[], id = selected, recoveryOriginal?: string): Promise<boolean> {
+    if (!mounted.current || writing.current || !ready) return false;
+    if (!identity && storageBroken !== null && recoveryOriginal !== storageBroken) {
+      setMessage("Recupera o armazenamento local antes de alterar as carteiras.");
+      return false;
+    }
     if (identity) {
       if (!accountSnapshot || accountConflict) {
         setMessage("Recarrega os dados da conta antes de guardar.");
@@ -292,7 +297,11 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     }
     try {
       const current = localStorage.getItem(STORAGE_KEY);
-      if (storageBroken === null && current !== storageSnapshot.current) {
+      if (recoveryOriginal !== undefined && current !== recoveryOriginal) {
+        setMessage("O armazenamento foi alterado noutro separador. Recarrega a página e verifica os dados antes de repor.");
+        return false;
+      }
+      if (current !== storageSnapshot.current) {
         if (current) {
           const latest = decodeStorage(current);
           setPortfolios(latest);
@@ -323,6 +332,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     return persist(portfolios.map((p) => (p.id === next.id ? next : p)));
   }
   function openModal(value: Modal) {
+    if (!ready || storageBroken !== null) return;
     setFormError("");
     setModal(value);
   }
@@ -477,7 +487,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               )
             ) {
               const p = initialPortfolio();
-              if (await persist([p], p.id)) setStorageBroken(null);
+              if (await persist([p], p.id, storageBroken)) setStorageBroken(null);
             }
           }}
         >
@@ -528,6 +538,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               <span>CARTEIRAS</span>
               <button
                 aria-label="Criar carteira"
+                disabled={!ready || storageBroken !== null}
                 onClick={() => openModal("portfolio")}
               >
                 <Icon name="plus" />
@@ -567,6 +578,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 <button
                   className="portfolio-rename icon-button"
                   aria-label={`Renomear carteira ${p.name}`}
+                  disabled={!ready || storageBroken !== null}
                   onClick={() => startRename(p.id)}
                 >
                   <Icon name="edit" />
@@ -610,6 +622,10 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           {accountPage ? <>
             {children}
             {accountControls ?? accountFeedback}
+            {storageBroken !== null ? <div className="notice" role="alert">
+              <span>Não foi possível ler o armazenamento local. Recupera os dados antes de alterar as carteiras.</span>
+              <Link className="button secondary" href="/">Recuperar carteiras</Link>
+            </div> : null}
           </> : <>
           {accountFeedback}
           {identity ? (
