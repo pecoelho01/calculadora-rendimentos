@@ -742,7 +742,7 @@ test("gaveta móvel contém o foco, fecha pelo fundo e adapta-se ao desktop", as
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator("#workspace-sidebar")).toBeVisible();
   await expect(page.locator("#workspace-drawer")).toHaveJSProperty("open", true);
-  expect(await page.locator("#workspace-drawer").evaluate((element) => element.matches(":modal"))).toBe(false);
+  await expect.poll(() => page.locator("#workspace-drawer").evaluate((element) => element.matches(":modal"))).toBe(false);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator("#workspace-sidebar")).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -774,7 +774,7 @@ test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({ p
   await last.click();
   await expect(selectedPortfolio(page)).toContainText("Carteira 30");
   await openSidebar(page);
-  await page.locator(".manage-account").scrollIntoViewIfNeeded();
+  await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
   const lastBottom = await last.evaluate((element) => element.getBoundingClientRect().bottom);
   expect(await page.locator(".sidebar-bottom").evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(lastBottom);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

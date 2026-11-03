@@ -139,13 +139,36 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
   });
   return state;
 }
+async function openAccountSettings(page: Page) {
+  if (new URL(page.url()).pathname === "/conta" || await page.locator(".entry-page").count()) return;
+  await openSidebar(page);
+  await page.getByRole("link", { name: "Definições da conta", exact: true }).click();
+  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+}
+async function accountAction(page: Page, name: string) {
+  await openAccountSettings(page);
+  await page.locator(".account-actions").getByRole("button", { name, exact: true }).click();
+  if (name !== "Sair da conta") {
+    await page.getByRole("link", { name: "Voltar às carteiras", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "Visão Geral", exact: true })).toBeVisible();
+  }
+}
 async function login(page: Page, email = "ana@example.test", waitForCompletion = true) {
+  if (await page.locator(".app-shell").count()) await openSidebar(page);
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
   await dialog.getByLabel("Email", { exact: true }).fill(email);
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await dialog.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  if (waitForCompletion) await expect(dialog).toBeHidden();
+  if (waitForCompletion) {
+    await expect(dialog).toBeHidden();
+    if (new URL(page.url()).pathname === "/conta") {
+      await page.getByRole("link", { name: "Voltar às carteiras", exact: true }).click();
+      await expect(page).toHaveURL(/\/$/);
+    }
+  }
 }
 async function rename(page: Page, oldName: string, nextName: string) {
   await openSidebar(page);
@@ -166,11 +189,11 @@ test("iniciar sessão, alternar modo, sair e trocar utilizador preserva isolamen
   await login(page);
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await accountAction(page, "Usar modo local");
   await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Abrir carteiras da conta", exact: true }).click();
+  await accountAction(page, "Abrir carteiras da conta");
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
   expect(await page.evaluate((key) => sessionStorage.getItem(key), entryKey)).toBeNull();
@@ -298,7 +321,7 @@ test("resposta pendente da conta não volta a apresentar dados depois de sair", 
   await rename(page, "Carteira da Ana", "Resposta antiga");
   await expect.poll(() => state.requests.length).toBe(1);
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   state.releaseWrite();
   await expect.poll(() => state.accounts[userA].portfolios[0].portfolio.name).toBe("Resposta antiga");
@@ -547,7 +570,7 @@ test("login pendente bloqueia fecho, Escape e reentrada até concluir", async ({
   await expect(dialog.getByRole("button", { name: "A aguardar…", exact: true })).toBeDisabled();
   state.releaseAuth();
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await login(page, "bruno@example.test");
   await expect(selectedPortfolio(page).getByText("Carteira do Bruno", { exact: true })).toBeVisible();
 });
@@ -597,7 +620,7 @@ test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes prote
   state.releaseAuth();
   await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
   state.delayAuthPath = "/logout";
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(true);
   await expect(page.locator(".metrics")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Abrir carteiras da conta", exact: true })).toBeDisabled();
@@ -663,7 +686,8 @@ test("renovação por temporizador e foco respeita um lock noutro separador", as
   await other.close();
   await page.clock.fastForward(30_000);
   await expect.poll(() => state.authRequests.filter((request) => request.grant === "refresh_token").length).toBe(1);
-  await expect(page.getByRole("button", { name: "Sair da conta", exact: true })).toBeEnabled();
+  await openAccountSettings(page);
+  await expect(page.locator(".account-actions").getByRole("button", { name: "Sair da conta", exact: true })).toBeEnabled();
 });
 
 test("temporizador não renova durante logout nem restaura a sessão depois", async ({ page }) => {
@@ -672,7 +696,7 @@ test("temporizador não renova durante logout nem restaura a sessão depois", as
   await page.goto("/");
   await expect(selectedPortfolio(page)).toBeVisible();
   state.delayAuthPath = "/logout";
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(true);
   await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
   await page.clock.fastForward(30_000);
@@ -697,13 +721,13 @@ test("renovação pendente mantém o lock até persistir e bloqueia logout conco
   await page.clock.fastForward(30_000);
   await expect.poll(() => state.authRequests.some((request) => request.grant === "refresh_token")).toBe(true);
   expect(await other.evaluate(() => navigator.locks.request("rendimentos.auth.mutation.v1", { ifAvailable: true }, (lock) => !!lock))).toBe(false);
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect(page.getByText(/não foi possível terminar a sessão/)).toBeVisible();
   expect(state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(false);
   state.releaseRefresh();
   await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).expires_at > Date.now() / 1000, authKey)).toBe(true);
   await expect.poll(() => other.evaluate(() => navigator.locks.request("rendimentos.auth.mutation.v1", { ifAvailable: true }, (lock) => !!lock))).toBe(true);
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
   await page.clock.fastForward(60_000);
   expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
@@ -973,7 +997,7 @@ test("restaurar uma sessão válida aguarda Auth sem abrir carteiras locais", as
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as Window & { portfolioReads: number }).portfolioReads)).toBe(0);
-  await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await accountAction(page, "Usar modo local");
   await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toBeVisible();
   await page.reload();
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
@@ -1034,19 +1058,108 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({ page }
   await page.screenshot({ path: testInfo.outputPath("entrada-tema-escuro.png"), fullPage: true });
   await login(page);
   await expect(page.locator(".local-badge")).toContainText("Modo conta");
+  await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(24, 26, 31)");
   await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
   await assertNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("conta-tema-escuro.png"), fullPage: true });
-  await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await accountAction(page, "Usar modo local");
   await expect(page.locator(".local-badge")).toContainText("Modo local");
   await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await accountAction(page, "Sair da conta");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Ativar tema claro", exact: true }).click();
   await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await login(page);
+  await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await expect(page.locator(".local-badge")).toContainText("Modo conta");
   await assertNoOverflow(page);
 });
+
+
+test("sidebar local permite registo e login sem duplicar controlos no dashboard", async ({ page }, testInfo) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await openSidebar(page);
+  const sidebar = page.locator("#workspace-sidebar");
+  await expect(sidebar.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "Criar conta", exact: true })).toBeVisible();
+  await expect(page.locator("main .account-controls")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("sidebar-conta-local.png"), fullPage: true });
+  await sidebar.getByRole("button", { name: "Criar conta", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await login(page);
+  await openAccountSettings(page);
+  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page.getByText("ana@example.test", { exact: true })).toBeVisible();
+  await expect(page.locator(".metrics")).toHaveCount(0);
+  await assertNoOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("definicoes-conta.png"), fullPage: true });
+  await page.getByRole("button", { name: "Usar modo local", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await expect(page.getByText("ana@example.test", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Voltar às carteiras", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toBeVisible();
+  await openAccountSettings(page);
+  await expect(page.getByRole("button", { name: "Abrir carteiras da conta", exact: true })).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+  expect(state.requests).toHaveLength(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await expect(page.getByText("ana@example.test", { exact: true })).toBeVisible();
+  await assertNoOverflow(page);
+});
+
+test("acesso direto às definições sem sessão permite continuar local e voltar às carteiras", async ({ page }) => {
+  await setup(page);
+  await page.goto("/conta");
+  await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await openSidebar(page);
+  await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sair da conta", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
+  const registration = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  await registration.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await registration.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
+  await registration.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect(page.getByText(/Consulta o teu email para confirmar a conta/)).toBeVisible();
+  await navigateTo(page, "Posições");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Posições", exact: true })).toBeVisible();
+  await assertNoOverflow(page);
+});
+
+
+for (const localMode of [false, true]) {
+  test(`terminar sessão diretamente na sidebar preserva carteiras locais: modo local ${localMode}`, async ({ page }) => {
+    const state = await setup(page, true);
+    await page.goto("/");
+    await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+    if (localMode) await accountAction(page, "Usar modo local");
+    await openSidebar(page);
+    const sidebar = page.locator("#workspace-sidebar");
+    await expect(sidebar.getByRole("link", { name: "Definições da conta", exact: true })).toBeVisible();
+    const logout = sidebar.getByRole("button", { name: "Sair da conta", exact: true });
+    await expect(logout).toBeVisible();
+    await assertNoOverflow(page);
+    await logout.click();
+    await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+    await expect(page.locator(".metrics")).toHaveCount(0);
+    await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/logout"))).toBe(true);
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
+    expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+    await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+    await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toBeVisible();
+    await openSidebar(page);
+    await expect(sidebar.getByRole("button", { name: "Sair da conta", exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeVisible();
+    await assertNoOverflow(page);
+  });
+}

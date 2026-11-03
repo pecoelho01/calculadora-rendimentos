@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
 import { calculatePortfolio } from "@/lib/portfolio";
@@ -47,10 +48,15 @@ type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
-export function Dashboard({ identity = null, accountControls }: {
+export function Dashboard({ identity = null, accountControls, sidebarAccountControls, accountFeedback, accountPage = false, children }: {
   identity?: AccountIdentity | null;
   accountControls?: React.ReactNode;
+  sidebarAccountControls?: React.ReactNode;
+  accountFeedback?: React.ReactNode;
+  accountPage?: boolean;
+  children?: React.ReactNode;
 }) {
+  const router = useRouter();
   const [accountSnapshot, setAccountSnapshot] = useState<AccountSnapshot | null>(null);
   const [saveState, setSaveState] = useState<"saving" | "saved" | "error">("saved");
   const [accountConflict, setAccountConflict] = useState(false);
@@ -443,14 +449,14 @@ export function Dashboard({ identity = null, accountControls }: {
     persist([...portfolios, p], p.id);
   }
 
-  if (!ready)
+  if (!ready && !accountPage)
     return (
       <main className="boot" aria-busy="true">
         {accountControls}
         A abrir a tua carteira…
       </main>
     );
-  if (storageBroken !== null)
+  if (storageBroken !== null && !accountPage)
     return (
       <main className="boot">
         {accountControls}
@@ -501,11 +507,11 @@ export function Dashboard({ identity = null, accountControls }: {
             ).map((n) => (
               <button
                 key={n.key}
-                className={tab === n.key ? "nav-item active" : "nav-item"}
+                className={!accountPage && tab === n.key ? "nav-item active" : "nav-item"}
                 aria-label={n.text}
                 title={n.text}
-                aria-current={tab === n.key ? "page" : undefined}
-                onClick={() => setTab(n.key)}
+                aria-current={!accountPage && tab === n.key ? "page" : undefined}
+                onClick={() => { setTab(n.key); if (accountPage) router.push("/"); }}
               >
                 <Icon name={n.icon} />
                 <span className="nav-label">{n.text}</span>
@@ -535,6 +541,7 @@ export function Dashboard({ identity = null, accountControls }: {
                 <button
                   onClick={() => {
                     setSelected(p.id);
+                    if (accountPage) router.push("/");
                     setSearches({ overview: "", positions: "", transactions: "", notes: "" });
                   }}
                   onContextMenu={(event) => {
@@ -574,7 +581,7 @@ export function Dashboard({ identity = null, accountControls }: {
                 <strong>{identity ? "Modo conta" : "Modo local"}</strong>
               </div>
             </div>
-            {accountControls ? <a className="manage-account" href="#workspace-account">Gerir conta <Icon name="chevron" /></a> : null}
+            {sidebarAccountControls}
             <a
               href="https://github.com/pecoelho01"
               target="_blank"
@@ -589,7 +596,7 @@ export function Dashboard({ identity = null, accountControls }: {
       <div className="main-area">
         <header className="topbar no-print">
           <div className="breadcrumb">
-            Espaço pessoal <span>/</span> <strong>As tuas carteiras</strong>
+            Espaço pessoal <span>/</span> <strong>{accountPage ? "Definições da conta" : "As tuas carteiras"}</strong>
           </div>
           <div className="topbar-right">
             <span className="market-source">
@@ -600,7 +607,11 @@ export function Dashboard({ identity = null, accountControls }: {
           </div>
         </header>
         <main className="content">
-          <div id="workspace-account">{accountControls}</div>
+          {accountPage ? <>
+            {children}
+            {accountControls ?? accountFeedback}
+          </> : <>
+          {accountFeedback}
           {identity ? (
             <div className="account-storage no-print" aria-busy={saveState === "saving"}>
               <span aria-live="polite">{saveState === "saving" ? "A guardar…" : saveState === "error" ? "Erro ao guardar ou carregar" : "Guardado na conta"}</span>
@@ -1046,6 +1057,7 @@ export function Dashboard({ identity = null, accountControls }: {
               </div>
             </>
           )}
+          </>}
         </main>
       </div>
       {modal === "rename" ? (

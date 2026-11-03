@@ -40,7 +40,7 @@ O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa
 - Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita; no telemóvel ocupa a largura disponível.
 - Renomeação de carteiras pelo botão direito, Shift+F10 ou botão de edição, preservando transações e moeda. A largura e abertura da sidebar mantêm-se durante a sessão da página.
 
-Ao abrir a aplicação sem sessão, escolhe «Iniciar sessão», «Criar conta» ou «Continuar sem sessão». O dashboard só abre depois dessa escolha ou da recuperação de uma sessão válida. A escolha local mantém-se ao recarregar a mesma aba (se o navegador permitir `sessionStorage`); uma nova aba apresenta novamente a entrada. Uma sessão de conta válida abre automaticamente a conta ao recarregar. Terminar sessão regressa ao ecrã de escolha.
+Ao abrir a aplicação sem sessão, escolhe «Iniciar sessão», «Criar conta» ou «Continuar sem sessão». O dashboard só abre depois dessa escolha ou da recuperação de uma sessão válida. A escolha local mantém-se ao recarregar a mesma aba (se o navegador permitir `sessionStorage`); uma nova aba apresenta novamente a entrada. Uma sessão de conta válida abre automaticamente a conta ao recarregar. Terminar sessão regressa ao ecrã de escolha. No modo local sem sessão, a sidebar permite iniciar sessão ou criar conta. Com sessão iniciada, «Definições da conta» abre a página `/conta`, onde podes consultar o email, alternar entre modo local e conta e terminar sessão. A sidebar também permite «Sair da conta» diretamente, mesmo com o modo local ativo.
 
 A aplicação inicia vazia. «Explorar uma carteira de exemplo» cria uma carteira USD com transações fictícias, mas procura preços reais; não apresenta cotações simuladas.
 
