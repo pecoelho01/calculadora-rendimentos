@@ -1,3 +1,4 @@
+import { openSidebar, navigateTo, selectedPortfolio } from "./sidebar-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 const assets = {
@@ -36,8 +37,7 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   await expect(page.locator(".metric").first()).toContainText("2100,00");
 
   for (const tab of ["Posições", "Transações"]) {
-    await page.getByRole("navigation", { name: "Navegação principal" })
-      .getByRole("button", { name: new RegExp(`^${tab}`) }).click();
+    await navigateTo(page, new RegExp(`^${tab}`));
     await expect(page.locator(".metrics")).toHaveCount(0);
     await expect(page.locator(".charts-grid")).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1, name: tab, exact: true })).toBeVisible();
@@ -54,7 +54,7 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
     await page.emulateMedia({ media: "screen" });
   }
 
-  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, "Visão geral");
   await expect(page.locator(".metric")).toHaveCount(4);
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   await expect(page.locator(".charts-grid")).toBeVisible();
@@ -66,19 +66,18 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
-  const nav = page.getByRole("navigation", { name: "Navegação principal" });
   const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
   await search.fill("Teste");
-  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await navigateTo(page, /^Posições/);
   await expect(search).toHaveValue("");
   await search.fill("sem posição");
   await expect(page.locator(".no-results")).toContainText("Nenhuma posição corresponde à pesquisa.");
-  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await navigateTo(page, "Transações");
   await expect(search).toHaveValue("");
   await expect(page.locator("tbody tr")).toHaveCount(3);
   await search.fill("sem transação");
   await expect(page.locator(".no-results")).toContainText("Nenhuma transação corresponde à pesquisa.");
-  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await navigateTo(page, /^Posições/);
   await expect(search).toHaveValue("sem posição");
   await page.getByRole("button", { name: "Limpar pesquisa" }).click();
   await expect(search).toHaveValue("");
@@ -89,20 +88,19 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
   await expect(page.getByRole("heading", { level: 1, name: "Posições", exact: true })).toBeVisible();
   await expect(page.locator(".page-heading")).not.toContainText("A minha carteira");
   await page.emulateMedia({ media: "screen" });
-  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await navigateTo(page, "Transações");
   await expect(search).toHaveValue("sem transação");
   await page.getByRole("button", { name: "Limpar pesquisa" }).click();
   await expect(page.locator("tbody tr")).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath("transacoes.png"), fullPage: true });
-  await nav.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, "Visão geral");
   await expect(search).toHaveValue("Teste");
 });
 test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await openLocal(page);
-  const nav = page.getByRole("navigation", { name: "Navegação principal" });
-  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await navigateTo(page, /^Posições/);
   await expect(page.getByRole("heading", { name: "Ainda não tens posições" })).toBeVisible();
-  await nav.getByRole("button", { name: "Transações", exact: true }).click();
+  await navigateTo(page, "Transações");
   await expect(page.getByRole("heading", { name: "Ainda não tens transações" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Adicionar transação", exact: false })).toBeVisible();
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
@@ -110,7 +108,7 @@ test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell"),
   });
   await expect(page.locator("tbody tr")).toHaveCount(2);
-  await nav.getByRole("button", { name: /^Posições/ }).click();
+  await navigateTo(page, /^Posições/);
   await expect(page.getByText("Não tens posições abertas.", { exact: false })).toBeVisible();
   await expect(page.locator("tbody tr")).toHaveCount(0);
   await page.getByRole("button", { name: "Fechadas 1", exact: true }).click();
@@ -205,7 +203,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await page.setViewportSize(screenViewport);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("transaction-gains.png"), fullPage: true });
-  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, "Visão geral");
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".sidebar")).toBeHidden();
   await expect(page.locator(".metrics")).toBeVisible();
@@ -267,6 +265,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
     "superior",
   );
   await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await openSidebar(page);
   await page
     .getByRole("button", { name: "Criar carteira", exact: true })
     .click();
@@ -277,7 +276,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
     .getByRole("button", { name: "Criar carteira", exact: true })
     .click();
   await expect(
-    page.locator(".portfolio-link.selected").filter({ hasText: "Longo prazo" }),
+    selectedPortfolio(page).filter({ hasText: "Longo prazo" }),
   ).toBeVisible();
   await page.locator(".data-actions summary").click();
   await expect(
@@ -351,7 +350,7 @@ test("alteração noutro separador impede sobrescrita", async ({
       mimeType: "text/csv",
       buffer: Buffer.from("date,ticker,pricebuy,shares\n2024-01-04,TEST,100,1"),
     });
-  await expect(page.getByRole("status")).toContainText("1 transações");
+  await expect(page.getByRole("status")).toContainText("1 transação importada");
   await second
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -418,13 +417,13 @@ test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
       buffer: Buffer.from(JSON.stringify(backup)),
     });
   await expect(
-    page.locator(".portfolio-link.selected").filter({ hasText: "Carteira recuperada" }),
+    selectedPortfolio(page).filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
   await expect(page.getByText("Cotação em USD; carteira em EUR").filter({ visible: true })).toBeVisible();
   await expect(page.locator(".metric").nth(0)).toContainText("—");
   await page.reload();
   await expect(
-    page.locator(".portfolio-link.selected").filter({ hasText: "Carteira recuperada" }),
+    selectedPortfolio(page).filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
 });
 test("armazenamento corrompido preserva dados até reposição explícita", async ({
@@ -665,26 +664,120 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
   await page.screenshot({ path: testInfo.outputPath("relatorio.png"), fullPage: true });
 });
 
-test("fechar e reabrir sidebar mantém foco, carteira e conteúdo", async ({ page }, testInfo) => {
+test("recolher navegação mantém atalhos no desktop e devolve foco no telemóvel", async ({ page }, testInfo) => {
   await openLocal(page);
+  const mobile = testInfo.project.name === "mobile";
   const sidebar = page.locator("#workspace-sidebar");
-  await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
-  await expect(sidebar).toBeHidden();
-  const reopen = page.getByRole("button", { name: "Abrir sidebar", exact: true });
-  await expect(reopen).toBeFocused();
-  await expect(reopen).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByRole("heading", { level: 1, name: "Visão Geral", exact: true })).toBeVisible();
-  expect(await page.locator(".main-area").evaluate((element) => getComputedStyle(element).marginLeft)).toBe("0px");
-  await reopen.press("Enter");
-  await expect(sidebar).toBeVisible();
-  const close = page.getByRole("button", { name: "Fechar sidebar", exact: true });
-  await expect(close).toBeFocused();
-  await expect(close).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("separator", { name: "Largura da sidebar" })).toBeVisible({ visible: testInfo.project.name === "desktop" });
+  const drawer = page.locator("#workspace-drawer");
+  if (mobile) {
+    await expect(sidebar).toBeHidden();
+    await expect(page.locator(".mobile-workspace-title")).toContainText("A minha carteira");
+    await openSidebar(page);
+    await expect(drawer).toHaveJSProperty("open", true);
+    await page.getByRole("button", { name: "Fechar menu", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+    await expect(sidebar).toBeHidden();
+    await openSidebar(page);
+    await page.keyboard.press("Escape");
+    await expect(sidebar).toBeHidden();
+    await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+    await navigateTo(page, "Posições");
+    await expect(page.getByRole("heading", { name: "Posições", level: 1, exact: true })).toBeVisible();
+  } else {
+    await page.getByRole("button", { name: "Fechar sidebar", exact: true }).click();
+    await expect(sidebar).toBeVisible();
+    await expect(page.locator(".main-area")).toHaveCSS("margin-left", "72px");
+    const reopen = page.getByRole("button", { name: "Abrir sidebar", exact: true });
+    await expect(reopen).toBeFocused();
+    await expect(reopen).toHaveAttribute("aria-expanded", "false");
+    await page.getByRole("navigation").getByRole("button", { name: "Transações", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Transações", level: 1, exact: true })).toBeVisible();
+    await expect(page.locator(".sidebar-portfolios")).toBeHidden();
+    await expect(page.getByRole("separator", { name: "Largura da sidebar" })).toBeHidden();
+    await reopen.press("Enter");
+    await expect(page.getByRole("button", { name: "Fechar sidebar", exact: true })).toBeFocused();
+    await expect(page.locator(".main-area")).toHaveCSS("margin-left", "248px");
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("navegacao.png"), fullPage: true });
+  await openSidebar(page);
   await page.emulateMedia({ media: "print" });
-  await expect(sidebar).toBeHidden();
-  await expect(page.locator(".sidebar-reopen")).toBeHidden();
+  await expect(drawer).toBeHidden();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("gaveta móvel contém o foco, fecha pelo fundo e adapta-se ao desktop", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Fluxo da gaveta móvel.");
+  await openLocal(page);
+  await openSidebar(page);
+  const drawer = page.getByRole("dialog", { name: "Navegação e carteiras" });
+  await expect(drawer).toBeVisible();
+  for (let i = 0; i < 18; i++) {
+    await page.keyboard.press("Tab");
+    // Native modal navigation can visit browser chrome between the last and first control.
+    expect(await page.locator("#workspace-drawer").evaluate((element) =>
+      document.activeElement === document.body || element.contains(document.activeElement),
+    )).toBe(true);
+  }
+  await page.screenshot({ path: testInfo.outputPath("gaveta-mobile.png"), fullPage: true });
+  await page.mouse.click(380, 400);
+  await expect(drawer).toBeHidden();
+  await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+  await openSidebar(page);
+  await page.getByRole("button", { name: "Criar carteira", exact: true }).click();
+  await expect(page.locator("dialog:modal")).toHaveCount(1);
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+  await openSidebar(page);
+  await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+  await openSidebar(page);
+  await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
+  await page.getByLabel("Nome da carteira").fill("Carteira renomeada");
+  await page.getByRole("button", { name: "Guardar nome", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Abrir menu", exact: true })).toBeFocused();
+  await expect(page.locator(".mobile-workspace-title")).toContainText("Carteira renomeada");
+  await openSidebar(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator("#workspace-sidebar")).toBeVisible();
+  await expect(page.locator("#workspace-drawer")).toHaveJSProperty("open", true);
+  expect(await page.locator("#workspace-drawer").evaluate((element) => element.matches(":modal"))).toBe(false);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#workspace-sidebar")).toBeHidden();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("rendimentos.portfolios.v1", JSON.stringify({
+      version: 1,
+      portfolios: Array.from({ length: 30 }, (_, index) => ({
+        id: `portfolio-${index}`,
+        name: `Carteira ${index + 1} com um nome mais longo`,
+        currency: "EUR",
+        orders: [],
+      })),
+    }));
+  });
+  await page.setViewportSize({ width: testInfo.project.name === "mobile" ? 390 : 1440, height: 600 });
+  await openLocal(page);
+  await openSidebar(page);
+  const content = page.locator(".sidebar-content");
+  expect(await content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  const navBottom = await page.getByRole("navigation").evaluate((element) => element.getBoundingClientRect().bottom);
+  const portfoliosTop = await page.locator(".sidebar-portfolios").evaluate((element) => element.getBoundingClientRect().top);
+  expect(portfoliosTop).toBeGreaterThanOrEqual(navBottom);
+  const last = page.locator(".portfolio-link").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
+  await last.click();
+  await expect(selectedPortfolio(page)).toContainText("Carteira 30");
+  await openSidebar(page);
+  await page.locator(".manage-account").scrollIntoViewIfNeeded();
+  const lastBottom = await last.evaluate((element) => element.getBoundingClientRect().bottom);
+  expect(await page.locator(".sidebar-bottom").evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(lastBottom);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o conteúdo alinhado", async ({ page }, testInfo) => {
@@ -725,7 +818,9 @@ test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o con
   await expect(handle).toHaveAttribute("aria-valuenow", "224");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(handle).toBeHidden();
-  await expect(sidebar).toHaveCSS("width", "390px");
+  await expect(sidebar).toBeHidden();
+  await openSidebar(page);
+  await expect(sidebar).toHaveCSS("width", "340px");
 });
 
 test("renomear por botão direito ou edição preserva seleção, transações e gravação", async ({ page }, testInfo) => {
@@ -733,10 +828,12 @@ test("renomear por botão direito ou edição preserva seleção, transações e
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
+  await openSidebar(page);
   await page.getByRole("button", { name: "Criar carteira", exact: true }).click();
   await page.getByLabel("Nome da carteira", { exact: true }).fill("Outra carteira");
   await page.getByRole("dialog").getByRole("button", { name: "Criar carteira", exact: true }).click();
   const first = page.locator(".portfolio-link").filter({ hasText: "A minha carteira" });
+  await openSidebar(page);
   if (testInfo.project.name === "desktop") await first.click({ button: "right" });
   else await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
@@ -746,19 +843,21 @@ test("renomear por botão direito ou edição preserva seleção, transações e
   await dialog.getByLabel("Nome da carteira").fill("  Investimentos a longo prazo  ");
   await dialog.getByRole("button", { name: "Guardar nome" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Outra carteira" })).toBeVisible();
+  await expect(selectedPortfolio(page).filter({ hasText: "Outra carteira" })).toBeVisible();
   const renamed = page.locator(".portfolio-link").filter({ hasText: "Investimentos a longo prazo" });
+  await openSidebar(page);
   await expect(renamed).toBeVisible();
   await renamed.focus();
   await renamed.press("Shift+F10");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Nome da carteira").fill("Alteração cancelada");
   await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await openSidebar(page);
   await expect(renamed).toBeVisible();
   await renamed.click();
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   await page.reload();
-  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Investimentos a longo prazo" })).toBeVisible();
+  await expect(selectedPortfolio(page).filter({ hasText: "Investimentos a longo prazo" })).toBeVisible();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
   expect(stored.portfolios[0]).toEqual({ ...original.portfolios[0], name: "Investimentos a longo prazo" });
   await page.screenshot({ path: testInfo.outputPath("sidebar-renomeada.png"), fullPage: true });
@@ -768,6 +867,7 @@ test("renomear por botão direito ou edição preserva seleção, transações e
 test("conflito ao renomear mostra erro no diálogo e preserva a versão mais recente", async ({ page }) => {
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await openSidebar(page);
   await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
   await dialog.getByLabel("Nome da carteira").fill("Nome desatualizado");
@@ -786,7 +886,7 @@ test("conflito ao renomear mostra erro no diálogo e preserva a versão mais rec
   await expect(dialog.getByRole("alert")).toContainText("já não está disponível");
   expect(await page.evaluate(() => localStorage.getItem("rendimentos.portfolios.v1"))).toBe(latest);
   await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(page.locator(".portfolio-link.selected").filter({ hasText: "Versão mais recente" })).toBeVisible();
+  await expect(selectedPortfolio(page).filter({ hasText: "Versão mais recente" })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("noutro separador");
 });
 
@@ -794,7 +894,7 @@ test("entrada sem Supabase conserva acesso explícito ao modo local", async ({ p
   test.skip(!process.env.TEST_NO_ACCOUNT_CONFIG, "Requer TEST_NO_ACCOUNT_CONFIG=1 e build sem configuração Supabase.");
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
-  await expect(page.getByText(/Supabase não configurado/)).toBeVisible();
+  await expect(page.getByText("As contas estão indisponíveis. Podes continuar no modo local.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toHaveCount(0);
   await expect(page.locator(".metrics")).toHaveCount(0);
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
@@ -1168,7 +1268,7 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
       "2024-01-02,CLOSED,Encerrada,15,2,sell",
     ].join("\n")),
   });
-  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: /^Posições/ }).click();
+  await navigateTo(page, /^Posições/);
   const rows = page.locator(".positions-table tbody tr");
   const tickers = () => page.locator(".position-identity a").allTextContents();
   await expect(rows).toHaveCount(5);
@@ -1251,7 +1351,7 @@ test("filtrar e ordenar transações, consultar detalhes e preservar a validaç�
     name: "transacoes.csv", mimeType: "text/csv",
     buffer: Buffer.from(`${csv}\n2024-01-02,AAA,Alpha,25,2,buy\n2024-01-04,TEST,Teste,150,1,sell`),
   });
-  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
+  await navigateTo(page, "Transações");
   const rows = page.locator(".transactions-table tbody tr");
   await expect(rows).toHaveCount(5);
   expect(await rows.locator("time").evaluateAll((times) => times.map((time) => time.getAttribute("datetime"))))
@@ -1344,7 +1444,7 @@ test("acomodar totais elevados nos cartões e recuperar de um filtro sem vendas"
     name: "valor-elevado.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,1000000000000,1000000000000,buy"),
   });
-  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
+  await navigateTo(page, "Transações");
   await page.getByRole("button", { name: "Vendas 0", exact: true }).click();
   await expect(page.locator(".no-results")).toContainText("Não tens vendas registadas.");
   await page.getByRole("button", { name: "Ver todas as transações", exact: true }).click();

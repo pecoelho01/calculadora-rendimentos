@@ -1,3 +1,4 @@
+import { openSidebar, navigateTo, selectedPortfolio } from "./sidebar-helpers";
 import { test, expect } from "@playwright/test";
 const asset = (price: number) => ({
   price,
@@ -87,17 +88,17 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   expect([...requests[0].searchParams.keys()]).toEqual(["tickers"]);
   expect(requests[0].searchParams.get("tickers")).toBe("TEST");
   await page.getByRole("button", { name: "Atualizar preços" }).click();
-  const nav = page.getByRole("navigation", { name: "Navegação principal" });
-  await nav.getByRole("button", { name: /^Posições/ }).click();
-  await nav.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, /^Posições/);
+  await navigateTo(page, "Visão geral");
   await expect(chart).toContainText("A obter a distribuição por continente");
   expect(requests).toHaveLength(1);
   release();
   await expect(chart.locator(".allocation-list")).toContainText(
     "América do Norte",
   );
+  await openSidebar(page);
   await page.locator(".portfolio-link").filter({ hasText: "Segunda" }).click();
-  await expect(page.locator(".portfolio-link.selected")).toContainText(
+  await expect(selectedPortfolio(page)).toContainText(
     "Segunda",
   );
   await expect(chart.locator(".donut")).toContainText("100%");
@@ -132,12 +133,14 @@ test("resposta antiga não altera a geografia da carteira selecionada", async ({
     exact: true,
   });
   await expect(chart).toContainText("A obter a distribuição por continente");
+  await openSidebar(page);
   await page.locator(".portfolio-link").filter({ hasText: "Outra" }).click();
   await expect(chart.locator(".allocation-list")).toContainText("Ásia");
   release();
   await expect(chart.locator(".allocation-list")).not.toContainText(
     "América do Norte",
   );
+  await openSidebar(page);
   await page.locator(".portfolio-link").filter({ hasText: "Primeira" }).click();
   await expect(chart.locator(".allocation-list")).toContainText(
     "América do Norte",

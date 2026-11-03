@@ -302,10 +302,12 @@ export function AccountGateway({
   const controls = (
     <section className="account-controls no-print" aria-label="Conta e armazenamento">
       <div className="account-description">
-        <strong>{identity ? "Carteiras da conta" : entered ? "Modo local · neste navegador" : "Escolhe onde guardar"}</strong>
+        {entered ? <strong>Conta</strong> : null}
         <p>{identity
           ? session?.user.email
-          : "Podes guardar na conta ou continuar sem sessão. Os dois espaços são separados."}</p>
+          : entered
+            ? "As carteiras locais ficam só neste navegador."
+            : "Com conta, acedes às carteiras noutros dispositivos. Sem sessão, ficam neste navegador."}</p>
       </div>
       <div className="account-actions">
         {checking ? <span>A verificar sessão…</span> : session ? <>
@@ -319,7 +321,7 @@ export function AccountGateway({
         </> : configured ? <>
           <button className="button primary" disabled={busy} onClick={() => open("login")}>Iniciar sessão</button>
           <button className="button secondary" disabled={busy} onClick={() => open("register")}>Criar conta</button>
-        </> : <span className="subtle">Conta indisponível: Supabase não configurado. O modo local está disponível.</span>}
+        </> : <span className="subtle">As contas estão indisponíveis. Podes continuar no modo local.</span>}
         {!entered && !checking && <button className="button secondary entry-local" disabled={busy} onClick={continueLocal}>Continuar sem sessão</button>}
       </div>
       {message && <p className="account-feedback" role="status">{message}</p>}
@@ -336,18 +338,13 @@ export function AccountGateway({
         <div className="entry-layout">
           <section className="entry-intro" aria-labelledby="entry-title">
             <div className="entry-brand"><Icon name="trend" /> rendimentos.<ThemeControl /></div>
-            <span className="eyebrow">O TEU PATRIMÓNIO, COM CLAREZA</span>
             <h1 id="entry-title" ref={welcomeHeading} tabIndex={-1}>Bem-vindo ao Rendimentos</h1>
-            <p>Acompanha as tuas carteiras, regista transações e percebe a evolução dos teus investimentos.</p>
-            <ul className="entry-features">
-              <li><Icon name="wallet" /><span><strong>As tuas carteiras, no teu ritmo</strong>Compras, vendas e resultados num só lugar.</span></li>
-              <li><Icon name="shield" /><span><strong>Tu escolhes onde guardar</strong>Na conta, entre dispositivos, ou apenas neste navegador.</span></li>
-            </ul>
+            <p>Carteiras, transações e rentabilidade num só lugar.</p>
           </section>
           <section className="entry-card" aria-labelledby="entry-choice-title">
             <h2 id="entry-choice-title">Como queres continuar?</h2>
             {controls}
-            <p className="entry-footnote">As carteiras do navegador só são copiadas para a conta quando o pedires. Os dados locais são mantidos.</p>
+            <p className="entry-footnote">A cópia para a conta é opcional e mantém os dados locais.</p>
           </section>
         </div>
       </main>
@@ -364,7 +361,7 @@ export function AccountGateway({
           ? "Escolhe uma nova palavra-passe com pelo menos 8 caracteres."
           : form === "recover"
             ? "Enviaremos uma ligação para definires uma nova palavra-passe."
-            : "As carteiras na conta são separadas das carteiras deste navegador. A cópia de dados locais requer uma importação explícita."}</p>
+            : "A conta e este navegador guardam carteiras separadas."}</p>
         {form !== "password" && <label>Email<input name="email" type="email" required autoComplete="email" maxLength={254} disabled={busy} /></label>}
         {form !== "recover" && <label>{form === "password" ? "Nova palavra-passe" : "Palavra-passe"}<input name="password" type="password" required minLength={form === "login" ? 1 : 8} maxLength={128} autoComplete={form === "login" ? "current-password" : "new-password"} disabled={busy} /></label>}
         {error && <p className="form-error" role="alert">{error}</p>}
