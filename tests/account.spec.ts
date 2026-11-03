@@ -815,6 +815,47 @@ test("recarregar conta limpa as pesquisas de todos os separadores e preserva os 
   await assertNoOverflow(page);
 });
 
+for (const conflict of [false, true]) {
+  test(`remover pela tabela de transações da conta aguarda confirmação e preserva conflitos: ${conflict}`, async ({ page }) => {
+    const state = await setup(page, true);
+    state.accounts[userA].portfolios[0].portfolio.orders = [
+      { id: "buy-first", date: "2024-01-01", ticker: "TEST", name: "Teste", pricebuy: 100, shares: 10, type: "buy" },
+      { id: "buy-second", date: "2024-01-02", ticker: "TEST", name: "Teste", pricebuy: 120, shares: 2, type: "buy" },
+    ];
+    await page.goto("/");
+    await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
+    const rows = page.locator(".transactions-table tbody tr");
+    await expect(rows).toHaveCount(2);
+    await page.getByRole("button", { name: "Compras 2", exact: true }).click();
+    await page.getByRole("textbox", { name: "Pesquisar ativo" }).fill("TEST");
+    await page.getByLabel("Ver detalhes de TEST de 2024-01-02", { exact: true }).click();
+    if (conflict) state.accounts[userA].portfolios[0].revision = 4;
+    state.delayNextWrite = true;
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Remover TEST de 2024-01-02", exact: true }).click();
+    await expect.poll(() => state.requests.length).toBe(1);
+    await expect(page.getByText("A guardar…", { exact: true })).toBeVisible();
+    await expect(rows).toHaveCount(2);
+    expect(state.requests[0].changes[0].expectedRevision).toBe(3);
+    expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(2);
+    state.releaseWrite();
+    if (conflict) {
+      await expect(page.getByText(/Esta carteira foi alterada noutro dispositivo/)).toBeVisible();
+      await expect(rows).toHaveCount(2);
+      expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(2);
+      await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+      await expect(page.getByRole("textbox", { name: "Pesquisar ativo" })).toHaveValue("");
+    } else {
+      await expect(rows).toHaveCount(1);
+      expect(state.accounts[userA].portfolios[0].portfolio.orders.map((order) => order.id)).toEqual(["buy-first"]);
+      expect(state.accounts[userA].portfolios[0].revision).toBe(4);
+    }
+    await expect(rows).toHaveCount(conflict ? 2 : 1);
+    expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+    await assertNoOverflow(page);
+  });
+}
+
 test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/data ao mercado", async ({ page }) => {
   const state = await setup(page, true);
   const marketRequests: URL[] = [];

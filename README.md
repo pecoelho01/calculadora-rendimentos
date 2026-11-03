@@ -32,7 +32,9 @@ O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa
 - Importação/exportação de CSV compatível com a aplicação anterior.
 - Persistência local no navegador ou, opcionalmente, na conta Supabase, com cópia de segurança/restauro em JSON.
 - Registo, início/fim de sessão e recuperação de acesso por email. Cópia explícita das carteiras locais para a conta, sem substituição das remotas.
-- Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador.
+- Posições com filtros de abertas (predefinição), fechadas e todas; pesquisa combinada e ordenação por valor atual, rentabilidade ou ativo. Detalhes por posição com ganho realizado e data da cotação, e cartões em telemóvel. Nas posições fechadas, o resultado em destaque é o ganho realizado.
+- Transações com filtros de todas, compras e vendas; ordenação por data (mais recentes primeiro), ativo ou total. Quantidade e preço agrupados, ganhos identificados por operação e detalhes com remoção. Cartões responsivos e datas em português.
+- Relatório por impressão: «Relatório PDF» → «Guardar como PDF» no navegador. As listas de posições e transações respeitam os filtros e as pesquisas atuais, identificam-nos no relatório e incluem os detalhes mesmo quando recolhidos no ecrã. As ações de remoção ficam ocultas na impressão.
 - Layout responsivo e notas com as fórmulas e limitações.
 - Botão de sol/lua para alternar entre tema claro e escuro, com preferência guardada neste navegador. Até à primeira escolha, acompanha o tema do sistema. A impressão mantém o tema claro.
 - Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita; no telemóvel ocupa a largura disponível.

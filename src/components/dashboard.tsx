@@ -12,6 +12,8 @@ import { parseCsv, exportCsv } from "@/lib/csv";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
+import { TransactionsTable } from "./transactions-table";
+import { PositionsTable } from "./positions-table";
 import { AllocationDonut } from "./allocation-donut";
 import { GeographicChart } from "./geographic-chart";
 import { useGeography } from "./use-geography";
@@ -34,8 +36,6 @@ const pct = (n: number | null) =>
   n === null
     ? "—"
     : `${n >= 0 ? "+" : ""}${n.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}%`;
-const qty = (n: number) =>
-  n.toLocaleString("pt-PT", { maximumFractionDigits: 8 });
 const initialPortfolio = (): Portfolio => ({
   id: crypto.randomUUID(),
   name: "A minha carteira",
@@ -259,14 +259,6 @@ export function Dashboard({ identity = null, accountControls }: {
           currency,
           maximumFractionDigits: 2,
         });
-  const visiblePositions = summary.positions.filter((p) =>
-    `${p.ticker} ${p.name}`.toLowerCase().includes(search.toLowerCase()),
-  );
-  const visibleOrders = chronological(orders)
-    .reverse()
-    .filter((o) =>
-      `${o.ticker} ${o.name}`.toLowerCase().includes(search.toLowerCase()),
-    );
   async function persist(next: Portfolio[], id = selected): Promise<boolean> {
     if (!mounted.current || writing.current) return false;
     if (identity) {
@@ -1008,177 +1000,27 @@ export function Dashboard({ identity = null, accountControls }: {
                   </div>
                 ) : (
                   <div className="table-scroll">
-                    {tab !== "transactions" && !search &&
-                    summary.positions.every((p) => p.shares === 0) ? (
-                      <p className="no-results" role="status">
-                        Não tens posições abertas. Podes consultar as posições fechadas abaixo.
-                      </p>
-                    ) : null}
                     {tab === "transactions" ? (
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Data</th>
-                            <th>Ativo</th>
-                            <th>Operação</th>
-                            <th>Quantidade</th>
-                            <th>Preço ({currency})</th>
-                            <th>Total ({currency})</th>
-                            <th>Ganho ({currency}) / %</th>
-                            <th className="no-print">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visibleOrders.map((o) => {
-                            const result = summary.orderGains.get(o.id)!;
-                            return (
-                              <tr key={o.id}>
-                                <td>{o.date}</td>
-                                <td>
-                                  <strong>{o.ticker}</strong>
-                                  <small>{o.name}</small>
-                                </td>
-                                <td>
-                                  <span className={`order-badge ${o.type}`}>
-                                    {o.type === "buy" ? "Compra" : "Venda"}
-                                  </span>
-                                </td>
-                                <td>{qty(o.shares)}</td>
-                                <td>{money(o.pricebuy)}</td>
-                                <td>{money(o.pricebuy * o.shares)}</td>
-                                <td>
-                                  <span
-                                    className={
-                                      result.gain === null
-                                        ? ""
-                                        : result.gain >= 0
-                                          ? "positive"
-                                          : "negative"
-                                    }
-                                  >
-                                    {money(result.gain)}
-                                    <span className="gain-percent">
-                                      {pct(result.percent)}
-                                    </span>
-                                  </span>
-                                  <small>
-                                    {o.type === "sell"
-                                      ? "Realizado"
-                                      : result.shares === 0
-                                        ? "Total da compra · Lote fechado"
-                                        : `Total da compra · ${qty(result.shares)} em carteira`}
-                                  </small>
-                                </td>
-                                <td className="no-print">
-                                  <button
-                                    className="delete-button"
-                                    aria-label={`Remover ${o.ticker} de ${o.date}`}
-                                    onClick={() => deleteOrder(o.id)}
-                                  >
-                                    Remover
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <TransactionsTable
+                        key={portfolio?.id}
+                        orders={orders}
+                        orderGains={summary.orderGains}
+                        currency={currency}
+                        search={search}
+                        onClearSearch={() => setSearches((current) => ({ ...current, [tab]: "" }))}
+                        onDelete={deleteOrder}
+                      />
                     ) : (
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Ativo</th>
-                            <th>Quantidade</th>
-                            <th>Custo médio FIFO</th>
-                            <th>Último preço</th>
-                            <th>Valor de mercado</th>
-                            <th>Ganho não realizado</th>
-                            <th>Realizado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visiblePositions.map((p, i) => (
-                            <tr key={p.ticker}>
-                              <td>
-                                <div className="asset-cell">
-                                  <span
-                                    className="asset-icon"
-                                    style={{ color: colors[i % colors.length] }}
-                                  >
-                                    {p.ticker.slice(0, 1)}
-                                  </span>
-                                  <div>
-                                    <a
-                                      href={`https://finance.yahoo.com/quote/${encodeURIComponent(p.ticker)}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      {p.ticker} <Icon name="external" />
-                                    </a>
-                                    <small>
-                                      {p.name}
-                                      {p.shares === 0 ? " · Fechada" : ""}
-                                    </small>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>{qty(p.shares)}</td>
-                              <td>{money(p.average)}</td>
-                              <td>
-                                {money(p.price)}
-                                <small>
-                                  {p.issue ??
-                                    (market[p.ticker]?.asOf
-                                      ? new Date(
-                                          market[p.ticker].asOf!,
-                                        ).toLocaleString("pt-PT", {
-                                          timeZone: "Europe/Lisbon",
-                                        })
-                                      : "Sem cotação")}
-                                </small>
-                              </td>
-                              <td>
-                                <strong>{money(p.value)}</strong>
-                              </td>
-                              <td
-                                className={
-                                  p.unrealized === null
-                                    ? ""
-                                    : p.unrealized >= 0
-                                      ? "positive"
-                                      : "negative"
-                                }
-                              >
-                                {money(p.unrealized)}
-                                <span className="gain-percent">{pct(p.unrealizedPercent)}</span>
-                              </td>
-                              <td
-                                className={
-                                  p.realized >= 0 ? "positive" : "negative"
-                                }
-                              >
-                                {money(p.realized)}
-                                <span className="gain-percent">{pct(p.realizedPercent)}</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <PositionsTable
+                        key={portfolio?.id}
+                        positions={summary.positions}
+                        market={market}
+                        currency={currency}
+                        loading={loading}
+                        search={search}
+                        onClearSearch={() => setSearches((current) => ({ ...current, [tab]: "" }))}
+                      />
                     )}
-                    {(tab === "transactions" ? visibleOrders : visiblePositions)
-                      .length === 0 ? (
-                      <p className="no-results" role="status">
-                        {tab === "transactions"
-                          ? "Nenhuma transação corresponde à pesquisa."
-                          : "Nenhuma posição corresponde à pesquisa."}{" "}
-                        <button
-                          className="text-button no-print"
-                          onClick={() => setSearches((current) => ({ ...current, [tab]: "" }))}
-                        >
-                          Limpar pesquisa
-                        </button>
-                      </p>
-                    ) : null}
                   </div>
                 )}
                 <div className="table-footer">

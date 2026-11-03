@@ -112,6 +112,8 @@ test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await expect(page.locator("tbody tr")).toHaveCount(2);
   await nav.getByRole("button", { name: /^Posições/ }).click();
   await expect(page.getByText("Não tens posições abertas.", { exact: false })).toBeVisible();
+  await expect(page.locator("tbody tr")).toHaveCount(0);
+  await page.getByRole("button", { name: "Fechadas 1", exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody")).toContainText("Fechada");
   await expect(page.getByRole("button", { name: "Limpar pesquisa" })).toHaveCount(0);
@@ -171,17 +173,18 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await page.reload();
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const position = page.locator("tbody tr").first();
-  await expect(position.locator("td").nth(5)).toContainText("400,00");
-  await expect(position.locator("td").nth(5)).toContainText("+23,53%");
-  await expect(position.locator("td").nth(6)).toContainText("+30%");
+  await expect(position.locator(".position-gain")).toContainText("400,00");
+  await expect(position.locator(".position-gain")).toContainText("+23,53%");
+  await position.getByLabel("Ver detalhes de TEST", { exact: true }).click();
+  await expect(position.locator(".position-details")).toContainText("+30%");
   await page
     .getByRole("button", { name: "Transações", exact: true })
     .first()
     .click();
   await expect(page.locator("tbody tr")).toHaveCount(3);
-  const sale = page.locator("tbody tr").filter({ hasText: "2024-01-03" }).locator("td").nth(6);
-  const firstBuy = page.locator("tbody tr").filter({ hasText: "2024-01-01" }).locator("td").nth(6);
-  const secondBuy = page.locator("tbody tr").filter({ hasText: "2024-01-02" }).locator("td").nth(6);
+  const sale = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-03"]') }).locator(".transaction-gain");
+  const firstBuy = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-01"]') }).locator(".transaction-gain");
+  const secondBuy = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-02"]') }).locator(".transaction-gain");
   await expect(sale).toContainText("150,00");
   await expect(sale).toContainText("+30%");
   await expect(sale).toContainText("Realizado");
@@ -228,9 +231,9 @@ test("ganhos de compras fechadas e vendas permanecem sem cotação atual", async
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell\n2024-01-03,TEST,Teste,120,1,buy"),
   });
   await page.getByRole("button", { name: "Transações", exact: true }).first().click();
-  const closed = page.locator("tbody tr").filter({ hasText: "2024-01-01" }).locator("td").nth(6);
-  const sale = page.locator("tbody tr").filter({ hasText: "2024-01-02" }).locator("td").nth(6);
-  const open = page.locator("tbody tr").filter({ hasText: "2024-01-03" }).locator("td").nth(6);
+  const closed = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-01"]') }).locator(".transaction-gain");
+  const sale = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-02"]') }).locator(".transaction-gain");
+  const open = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-03"]') }).locator(".transaction-gain");
   await expect(closed).toContainText("300,00");
   await expect(closed).toContainText("+30%");
   await expect(closed).toContainText("Lote fechado");
@@ -417,7 +420,7 @@ test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
   await expect(
     page.locator(".portfolio-link.selected").filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
-  await expect(page.getByText("Cotação em USD; carteira em EUR")).toBeVisible();
+  await expect(page.getByText("Cotação em USD; carteira em EUR").filter({ visible: true })).toBeVisible();
   await expect(page.locator(".metric").nth(0)).toContainText("—");
   await page.reload();
   await expect(
@@ -1139,4 +1142,223 @@ test("explorar fatias dos ETFs e continentes por rato, toque e teclado", async (
   await expect(chart.locator(".donut-default").last()).toBeVisible();
   await expect(chart.locator(".donut-default").last()).toHaveText("100%");
   expect(await chart.locator(".slice-muted").evaluateAll((paths) => paths.every((path) => getComputedStyle(path).opacity === "1"))).toBe(true);
+});
+
+test("organizar posições por estado, valor e rentabilidade sem confundir zero com cotação ausente", async ({ page }, testInfo) => {
+  const marketAssets = {
+    ...assets,
+    AAA: { ...assets.TEST, name: "Alpha", price: 50 },
+    ZERO: { ...assets.TEST, name: "Zero válido", price: 0 },
+    MISSING: { ...assets.TEST, name: "Sem dados", price: null },
+    FX: { ...assets.TEST, name: "Outra moeda", price: 99, currency: "USD" },
+    CLOSED: { ...assets.TEST, name: "Encerrada", price: null },
+  };
+  await page.route("**/api/market?*", (route) => route.fulfill({ json: { assets: marketAssets } }));
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "posicoes.csv", mimeType: "text/csv",
+    buffer: Buffer.from([
+      "date,ticker,name,pricebuy,shares,type",
+      "2024-01-01,TEST,Teste,100,10,buy",
+      "2024-01-01,AAA,Alpha,25,2,buy",
+      "2024-01-01,ZERO,Zero válido,10,1,buy",
+      "2024-01-01,MISSING,Sem dados,10,1,buy",
+      "2024-01-01,FX,Outra moeda,10,1,buy",
+      "2024-01-01,CLOSED,Encerrada,10,2,buy",
+      "2024-01-02,CLOSED,Encerrada,15,2,sell",
+    ].join("\n")),
+  });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: /^Posições/ }).click();
+  const rows = page.locator(".positions-table tbody tr");
+  const tickers = () => page.locator(".position-identity a").allTextContents();
+  await expect(rows).toHaveCount(5);
+  await expect(rows.first().locator(".position-value")).toContainText("1400,00");
+  expect((await tickers()).map((ticker) => ticker.trim())).toEqual(["TEST", "AAA", "ZERO", "FX", "MISSING"]);
+  const zero = rows.filter({ has: page.locator(".position-identity a", { hasText: /^ZERO/ }) });
+  const missing = rows.filter({ has: page.locator(".position-identity a", { hasText: /^MISSING/ }) });
+  const fx = rows.filter({ has: page.locator(".position-identity a", { hasText: /^FX/ }) });
+  await expect(zero.locator(".position-value strong")).toHaveText(/0,00/);
+  await expect(zero.locator(".position-gain")).toContainText("-10,00");
+  await expect(missing.locator(".position-value strong")).toHaveText("—");
+  await expect(missing.locator(".position-gain strong")).toHaveText("—");
+  await expect(fx.locator(".position-value strong")).toHaveText("—");
+  await expect(fx.locator(".position-quote")).toContainText("Cotação em USD; carteira em EUR");
+  await page.getByRole("button", { name: "Ordenação descendente. Inverter ordem" }).click();
+  expect((await tickers()).map((ticker) => ticker.trim())).toEqual(["ZERO", "AAA", "TEST", "FX", "MISSING"]);
+  await page.getByLabel("Ordenar posições por").selectOption("return");
+  await expect(rows.first()).toContainText("AAA");
+  await page.getByLabel("Ordenar posições por").selectOption("asset");
+  await expect(rows.first()).toContainText("AAA");
+  if (testInfo.project.name === "desktop") {
+    await page.locator("th").first().getByRole("button").click();
+    await expect(page.locator("th").first()).toHaveAttribute("aria-sort", "descending");
+    await expect(rows.first()).toContainText("ZERO");
+  }
+  await page.getByRole("button", { name: "Fechadas 1", exact: true }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first().locator(".position-gain")).toContainText("+10,00");
+  await expect(rows.first().locator(".position-gain")).toContainText("+50%");
+  await page.getByRole("button", { name: "Todas 6", exact: true }).click();
+  await expect(rows).toHaveCount(6);
+  await page.screenshot({ path: testInfo.outputPath("positions-all.png"), fullPage: true });
+  const originalViewport = page.viewportSize()!;
+  for (const width of [360, 390, 768, 900, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.locator(".positions-view").evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true);
+    const singleLineAmounts = await page.locator(".position-value > strong, .position-gain > strong").evaluateAll((amounts) =>
+      amounts.every((amount) => {
+        const range = document.createRange();
+        range.selectNodeContents(amount);
+        return range.getClientRects().length === 1;
+      }),
+    );
+    expect(singleLineAmounts).toBe(true);
+  }
+  await page.setViewportSize(originalViewport);
+  const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
+  await search.fill("Teste");
+  await expect(rows).toHaveCount(1);
+  const disclosure = page.getByLabel("Ver detalhes de TEST", { exact: true });
+  await disclosure.click();
+  await expect(page.locator(".position-details dd").last()).toContainText("29/10/2026");
+  if (testInfo.project.name === "mobile") {
+    await expect(page.locator(".position-mobile-detail").first()).toBeVisible();
+    await expect(page.locator(".position-mobile-detail").nth(1)).toContainText("100,00");
+    await expect(page.locator(".position-mobile-detail").nth(2)).toContainText("140,00");
+  }
+  await disclosure.click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("positions-redesign.png"), fullPage: true });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: testInfo.outputPath("positions-redesign-dark.png"), fullPage: true });
+  await page.setViewportSize({ width: 1016, height: 794 });
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".position-details dd").last()).toBeVisible();
+  await expect(page.locator(".position-details")).toContainText("Ganho realizado");
+  await expect(page.locator(".position-context")).toContainText("Todas · Pesquisa: “Teste”");
+  await expect(page.locator(".position-filters")).toBeHidden();
+  expect(await page.locator("table").evaluate((table) => table.getBoundingClientRect().right <= document.documentElement.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("positions-redesign-print.png"), fullPage: true });
+});
+
+test("filtrar e ordenar transações, consultar detalhes e preservar a validação de remoção", async ({ page }, testInfo) => {
+  await page.route("**/api/market?*", (route) => route.fulfill({ json: {
+    assets: { ...assets, AAA: { ...assets.TEST, name: "Alpha", price: 50 } },
+  } }));
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "transacoes.csv", mimeType: "text/csv",
+    buffer: Buffer.from(`${csv}\n2024-01-02,AAA,Alpha,25,2,buy\n2024-01-04,TEST,Teste,150,1,sell`),
+  });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
+  const rows = page.locator(".transactions-table tbody tr");
+  await expect(rows).toHaveCount(5);
+  expect(await rows.locator("time").evaluateAll((times) => times.map((time) => time.getAttribute("datetime"))))
+    .toEqual(["2024-01-04", "2024-01-03", "2024-01-02", "2024-01-02", "2024-01-01"]);
+  expect(await rows.locator(".transaction-identity strong").allTextContents()).toEqual(["TEST", "TEST", "TEST", "AAA", "TEST"]);
+  await expect(rows.first().locator("time")).toContainText("jan.");
+  await expect(rows.first().locator(".transaction-total")).toContainText("150,00");
+  await expect(rows.first().locator(".transaction-gain")).toContainText("+50,00");
+  await expect(rows.first().locator(".transaction-gain")).toContainText("Realizado");
+  await page.getByRole("button", { name: "Compras 3", exact: true }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first().locator(".transaction-gain")).toContainText("Total da compra");
+  const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
+  await search.fill("Alpha");
+  await expect(rows).toHaveCount(1);
+  await page.getByRole("button", { name: "Vendas 2", exact: true }).click();
+  await expect(rows).toHaveCount(0);
+  await expect(page.locator(".no-results")).toContainText("Nenhuma transação corresponde à pesquisa.");
+  await page.getByRole("button", { name: "Limpar pesquisa" }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Vendas 2", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Todas 5", exact: true }).click();
+  await page.getByLabel("Ordenar transações por").selectOption("total");
+  await expect(rows.first().locator(".transaction-total")).toContainText("1200,00");
+  await page.getByRole("button", { name: "Ordenação descendente. Inverter ordem" }).click();
+  await expect(rows.first()).toContainText("AAA");
+  await page.getByLabel("Ordenar transações por").selectOption("asset");
+  await expect(rows.first()).toContainText("AAA");
+  if (testInfo.project.name === "desktop") {
+    await page.locator("th").nth(1).getByRole("button").click();
+    await expect(page.locator("th").nth(1)).toHaveAttribute("aria-sort", "descending");
+    await expect(rows.first()).toContainText("TEST");
+  }
+  const viewport = page.viewportSize()!;
+  for (const width of [360, 390, 768, 900, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.locator(".transactions-view").evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true);
+    expect(await page.locator(".transaction-total > strong, .transaction-gain strong").evaluateAll((amounts) => amounts.every((amount) => {
+      const range = document.createRange();
+      range.selectNodeContents(amount);
+      return range.getClientRects().length === 1;
+    }))).toBe(true);
+  }
+  await page.setViewportSize(viewport);
+  await page.screenshot({ path: testInfo.outputPath("transactions-redesign.png"), fullPage: true });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: testInfo.outputPath("transactions-redesign-dark.png"), fullPage: true });
+  const alphaDetails = page.getByLabel("Ver detalhes de AAA de 2024-01-02", { exact: true });
+  await alphaDetails.focus();
+  await alphaDetails.press("Enter");
+  const alpha = rows.filter({ hasText: "AAA" });
+  await expect(alpha.locator(".transaction-explanation")).toBeVisible();
+  if (testInfo.project.name === "mobile") {
+    await expect(alpha.locator(".transaction-mobile-detail")).toBeVisible();
+    await expect(alpha.locator(".transaction-mobile-detail")).toContainText("25,00");
+  }
+  await page.screenshot({ path: testInfo.outputPath("transactions-details.png"), fullPage: true });
+  await alphaDetails.press("Enter");
+  await page.getByRole("button", { name: "Compras 3", exact: true }).click();
+  await search.fill("Alpha");
+  await page.setViewportSize({ width: 1016, height: 794 });
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".transaction-explanation")).toBeVisible();
+  await expect(page.locator(".transaction-context")).toContainText("Compras · Pesquisa: “Alpha”");
+  await expect(page.locator(".transaction-filters")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Remover AAA de 2024-01-02" })).toBeHidden();
+  expect(await page.locator("table").evaluate((table) => table.getBoundingClientRect().right <= document.documentElement.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("transactions-redesign-print.png"), fullPage: true });
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize(viewport);
+  await search.fill("");
+  await page.getByRole("button", { name: "Todas 5", exact: true }).click();
+  await page.getByLabel("Ver detalhes de TEST de 2024-01-01", { exact: true }).click();
+  // The first purchase alone is not required, but removing both buys is invalid.
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Remover TEST de 2024-01-01", exact: true }).click();
+  await expect(rows).toHaveCount(4);
+  await page.getByLabel("Ver detalhes de TEST de 2024-01-02", { exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Remover TEST de 2024-01-02", exact: true }).click();
+  await expect(page.locator(".notice")).toContainText("superior");
+  await expect(rows).toHaveCount(4);
+  await expect(page.locator(".transaction-gain").filter({ hasText: "Realizado" })).toHaveCount(2);
+});
+
+test("acomodar totais elevados nos cartões e recuperar de um filtro sem vendas", async ({ page }, testInfo) => {
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "valor-elevado.csv", mimeType: "text/csv",
+    buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,1000000000000,1000000000000,buy"),
+  });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
+  await page.getByRole("button", { name: "Vendas 0", exact: true }).click();
+  await expect(page.locator(".no-results")).toContainText("Não tens vendas registadas.");
+  await page.getByRole("button", { name: "Ver todas as transações", exact: true }).click();
+  await expect(page.locator(".transactions-table tbody tr")).toHaveCount(1);
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.locator(".transactions-view").evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true);
+    expect(await page.locator(".transaction-total > strong, .transaction-gain strong").evaluateAll((amounts) => amounts.every((amount) => {
+      const range = document.createRange();
+      range.selectNodeContents(amount);
+      const text = range.getBoundingClientRect();
+      const cell = amount.closest("td")!.getBoundingClientRect();
+      return text.left >= cell.left - 1 && text.right <= cell.right + 1 && range.getClientRects().length === 1;
+    }))).toBe(true);
+  }
+  await page.screenshot({ path: testInfo.outputPath("transactions-large-amount.png"), fullPage: true });
 });
