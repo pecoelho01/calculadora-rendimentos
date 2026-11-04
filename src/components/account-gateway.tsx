@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_RECOVERY_CHANGED, AUTH_SESSION_MESSAGE, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
 import { getRecoverySession, matchesRecoverySession, type RecoverySession } from "@/lib/recovery-session";
 import { Dialog } from "./dialog";
+import { AuthCaptcha } from "./auth-captcha";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
 import "./account.css";
@@ -16,6 +17,7 @@ export type AccountIdentity = {
   accessToken: string;
 };
 const LOCAL_ENTRY_KEY = "rendimentos.entry.local.v1";
+const CAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 type AuthForm = "login" | "register" | "recover" | "password" | null;
 const titles = {
@@ -39,10 +41,17 @@ export function AccountGateway({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const [needsReauthentication, setNeedsReauthentication] = useState(false);
   const action = useRef(0);
   const authPending = useRef(false);
   const recoverySession = useRef<RecoverySession | null>(null);
   const welcomeHeading = useRef<HTMLHeadingElement>(null);
+
+  const receiveCaptcha = useCallback((token: string) => {
+    if (!authPending.current) setCaptchaToken(token);
+  }, []);
 
   function rememberLocal(value: boolean) {
     setLocalChosen(value);
@@ -129,6 +138,7 @@ export function AccountGateway({
       apply(next, changedUser || event === "INITIAL_SESSION");
       if (event === "PASSWORD_RECOVERY") {
         recoverySession.current = getRecoverySession(next);
+        setNeedsReauthentication(false);
         setForm(recoverySession.current ? "password" : null);
         setError(recoverySession.current ? "" : AUTH_RECOVERY_CHANGED);
         setMessage("");
@@ -157,6 +167,7 @@ export function AccountGateway({
       // A login in another tab after the exchange must not inherit recovery UI.
       if (matchesRecoverySession(restored, callback.recovery)) {
         recoverySession.current = callback.recovery;
+        setNeedsReauthentication(false);
         setForm("password");
       }
     }).catch((error: unknown) => {
@@ -177,6 +188,9 @@ export function AccountGateway({
   function open(next: AuthForm) {
     if (authPending.current) return;
     recoverySession.current = null;
+    setCaptchaToken("");
+    setCaptchaAttempt((value) => value + 1);
+    setNeedsReauthentication(false);
     setForm(next);
     setError("");
     setMessage("");
@@ -191,6 +205,13 @@ export function AccountGateway({
     const task = ++action.current;
     const submitted = form;
     const expectedRecovery = recoverySession.current;
+    const nonce = String(data.get("nonce") ?? "").trim();
+    const captcha = CAPTCHA_SITE_KEY && submitted !== "password" ? captchaToken : undefined;
+    if (CAPTCHA_SITE_KEY && submitted !== "password" && !captcha) {
+      setError("Conclui a verificação de segurança antes de continuar.");
+      return;
+    }
+    setCaptchaToken("");
     authPending.current = true;
     setBusy(true);
     setError("");
@@ -199,7 +220,7 @@ export function AccountGateway({
       await runBrowserAuthMutation(async () => {
         const redirectTo = `${window.location.origin}/?recovery=1`;
         if (submitted === "recover") {
-          const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo, ...(captcha ? { captchaToken: captcha } : {}) });
           if (result.error) throw result.error;
           if (task === action.current)
             setMessage("Se existir uma conta com este email, receberás uma ligação para recuperar o acesso.");
@@ -213,7 +234,25 @@ export function AccountGateway({
             setForm(null);
             throw new Error(AUTH_RECOVERY_CHANGED);
           }
-          const result = await supabase.auth.updateUser({ password });
+          const result = await supabase.auth.updateUser({ password, ...(nonce ? { nonce } : {}) });
+          if (result.error?.code === "reauthentication_needed") {
+            if (task !== action.current || recoverySession.current !== expectedRecovery) return;
+            setNeedsReauthentication(true);
+            if (needsReauthentication) {
+              setError("É necessário um novo código de confirmação. Pede outro código antes de continuar.");
+              return;
+            }
+            const sent = await supabase.auth.reauthenticate();
+            if (task === action.current) {
+              if (sent.error) setError("Não foi possível enviar o código. Tenta enviar novamente mais tarde.");
+              else setMessage("Enviámos um código de confirmação para o teu email. Introduz o código para guardar a palavra-passe.");
+            }
+            return;
+          }
+          if (result.error?.code === "reauthentication_not_valid") {
+            if (task === action.current) setError("O código de confirmação é inválido ou expirou. Confirma o código ou pede outro.");
+            return;
+          }
           if (result.error) throw result.error;
           if (task === action.current) {
             recoverySession.current = null;
@@ -227,7 +266,7 @@ export function AccountGateway({
           const result = await supabase.auth.signUp({
             email,
             password,
-            options: { emailRedirectTo: `${window.location.origin}/` },
+            options: { emailRedirectTo: `${window.location.origin}/`, ...(captcha ? { captchaToken: captcha } : {}) },
           });
           if (result.error) throw result.error;
           if (task === action.current) {
@@ -237,7 +276,7 @@ export function AccountGateway({
               : "Consulta o teu email para confirmar a conta. Depois, inicia sessão. As carteiras locais continuam neste navegador.");
           }
         } else {
-          const result = await supabase.auth.signInWithPassword({ email, password });
+          const result = await supabase.auth.signInWithPassword({ email, password, ...(captcha ? { options: { captchaToken: captcha } } : {}) });
           if (result.error) throw result.error;
           if (task === action.current) {
             setAccountMode(true);
@@ -257,6 +296,40 @@ export function AccountGateway({
               ? "Não foi possível atualizar a palavra-passe. Pede uma nova ligação de recuperação e tenta novamente."
               : "Não foi possível enviar a ligação de recuperação. Tenta novamente mais tarde.");
       }
+    } finally {
+      authPending.current = false;
+      if (submitted !== "password") {
+        setCaptchaToken("");
+        setCaptchaAttempt((value) => value + 1);
+      }
+      setBusy(false);
+    }
+  }
+
+  async function resendReauthentication() {
+    const supabase = getBrowserSupabase();
+    const expected = recoverySession.current;
+    if (!supabase || !expected || authPending.current) return;
+    const task = ++action.current;
+    authPending.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await runBrowserAuthMutation(async () => {
+        const { data, error } = await supabase.auth.getSession();
+        if (error || recoverySession.current !== expected || !matchesRecoverySession(data.session, expected)) {
+          recoverySession.current = null;
+          setForm(null);
+          throw new Error(AUTH_RECOVERY_CHANGED);
+        }
+        const result = await supabase.auth.reauthenticate();
+        if (result.error) throw result.error;
+        if (task === action.current) setMessage("Enviámos um novo código de confirmação para o teu email.");
+      });
+    } catch (failure) {
+      if (task === action.current) setError(failure instanceof Error && failure.message === AUTH_RECOVERY_CHANGED
+        ? AUTH_RECOVERY_CHANGED : "Não foi possível enviar o código. Tenta novamente mais tarde.");
     } finally {
       authPending.current = false;
       setBusy(false);
@@ -383,12 +456,17 @@ export function AccountGateway({
             : "A conta e este navegador guardam carteiras separadas."}</p>
         {form !== "password" && <label>Email<input name="email" type="email" required autoComplete="email" maxLength={254} disabled={busy} /></label>}
         {form !== "recover" && <label>{form === "password" ? "Nova palavra-passe" : "Palavra-passe"}<input name="password" type="password" required minLength={form === "login" ? 1 : 8} maxLength={128} autoComplete={form === "login" ? "current-password" : "new-password"} disabled={busy} /></label>}
+        {form === "password" && needsReauthentication && <>
+          <label>Código de confirmação<input name="nonce" type="text" required inputMode="numeric" autoComplete="one-time-code" minLength={1} maxLength={128} disabled={busy} /></label>
+          <button type="button" className="text-button" disabled={busy} onClick={() => void resendReauthentication()}>Enviar novo código</button>
+        </>}
+        {form !== "password" && CAPTCHA_SITE_KEY && <AuthCaptcha key={`${form}:${captchaAttempt}`} siteKey={CAPTCHA_SITE_KEY} onToken={receiveCaptcha} />}
         {error && <p className="form-error" role="alert">{error}</p>}
         {message && <p className="account-feedback" role="status">{message}</p>}
         <div className="account-form-actions">
           {form === "login" && <button type="button" className="text-button" disabled={busy} onClick={() => open("recover")}>Esqueci a palavra-passe</button>}
           {form === "recover" && <button type="button" className="text-button" disabled={busy} onClick={() => open("login")}>Voltar ao início de sessão</button>}
-          <button className="button primary" disabled={busy} type="submit">{busy ? "A aguardar…" : form === "recover" ? "Enviar ligação" : form === "password" ? "Guardar palavra-passe" : titles[form]}</button>
+          <button className="button primary" disabled={busy || (!!CAPTCHA_SITE_KEY && form !== "password" && !captchaToken)} type="submit">{busy ? "A aguardar…" : form === "recover" ? "Enviar ligação" : form === "password" ? "Guardar palavra-passe" : titles[form]}</button>
         </div>
       </form>
     </Dialog>}

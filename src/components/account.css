@@ -149,3 +149,5 @@
 @media (max-width: 480px) {
   .entry-brand { font-size: 18px; gap: 8px; letter-spacing: -0.8px; }
 }
+.auth-captcha { min-width: 0; width: 100%; }
+.auth-captcha > div { max-width: 100%; }

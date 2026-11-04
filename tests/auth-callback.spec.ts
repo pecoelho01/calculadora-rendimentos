@@ -19,11 +19,11 @@ test("rejeitar tokens por HTTP sem servir a página e preservar códigos PKCE", 
   expect(api.headers().location).toBeUndefined();
 });
 
-test("limpar a query mesmo sem JavaScript e substituir o fragmento original", async ({ browser }) => {
+test("limpar a query mesmo sem JavaScript e substituir o fragmento original", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   try {
     const page = await context.newPage();
-    const response = await page.goto(`http://127.0.0.1:3100${callback}`);
+    const response = await page.goto(new URL(callback, baseURL).href);
     expect(response?.status()).toBe(200);
     const url = new URL(page.url());
     expect(url.search).toBe("?preservar=1");
