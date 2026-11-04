@@ -827,10 +827,17 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               </p>
               <h3>Histórico da carteira</h3>
               <p>
-                Reconstruímos a carteira com fechos diários em 1D, 5D e 1M e
+                Em 1D, usamos observações intradiárias de cinco minutos do dia UTC,
+                com horas em UTC e possíveis atrasos. Sem esses dados, o gráfico
+                fica indisponível. Em falhas curtas, reutilizamos a última cotação
+                válida por até 15 minutos e identificamos o valor como estimado;
+                após esse prazo, mantemos a interrupção, mesmo que outra bolsa esteja aberta.
+                Como as transações não têm hora, as transações
+                do dia aplicam-se a todas as observações desse dia, pela ordem de registo.
+                Reconstruímos a carteira com fechos diários em 5D e 1M e
                 semanais nos restantes períodos, usando apenas preços desse dia
                 ou anteriores, nas datas disponíveis dos ativos da carteira.
-                Não há dados intradiários. Em Máximo, a carteira mantém os
+                Em Máximo, a carteira mantém os
                 custos originais. Em 1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais usam o
                 último fecho anterior ao início efetivo do intervalo. A rentabilidade
                 total inclui as compras e vendas do período; nas posições

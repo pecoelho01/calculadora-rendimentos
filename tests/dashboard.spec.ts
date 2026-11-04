@@ -637,7 +637,13 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
     { date: "2026-10-29", close: 148 },
   ];
   await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
-    TEST: { ...assets.TEST, price: 150, history },
+    TEST: { ...assets.TEST, price: 150, history, intraday: [
+      { date: "2026-10-30T10:00:00Z", close: 148 },
+      { date: "2026-10-30T10:05:00Z", close: 152 },
+      { date: "2026-10-30T10:10:00Z", close: 145 },
+      { date: "2026-10-30T10:15:00Z", close: 149 },
+      { date: "2026-10-30T10:20:00Z", close: 150 },
+    ] },
   } } }));
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
@@ -652,13 +658,45 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
       await page.getByRole("button", { name: period, exact: true }).click();
       await expect(current).toContainText(expected);
       await expect(current).toContainText(period);
+      const axisLabels = page.locator(".performance .chart-date");
+      if (period === "1D") {
+        await expect(axisLabels).toHaveText(["10:00", "10:10", "10:20"]);
+        const path = await chart.locator("svg path").getAttribute("d");
+        const coordinates = [...path!.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map((match) => Number(match[2]));
+        expect(coordinates).toHaveLength(5);
+        expect(coordinates[1]).toBeLessThan(coordinates[0]);
+        expect(coordinates[2]).toBeGreaterThan(coordinates[1]);
+        expect(coordinates[3]).toBeLessThan(coordinates[2]);
+        await expect(page.locator(".chart-limitations")).toContainText("Horas em UTC");
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        if (mode === "Posições abertas") {
+          await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-1d.png") });
+          await page.emulateMedia({ media: "print" });
+          await expect(axisLabels).toHaveText(["10:00", "10:10", "10:20"]);
+          await page.emulateMedia({ media: "screen" });
+        }
+      } else {
+        for (const label of await axisLabels.allTextContents()) {
+          expect(label).toMatch(/\S+(?:\s+|\/)\d{2}$/);
+          expect(label).not.toContain(":");
+        }
+        await expect(page.locator(".chart-limitations")).not.toContainText("Horas em UTC");
+      }
       await chart.focus();
       await chart.press("End");
       await expect(readout).toContainText(expected);
       await expect(page.locator(".performance")).not.toContainText(/S&P 500|índice/);
       await expect(chart).not.toHaveAttribute("aria-valuetext", /S&P 500/);
       await expect(chart.locator("svg path")).toHaveCount(1);
-      await expect(readout).toContainText("Atual");
+      await expect(readout).toContainText(period === "1D" ? "Última observação" : "Atual");
+      if (period === "1D") {
+        await expect(chart).toHaveAttribute("aria-valuetext", /10:20.*UTC/);
+        await chart.press("ArrowLeft");
+        await chart.press("ArrowLeft");
+        await expect(readout).toContainText("10:10");
+        await expect(readout).toContainText("-2,03%");
+        await expect(current).toContainText(expected);
+      }
       if (period !== "Máximo") {
         await chart.press("Home");
         await expect(readout).toContainText("+0%");
@@ -680,6 +718,67 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   await expect(page.locator(".performance .segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("1D preenche falhas curtas, identifica estimativas e mantém interrupções longas", async ({ page }, testInfo) => {
+  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
+  await page.route("**/api/market?*", route => route.fulfill({ json: { assets: {
+    TEST: { ...assets.TEST, history: [{ date: "2026-10-29", close: 100 }], intraday: [
+      { date: "2026-10-30T09:55:00Z", close: null },
+      { date: "2026-10-30T10:00:00Z", close: 100 },
+      { date: "2026-10-30T10:05:00Z", close: null },
+      { date: "2026-10-30T10:10:00Z", close: 105 },
+      { date: "2026-10-30T10:15:00Z", close: null },
+      { date: "2026-10-30T10:30:00Z", close: null },
+      { date: "2026-10-30T10:35:00Z", close: 110 },
+      { date: "2026-10-30T10:40:00Z", close: null },
+    ] },
+  } } }));
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "falhas.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
+  await page.getByRole("button", { name: "1D", exact: true }).click();
+  const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
+  const current = page.locator(".performance-current");
+  const readout = page.locator(".chart-readout");
+  await expect(current).toContainText("+10%");
+  await expect(current).toContainText("Estimado");
+  await chart.focus();
+  await chart.press("Home");
+  await expect(readout).toContainText("Indisponível");
+  await chart.press("ArrowRight");
+  await expect(readout).toContainText("+0%");
+  await expect(readout).not.toContainText("Estimado");
+  await chart.press("ArrowRight");
+  await expect(readout).toContainText("10:05");
+  await expect(readout).toContainText("+0%");
+  await expect(chart).toHaveAttribute("aria-valuetext", /Estimado.*15 min/);
+  await chart.press("ArrowRight");
+  await expect(readout).toContainText("+5%");
+  await expect(readout).not.toContainText("Estimado");
+  await chart.press("End");
+  await chart.press("ArrowLeft");
+  await chart.press("ArrowLeft");
+  await expect(readout).toContainText("10:30");
+  await expect(readout).toContainText("Indisponível");
+  expect((await chart.locator("svg path").getAttribute("d"))!.match(/M/g)).toHaveLength(2);
+  await chart.press("End");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-1d-estimada.png") });
+  await page.emulateMedia({ media: "print" });
+  await expect(current).toContainText("Estimado");
+  await expect(page.locator(".chart-limitations")).toContainText("15 min");
+});
+
+test("1D sem observações intradiárias não desenha uma reta com os fechos diários", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.getByRole("button", { name: "1D", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sem dados intradiários neste dia" })).toBeVisible();
+  await expect(page.locator(".performance-current")).toContainText("Indisponível");
+  await expect(page.locator(".performance .chart-interaction")).toHaveCount(0);
+  await page.getByRole("button", { name: "Máximo", exact: true }).click();
+  await expect(page.getByRole("slider", { name: "Data da rentabilidade" })).toBeVisible();
 });
 
 
