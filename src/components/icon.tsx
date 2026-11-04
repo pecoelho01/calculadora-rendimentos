@@ -20,6 +20,7 @@ const paths = {
   wallet: "M3 6V4h15v4 M3 6v14h18V8H5a2 2 0 0 1-2-2 M21 12h-6v4h6",
   trend: "M3 17l6-6 4 4 8-11 M15 4h6v6",
   shield: "M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M8 12l3 3 5-6",
+  logout: "M9 4H4v16h5 M10 12h11 M17 8l4 4-4 4",
   close: "M6 6l12 12 M18 6 6 18",
   chevron: "M6 9l6 6 6-6",
   file: "M14 2H4v20h16V8z M14 2v6h6 M8 13h8 M8 17h5",

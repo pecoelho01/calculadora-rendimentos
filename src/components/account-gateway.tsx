@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -27,7 +28,7 @@ const titles = {
 export function AccountGateway({
   children,
 }: {
-  children: (identity: AccountIdentity | null, controls: ReactNode) => ReactNode;
+  children: (identity: AccountIdentity | null, controls: ReactNode, sidebarControls: ReactNode, feedback: ReactNode) => ReactNode;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [accountMode, setAccountMode] = useState(false);
@@ -299,12 +300,31 @@ export function AccountGateway({
     if (!checking && !entered) welcomeHeading.current?.focus();
   }, [checking, entered]);
 
+  const feedback = <>
+    {message && <p className="account-feedback" role="status">{message}</p>}
+    {error && !form && <p className="account-feedback form-error" role="alert">{error}</p>}
+  </>;
+  const sidebarControls = session ? (
+    <>
+      <Link className="nav-item" href="/conta"><Icon name="shield" /><span className="nav-label">Definições da conta</span></Link>
+      <button className="nav-item" disabled={busy} onClick={() => void logout()}>
+        <Icon name="logout" /><span className="nav-label">Sair da conta</span>
+      </button>
+    </>
+  ) : (
+    <section className="sidebar-account" aria-label="Acesso à conta">
+      {configured ? <>
+        <button className="button primary" disabled={busy} onClick={() => open("login")}>Iniciar sessão</button>
+        <button className="button secondary" disabled={busy} onClick={() => open("register")}>Criar conta</button>
+      </> : <p className="subtle">As contas estão indisponíveis. Podes continuar no modo local.</p>}
+    </section>
+  );
   const controls = (
     <section className="account-controls no-print" aria-label="Conta e armazenamento">
       <div className="account-description">
         {entered ? <strong>Conta</strong> : null}
-        <p>{identity
-          ? session?.user.email
+        <p>{session
+          ? session.user.email
           : entered
             ? "As carteiras locais ficam só neste navegador."
             : "Com conta, acedes às carteiras noutros dispositivos. Sem sessão, ficam neste navegador."}</p>
@@ -324,8 +344,7 @@ export function AccountGateway({
         </> : <span className="subtle">As contas estão indisponíveis. Podes continuar no modo local.</span>}
         {!entered && !checking && <button className="button secondary entry-local" disabled={busy} onClick={continueLocal}>Continuar sem sessão</button>}
       </div>
-      {message && <p className="account-feedback" role="status">{message}</p>}
-      {error && !form && <p className="account-feedback form-error" role="alert">{error}</p>}
+      {feedback}
     </section>
   );
   return <>
@@ -333,7 +352,7 @@ export function AccountGateway({
       <main className="entry-page" aria-busy="true">
         <div className="entry-loading" role="status"><Icon name="shield" /> A verificar sessão…</div>
       </main>
-    ) : entered ? children(identity, controls) : (
+    ) : entered ? children(identity, session ? controls : null, sidebarControls, feedback) : (
       <main className="entry-page">
         <div className="entry-layout">
           <section className="entry-intro" aria-labelledby="entry-title">

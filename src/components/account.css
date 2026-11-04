@@ -127,3 +127,18 @@
 }
 /* The heading receives screen-reader focus after entry transitions, not keyboard input. */
 .entry-intro h1:focus { outline: none; }
+
+.sidebar-account {
+  display: grid;
+  gap: 10px;
+  padding: 16px 8px 0;
+}
+.sidebar-account .button {
+  min-height: 44px;
+  width: 100%;
+  justify-content: center;
+}
+.sidebar-account p { font-size: 12px; overflow-wrap: anywhere; }
+.sidebar-bottom > .nav-item { margin-top: 12px; min-height: 44px; }
+.account-settings-intro { color: var(--muted); margin-bottom: 20px; }
+.account-back { margin-bottom: 24px; }
