@@ -1,6 +1,6 @@
 # Rendimentos
 
-Gestão de carteiras em **Next.js + React + TypeScript**, preparada para **Vercel**. Interface em português inspirada na organização de portfólios do Yahoo Finance, com dados de mercado obtidos no servidor.
+Gestão de carteiras em **Next.js + React + TypeScript**, preparada para **Vercel**. Interface em português com linguagem visual inspirada no MetroLiveTime: tons neutros, contornos finos, tipografia monoespaçada nos títulos e valores, e destaque para o valor da carteira. Dados de mercado obtidos no servidor.
 
 ## Executar
 

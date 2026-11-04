@@ -638,6 +638,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           ) : null}
           <div className="page-heading">
             <div>
+              <span className="eyebrow">O TEU PATRIMÓNIO, EM PERSPETIVA</span>
               <h1>
                 {tab === "notes"
                   ? "Conhece os teus números"
@@ -647,6 +648,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                       ? "Transações"
                       : "Visão Geral"}
               </h1>
+              <p>{tab === "overview" ? "Uma visão clara de onde estás e como evoluem os teus investimentos." : tab === "positions" ? "Acompanha os teus ativos, os seus valores e os resultados." : tab === "transactions" ? "Consulta as compras e vendas que constroem a tua carteira." : "As fórmulas e os dados por trás da tua carteira."}</p>
             </div>
             <div className="heading-actions no-print">
               <details
@@ -842,7 +844,8 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           ) : (
             <>
               <div className="portfolio-toolbar">
-                <div>
+                <div className="portfolio-context">
+                  <strong>{portfolio?.name ?? "As tuas carteiras"}</strong>
                   <span className="currency-tag">Moeda: {currency}</span>
                 </div>
                 <button
@@ -1279,9 +1282,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   );
 }
 const colors = [
-  "#2563eb",
-  "#398cf2",
-  "#27b5a0",
+  "#008569",
+  "#1677d2",
+  "#6d9f93",
   "#efa749",
   "#d566a8",
   "#7e8b9f",
