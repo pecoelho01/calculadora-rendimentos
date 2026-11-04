@@ -20,6 +20,7 @@ import { AllocationDonut } from "./allocation-donut";
 import { GeographicChart } from "./geographic-chart";
 import { useGeography } from "./use-geography";
 import { Dialog } from "./dialog";
+import { OrderAssetFields } from "./order-asset-fields";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
 import { WorkspaceShell } from "./workspace-shell";
@@ -1192,19 +1193,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                   defaultValue={new Date().toISOString().slice(0, 10)}
                 />
               </label>
-              <label>
-                Ticker Yahoo
-                <input
-                  name="ticker"
-                  required
-                  placeholder="AAPL"
-                  maxLength={25}
-                />
-              </label>
-              <label>
-                Nome do ativo
-                <input name="name" placeholder="Apple" maxLength={100} />
-              </label>
+              <OrderAssetFields orders={orders} />
               <label>
                 Quantidade
                 <input

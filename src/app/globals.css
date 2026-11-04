@@ -1292,6 +1292,9 @@ dialog::backdrop {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.order-asset-choice {
+  grid-column: 1 / -1;
+}
 form label {
   display: flex;
   flex-direction: column;
