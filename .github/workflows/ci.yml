@@ -1,0 +1,109 @@
+name: CI - Quality and Security
+
+on:
+  pull_request:
+    branches:
+      - main
+      - t3/migrar-nextjs-vercel-portfolio
+  push:
+    branches:
+      - main
+      - t3/migrar-nextjs-vercel-portfolio
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e -- --reporter=line,html --output=test-results/local
+        env:
+          TEST_NO_ACCOUNT_CONFIG: "1"
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/local
+
+      - name: Build with mock account configuration
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://rendimentos-test.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: public-test-key
+
+      - name: Account end-to-end tests with HTTP mocks
+        run: npm run test:e2e -- tests/account.spec.ts --reporter=line,html --output=test-results/account
+        env:
+          TEST_ACCOUNT_AUTH: "1"
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/account
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sql:
+    name: SQL migrations and isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify migrations, isolation and rollback
+        run: npm run test:sql
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Audit for high and critical vulnerabilities
+        run: npm audit --audit-level=high

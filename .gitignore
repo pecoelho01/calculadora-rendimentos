@@ -21,3 +21,14 @@ env/
 .idea/
 .vscode/
 *.swp
+
+# Next.js / Node / Vercel
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+.env*
+!.env.example
+playwright-report/
+test-results/

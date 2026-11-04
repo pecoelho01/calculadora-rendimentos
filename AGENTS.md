@@ -1,17 +1,38 @@
 # Instruções da Calculadora de Rendimentos
 
-Este ficheiro define as regras do repositório e o routing de agentes, seguindo a organização do MetroLiveTime e adaptando-a a esta aplicação Python/Streamlit.
+Este ficheiro define as regras do repositório e o routing de agentes, seguindo a organização do MetroLiveTime e adaptando-a a esta aplicação Next.js/React/TypeScript, preparada para Vercel.
 
 ## Contexto do projeto
 
-- `app.py`: entrada da aplicação, configuração e navegação.
-- `components.py`: interface, fluxos manual e CSV, gráficos e relatório PDF.
-- `logic.py`: cálculos da carteira, ROI, compras e vendas, integração com Yahoo Finance e cache.
-- `textonly.py`: notas explicativas e informação sobre o autor.
-- `modelo_site_ativos.csv` e `sample_combo.csv`: formato de importação e dados de exemplo.
-- `requirements.txt`: dependências da aplicação.
+- `src/app/`: Next.js App Router, layout, navegação e estilos em `globals.css`.
+- `src/components/`: interface React, dashboard, diálogos e gráficos.
+- `src/lib/portfolio.ts`: cálculos puros e reconstrução histórica; nunca duplicar fórmulas na UI ou no relatório.
+- `src/lib/validation.ts`: validação partilhada de números, datas, tickers, ordens e carteiras.
+- `src/lib/csv.ts`: contrato de importação/exportação CSV.
+- `src/lib/storage.ts`: persistência local versionada e validação de cópias de segurança.
+- `src/lib/market.ts`: adaptador Yahoo Finance exclusivamente no servidor, com cache curto.
+- `src/app/api/market/route.ts`: validação dos pedidos e resposta de mercado.
+- `public/`: modelos CSV para download; manter sincronizados com os exemplos na raiz.
+- `tests/`: cálculos determinísticos e fluxos Playwright.
+- `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.
+- `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 24 LTS e npm.
 
-Manter o texto apresentado ao utilizador em português e respeitar a separação entre interface, cálculos e conteúdo explicativo.
+Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito e respeitar a separação entre interface, cálculos, armazenamento e integração externa.
+
+## Regras da stack e dos dados
+
+- Preferir Server Components por omissão; usar `use client` apenas nas fronteiras interativas. Nunca importar o adaptador Yahoo num componente cliente.
+- Não enviar carteiras, quantidades ou preços de compra ao endpoint de mercado. Enviar apenas os tickers e a data inicial necessários.
+- Não guardar dados de carteiras em memória global, ficheiros temporários ou cache partilhada da Vercel. A cache do servidor contém apenas dados públicos de mercado.
+- O modo local usa `localStorage`, sem autenticação ou sincronização. A conta Supabase opcional segue `supabase/CONTRACT.md`, com autenticação, RLS e revisões por carteira; não sincronizar os dois modos implicitamente. Validar esquema/versão antes de carregar ou restaurar e não sobrescrever dados corrompidos automaticamente.
+- Uma carteira tem uma moeda. Sem conversão cambial explícita, não somar cotações incompatíveis como se fossem da mesma moeda. Preservar a distinção entre preço zero e cotação ausente.
+- Validar vendas cronologicamente; não permitir vender mais do que a posição. Para ordens no mesmo dia, preservar a ordem de registo. Importações devem ser atómicas.
+- Manter contabilização FIFO por lotes, rentabilidade das posições abertas e ROI sobre todas as compras conforme o README. Não apresentar essa métrica como retorno anualizado, TWR ou XIRR.
+- Reconstruir o histórico apenas com observações anteriores ou iguais à data de avaliação. Sem fallback silencioso para custo médio nem alinhamento do benchmark para o futuro.
+- A integração Yahoo é não oficial: limitar tickers/pedidos, validar respostas, usar timeout/cache e mostrar indisponibilidade sem inventar preços.
+- O relatório usa os mesmos valores do dashboard através da impressão do navegador. Verificar o CSS de impressão quando a tabela/métricas mudarem.
+- Deploy alvo: Vercel com runtime Node.js; não usar exportação estática para uma aplicação que depende de `/api/market`.
+- Contas, base de dados, câmbio, dividendos e splits automáticos ampliam o âmbito: definir contratos e migração antes de implementar.
 
 ## Papel do agente principal
 
@@ -43,7 +64,7 @@ Começar por `sol_planner` para analisar o pedido e produzir um plano. Seleciona
 | `luna_tester` | Preparar ou executar validações e reportar falhas. |
 | `sol_reviewer` | Rever correção, segurança, manutenção e regressões sem editar. |
 | `regression_reviewer` | Rever impacto em cálculos existentes, CSV, gráficos e PDF. |
-| `integration_guardian` | Rever contratos entre UI, lógica, yfinance e dependências. |
+| `integration_guardian` | Rever contratos entre UI, lógica, adaptador Yahoo, persistência e dependências. |
 | `test_auditor` | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos. |
 
 Os três últimos papéis são opcionais, conforme o risco. Não é obrigatório usar agentes de implementação em análises ou reviews, nem agentes de testes ou revisão quando não acrescentarem valor.
@@ -74,17 +95,19 @@ Os nomes acima identificam papéis de routing; este ficheiro não instala agente
 ## Qualidade e validação
 
 - Fazer alterações focadas e preservar trabalho não relacionado.
-- Manter os cálculos em `logic.py` e evitar duplicar fórmulas na interface ou no PDF.
+- Manter os cálculos em `src/lib/portfolio.ts` e evitar duplicar fórmulas na interface ou no PDF.
 - Preservar o contrato CSV documentado no `README.md`; atualizar documentação e exemplos se esse contrato mudar.
 - Validar dados externos e entradas do utilizador, incluindo números, datas, tickers e tipos de ordem.
 - Distinguir ausência ou falha de dados de preços e retornos iguais a zero.
 - Em alterações de cálculos, verificar casos relevantes com resultados conhecidos: compras múltiplas, venda parcial ou total, posições abertas e carteira vazia. Usar dados locais ou mocks para verificações determinísticas.
 - Em alterações temporais, verificar ordenação de datas, fusos horários e alinhamento com o benchmark.
 - Em alterações de UI, CSV ou PDF, verificar o fluxo afetado e a coerência dos valores apresentados.
+- Ao implementar ou alterar a interface, considerar a responsividade desde o início: o telemóvel é um dispositivo de utilização frequente, tal como o computador. Adaptar layouts, navegação, tabelas, gráficos e diálogos a ecrãs pequenos, garantindo texto legível e controlos fáceis de usar por toque.
+- Em alterações de UI, verificar os fluxos afetados em larguras de telemóvel e de computador, incluindo ausência de sobreposições, conteúdo cortado ou deslocamento horizontal inesperado.
 - Executar as verificações adequadas à alteração; não criar testes que apenas reproduzam a implementação.
 - Não afirmar que testes passaram ou que a aplicação foi verificada sem executar essas verificações. Identificar limitações de rede, dependências ou ambiente.
 
-Para executar a aplicação localmente, usar `streamlit run app.py` após instalar as dependências de `requirements.txt`. Consultar o `README.md` para o formato CSV e as funcionalidades existentes.
+Executar `npm ci` e `npm run dev` para desenvolvimento. Antes de concluir alterações de código, executar `npm test`, `npm run typecheck`, `npm run lint` e `npm run build`. Para alterações de UI/CSV/persistência, executar também `npm run test:e2e` após instalar Chromium com `npx playwright install chromium`. Usar dados mockados nos testes determinísticos; distinguir esses testes de uma consulta Yahoo real e de uma validação na Vercel. Consultar o `README.md` para fórmulas, contrato CSV, limitações e deploy.
 
 ## Git e segurança
 
@@ -203,3 +226,13 @@ Indicar alterações incompatíveis e instruções de migração ou escrever `Ne
 ## Resultado final
 
 Responder de forma curta e factual: alterações e ficheiros principais, agentes efetivamente utilizados quando houver delegação, validações executadas e limitações relevantes.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
