@@ -2464,10 +2464,9 @@ ul.import-help {
     font-size: clamp(32px, 3.2vw, 48px);
     line-height: 1.15;
     letter-spacing: -1.5px;
-    margin: auto 0 20px;
+    margin: auto 0 0;
     padding-top: 28px;
   }
-  .metric.featured small { border-top: 1px solid #ffffff26; padding-top: 16px; }
   .metrics > .metric:nth-child(2) { grid-column: span 2; }
   .metrics > .metric:nth-child(2) > strong { font-size: clamp(28px, 2.4vw, 36px); }
   .metrics > .metric:nth-child(n + 3) .metric-label .icon { display: none; }
@@ -2482,11 +2481,24 @@ ul.import-help {
   .performance-current small { font-size: 13px; }
   .chart-readout { font-size: 14px; }
   .chart-readout strong { font-size: 16px; }
+  :is(.positions-table, .transactions-table) { font-size: 15px; line-height: 1.6; }
+  :is(.positions-table, .transactions-table) th { font-size: 13px; }
+  :is(.positions-table, .transactions-table) td small { font-size: 13px; }
+  .positions-table .asset-cell a { font-size: 15px; }
+  :is(.position-details, .transaction-details) summary { font-size: 13px; }
+  :is(.position-mobile-label, .transaction-mobile-label),
+  .position-details dt, .transaction-mobile-detail dt,
+  .transaction-mobile-detail dd, .transaction-date time,
+  .transaction-explanation { font-size: 13px; }
+  :is(.position-order, .transaction-order),
+  :is(.position-order, .transaction-order) label,
+  :is(.position-context, .transaction-context) { font-size: 13px; }
+  .position-badge { font-size: 12px; }
   .position-gain > strong,
-  .transaction-gain strong { font-size: 15px; }
+  .transaction-gain strong { font-size: 16px; }
   .positions-table .gain-percent,
-  .transactions-table .gain-percent { font-size: 14px; font-weight: 500; }
-  .positions-table .position-gain > strong.gain-percent { margin-top: 0; font-size: 16px; font-weight: 600; }
+  .transactions-table .gain-percent { font-size: 15px; font-weight: 500; }
+  .positions-table .position-gain > strong.gain-percent { margin-top: 0; font-size: 18px; font-weight: 600; }
   .position-gain .gain-amount { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
   .position-details dd { font-size: 14px; }
   .nav-item.active { background: var(--active); color: var(--on-active); }
@@ -2508,6 +2520,12 @@ ul.import-help {
   .entry-page { background: var(--bg); }
   button, a, summary { transition: background-color 150ms, border-color 150ms, color 150ms; }
 }
+@media screen {
+  @container (min-width: 901px) {
+    .positions-table td { padding-block: 24px; }
+    .transactions-table td { padding-block: 22px; }
+  }
+}
 @media screen and (max-width: 1100px) {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric.featured { grid-row: auto; }
@@ -2523,7 +2541,7 @@ ul.import-help {
   .metric > strong { font-size: clamp(19px, 5.2vw, 24px); letter-spacing: -0.5px; }
   .metric small { font-size: 12px; }
   .metric.featured { padding: 22px; }
-  .metric.featured > strong { font-size: clamp(30px, 9vw, 40px); letter-spacing: -1px; margin-bottom: 18px; }
+  .metric.featured > strong { font-size: clamp(30px, 9vw, 40px); letter-spacing: -1px; margin-bottom: 0; }
   .metric.featured .metric-label { align-items: center; }
   .metric.featured .metric-label .icon { display: block; width: 18px; height: 18px; padding: 8px; }
   .metrics > .metric:nth-child(2) > strong { font-size: 28px; }
