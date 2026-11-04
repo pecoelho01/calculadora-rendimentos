@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   calculatePerformance,
+  INTRADAY_MAX_AGE_MINUTES,
   performancePeriods as periods,
   type PerformancePoint as Point,
   type PerformancePeriod,
@@ -19,9 +20,14 @@ const percent = (value: number | null) =>
     ? "Indisponível"
     : `${value >= 0 ? "+" : ""}${value.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}%`;
 const dateLabel = (date: string) =>
-  new Date(`${date}T00:00:00Z`).toLocaleDateString("pt-PT", {
-    timeZone: "UTC",
-  });
+  date.length > 10
+    ? `${new Date(date).toLocaleString("pt-PT", {
+        timeZone: "UTC", dateStyle: "short", timeStyle: "short",
+      })} UTC`
+    : new Date(`${date}T00:00:00Z`).toLocaleDateString("pt-PT", {
+        timeZone: "UTC",
+      });
+const estimateLabel = `Estimado · última cotação válida há até ${INTRADAY_MAX_AGE_MINUTES} min`;
 export function PerformanceChart({
   orders,
   market,
@@ -162,7 +168,7 @@ export function PerformanceChart({
       <div className="performance-current">
         <span>
           {mode === "total"
-            ? "Rentabilidade total atual"
+            ? period === "1D" ? "Rentabilidade total da última observação" : "Rentabilidade total atual"
             : "Rentabilidade das posições abertas"}{" "}
           · {period}
         </span>
@@ -177,7 +183,7 @@ export function PerformanceChart({
         >
           {percent(displayedRoi)}
         </strong>
-        <small>{explanation}</small>
+        <small>{explanation}{displayedRoi !== null && data.at(-1)?.estimated ? ` · ${estimateLabel}` : ""}</small>
       </div>
       {values.length > 0 && points.some((p) => p.roi !== null) ? (
         <>
@@ -190,15 +196,18 @@ export function PerformanceChart({
               <>
                 <time dateTime={active.date}>
                   {dateLabel(active.date)}
-                  {active.current ? " · Atual" : ""}
+                  {active.current ? period === "1D" ? active.estimated ? " · Último valor estimado" : " · Última observação" : " · Atual" : ""}
                 </time>
                 <span>
                   {modeLabel} <strong>{percent(active.roi)}</strong>
+                  {active.estimated && active.roi !== null ? <small> · {estimateLabel}</small> : null}
                 </span>
               </>
             ) : (
               <span>
-                Seleciona uma data para consultar a rentabilidade.
+                {period === "1D"
+                  ? "Seleciona uma hora para consultar a rentabilidade."
+                  : "Seleciona uma data para consultar a rentabilidade."}
               </span>
             )}
           </div>
@@ -210,7 +219,7 @@ export function PerformanceChart({
             aria-valuemin={0}
             aria-valuemax={points.length - 1}
             aria-valuenow={activeIndex ?? points.length - 1}
-            aria-valuetext={`${dateLabel((active ?? points[points.length - 1]).date)}: ${modeLabel.toLowerCase()} ${percent((active ?? points[points.length - 1]).roi)}`}
+            aria-valuetext={`${dateLabel((active ?? points[points.length - 1]).date)}: ${modeLabel.toLowerCase()} ${percent((active ?? points[points.length - 1]).roi)}${(active ?? points[points.length - 1]).estimated ? ` · ${estimateLabel}` : ""}`}
             onFocus={() => setSelection({ data, index: points.length - 1 })}
             onBlur={() => setSelection(null)}
             onPointerLeave={(event) => {
@@ -321,20 +330,22 @@ export function PerformanceChart({
                   }
                   className="chart-label chart-date"
                 >
-                  {new Date(firstTime + fraction * timeSpan).toLocaleDateString(
-                    "pt-PT",
-                    {
-                      month: "short",
-                      year: "2-digit",
-                      timeZone: "UTC",
-                    },
-                  )}
+                  {period === "1D"
+                    ? new Date(firstTime + fraction * timeSpan).toLocaleTimeString(
+                        "pt-PT",
+                        { hour: "2-digit", minute: "2-digit", timeZone: "UTC" },
+                      )
+                    : new Date(firstTime + fraction * timeSpan).toLocaleDateString(
+                        "pt-PT",
+                        { month: "short", year: "2-digit", timeZone: "UTC" },
+                      )}
                 </text>
               ))}
             </svg>
           </div>
           <p className="chart-limitations">
             Retorno simples · Sem dividendos, comissões ou câmbio.
+            {period === "1D" ? ` Observações de 5 min · Horas em UTC. Falhas curtas usam a última cotação válida por até ${INTRADAY_MAX_AGE_MINUTES} min, com valores assinalados como estimados.` : ""}
           </p>
           <details className="chart-methodology">
             <summary>
@@ -350,7 +361,8 @@ export function PerformanceChart({
                 ? "A carteira mantém os custos originais das compras."
                 : "As posições iniciais usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
               Este retorno não é TWR nem anualizado.
-              As falhas de preços aparecem como interrupções.
+              {period === "1D" ? "Falhas superiores a 15 minutos aparecem como interrupções." : "As falhas de preços aparecem como interrupções."}
+              {period === "1D" ? " Usamos as observações intradiárias disponíveis do dia UTC, que podem ter atraso. Como as transações não têm hora, aplicamos as transações do dia a todas as observações desse dia, pela ordem de registo." : ""}
             </p>
           </details>
         </>
@@ -359,9 +371,11 @@ export function PerformanceChart({
           <span className="empty-symbol">
             <Icon name="trend" />
           </span>
-          <h3>Sem rentabilidade neste período</h3>
+          <h3>{period === "1D" ? "Sem dados intradiários neste dia" : "Sem rentabilidade neste período"}</h3>
           <p>
-            {mode === "open"
+            {period === "1D"
+              ? "Não existem observações suficientes para calcular a rentabilidade de hoje. O mercado pode estar fechado ou os dados indisponíveis."
+              : mode === "open"
               ? "Verifica as posições abertas e os preços históricos."
               : "Verifica as transações e os preços históricos."}
           </p>

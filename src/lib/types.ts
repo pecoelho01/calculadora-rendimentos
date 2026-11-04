@@ -15,6 +15,8 @@ export type Portfolio = {
   orders: Order[];
 };
 export type PricePoint = { date: string; close: number };
+/** Intraday observations use full UTC timestamps; null closes preserve gaps. */
+export type IntradayPoint = { date: string; close: number | null };
 export type Geography = {
   allocations: { country: string; weight: number }[];
   asOf: string;
@@ -30,6 +32,8 @@ export type MarketAsset = {
   name: string;
   asOf: string | null;
   history: PricePoint[];
+  intraday?: IntradayPoint[];
+  intradayError?: string;
   geography?: Geography | null;
   error?: string;
 };

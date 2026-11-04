@@ -464,7 +464,7 @@ test("YTD inclui ordens de 1 de janeiro e mantém zero distinto de ausência", (
 });
 
 
-test("períodos curtos usam fechos diários e 1D recua ao fecho anterior disponível", () => {
+test("5D e 1M mantêm fechos diários e 1D usa observações sobre o fecho anterior", () => {
   const history = [
     { date: "2024-10-24", close: 100 },
     { date: "2024-10-25", close: 110 },
@@ -474,7 +474,7 @@ test("períodos curtos usam fechos diários e 1D recua ao fecho anterior dispon�
     { date: "2024-10-31", close: 999 }, // Never use a future observation.
   ];
   const market: MarketData = {
-    TEST: { ...quote(140).TEST, history },
+    TEST: { ...quote(140).TEST, history, intraday: [{ date: "2024-10-28T10:00:00Z", close: 140 }] },
   };
   const orders = [buy(1, 100)];
   const day = calculatePerformance(orders, market, "EUR", "1D", "2024-10-28");
@@ -491,6 +491,138 @@ test("períodos curtos usam fechos diários e 1D recua ao fecho anterior dispon�
   const purchase = calculatePerformance([buy(1, 100, "2024-10-28")], market, "EUR", "1D", "2024-10-28");
   almost(purchase.roi, 40);
   assert.equal(calculatePerformance([], market, "EUR", "1D", "2024-10-28").roi, null);
+});
+
+test("1D segue subidas e descidas reais, sem pontos artificiais nem observações futuras", () => {
+  const market: MarketData = { TEST: {
+    ...quote(999).TEST,
+    history: [{ date: "2024-10-25", close: 100 }],
+    intraday: [
+      { date: "2024-10-28T10:15:00Z", close: 103 },
+      { date: "2024-10-28T10:00:00Z", close: 100 },
+      { date: "2024-10-28T10:05:00Z", close: 105 },
+      { date: "2024-10-28T10:10:00Z", close: 98 },
+      { date: "2024-10-27T10:00:00Z", close: 500 },
+      { date: "2024-10-28T12:00:00Z", close: 500 },
+      { date: "invalid", close: 500 },
+    ],
+  } };
+  const calculate = (data = market) => calculatePerformance([buy(1, 80)], data, "EUR", "1D", "2024-10-28", "2024-10-28T11:00:00Z");
+  const performance = calculate();
+  assert.deepEqual(performance.data.map(p => p.date), ["2024-10-28T10:00:00.000Z", "2024-10-28T10:05:00.000Z", "2024-10-28T10:10:00.000Z", "2024-10-28T10:15:00.000Z"]);
+  for (const [index, expected] of [0, 5, -2, 3].entries()) {
+    almost(performance.data[index].roi, expected);
+    almost(performance.data[index].openRoi, expected);
+  }
+  almost(performance.roi, 3);
+  almost(performance.openRoi, 3);
+  assert.equal(performance.data.at(-1)?.current, true);
+  const missing = calculate({ TEST: { ...market.TEST, intraday: [] } });
+  assert.deepEqual(missing.data, []);
+  assert.equal(missing.roi, null);
+  const noBase = calculate({ TEST: { ...market.TEST, history: [] } });
+  assert.ok(noBase.data.every(p => p.roi === null && p.openRoi === null));
+});
+
+test("1D alinha ativos apenas para trás e preserva lacunas, zero e moedas incompatíveis", () => {
+  const point = (time: string, close: number | null) => ({ date: `2024-10-28T${time}:00Z`, close });
+  const market: MarketData = {
+    TEST: { ...quote(120).TEST, history: [{ date: "2024-10-25", close: 100 }], intraday: [point("10:00", 100), point("10:10", 110), point("10:15", null), point("10:20", 0), point("10:30", 120)] },
+    OTHER: { ...quote(210).TEST, history: [{ date: "2024-10-25", close: 200 }], intraday: [point("10:05", 200), point("10:25", 210)] },
+    UNUSED: { ...quote(999).TEST, intraday: [point("09:00", 999)] },
+  };
+  const orders = [buy(1, 90), { ...buy(1, 190), ticker: "OTHER" }];
+  const result = calculatePerformance(orders, market, "EUR", "1D", "2024-10-28", "2024-10-28T11:00:00Z");
+  assert.equal(result.data.length, 8);
+  assert.equal(result.data[0].roi, null); // OTHER has not been observed yet.
+  almost(result.data[1].roi, 0);
+  almost(result.data[2].roi, 10 / 300 * 100);
+  almost(result.data[3].roi, 10 / 300 * 100);
+  assert.equal(result.data[3].estimated, true);
+  almost(result.data[4].roi, -100 / 300 * 100);
+  assert.equal(result.data[5].roi, null); // OTHER's last quote has now expired.
+  almost(result.data[6].roi, -30);
+  almost(result.roi, 10);
+  const mixed = calculatePerformance(orders, { ...market, OTHER: { ...market.OTHER, currency: "USD" } }, "EUR", "1D", "2024-10-28");
+  assert.ok(mixed.data.every(p => p.roi === null && p.openRoi === null));
+  const absent = calculatePerformance(orders, { ...market, OTHER: { ...market.OTHER, intraday: [] } }, "EUR", "1D", "2024-10-28");
+  assert.ok(absent.data.every(p => p.roi === null && p.openRoi === null));
+});
+
+test("1D preenche falhas curtas sem renovar a idade do preço e recupera com uma observação nova", () => {
+  const point = (time: string, close: number | null) => ({ date: `2024-10-28T${time}Z`, close });
+  const market: MarketData = { TEST: { ...quote(999).TEST,
+    history: [{ date: "2024-10-25", close: 100 }],
+    intraday: [point("09:55:00", null), point("10:00:00", 100), point("10:05:00", null), point("10:15:00", null), point("10:15:00.001", null), point("10:20:00", null), point("10:25:00", 110), point("10:30:00", null)],
+  } };
+  const result = calculatePerformance([buy(1, 90)], market, "EUR", "1D", "2024-10-28", "2024-10-28T11:00:00Z");
+  const at = (time: string) => result.data.find(p => p.date === new Date(`2024-10-28T${time}Z`).toISOString())!;
+  assert.equal(at("09:55:00").roi, null);
+  assert.equal(at("10:00:00").estimated, undefined);
+  for (const time of ["10:05:00", "10:15:00"]) {
+    almost(at(time).roi, 0);
+    almost(at(time).openRoi, 0);
+    assert.equal(at(time).estimated, true);
+  }
+  assert.equal(at("10:15:00.001").roi, null);
+  assert.equal(at("10:20:00").roi, null);
+  almost(at("10:25:00").roi, 10);
+  assert.equal(at("10:25:00").estimated, undefined);
+  almost(result.roi, 10);
+  assert.equal(result.data.at(-1)?.estimated, true);
+});
+
+test("1D não liga períodos longos sem barras e não estima por causa de posições já vendidas", () => {
+  const market: MarketData = { TEST: { ...quote(999).TEST,
+    history: [{ date: "2024-10-25", close: 100 }],
+    intraday: [{ date: "2024-10-28T10:00:00Z", close: 0 }, { date: "2024-10-28T11:00:00Z", close: 120 }],
+  } };
+  const result = calculatePerformance([buy(1, 90)], market, "EUR", "1D", "2024-10-28");
+  assert.equal(result.data.length, 14);
+  almost(result.data[3].roi, -100); // Zero is valid for reuse, including at 15 min.
+  assert.equal(result.data[3].estimated, true);
+  assert.equal(result.data[4].roi, null);
+  almost(result.roi, 20);
+  const closed = calculatePerformance([buy(1, 90), sell(1, 110, "2024-10-28"), { ...buy(1, 100), ticker: "OTHER" }], {
+    ...market,
+    OTHER: { ...quote(100).TEST, history: [{ date: "2024-10-25", close: 100 }], intraday: [{ date: "2024-10-28T10:05:00Z", close: 100 }] },
+  }, "EUR", "1D", "2024-10-28");
+  const fresh = closed.data.find(p => p.date === "2024-10-28T10:05:00.000Z")!;
+  almost(fresh.roi, 5);
+  assert.equal(fresh.estimated, undefined);
+});
+
+test("1D interrompe a linha quando a recuperação ocorre entre os ticks de expiração", () => {
+  for (const recovery of ["10:16:00", "10:20:00"]) {
+    const market: MarketData = { TEST: { ...quote(120).TEST,
+      history: [{ date: "2024-10-25", close: 100 }],
+      intraday: [{ date: "2024-10-28T10:00:00Z", close: 100 }, { date: `2024-10-28T${recovery}Z`, close: 120 }],
+    } };
+    const result = calculatePerformance([buy(1, 90)], market, "EUR", "1D", "2024-10-28");
+    const expired = result.data.find(p => p.date === "2024-10-28T10:15:00.001Z");
+    assert.ok(expired);
+    assert.equal(expired.roi, null);
+    almost(result.roi, 20);
+  }
+});
+
+test("1D aplica ordens do dia por registo e mantém FIFO em compras, vendas e fecho", () => {
+  const market: MarketData = { TEST: { ...quote(130).TEST, history: [{ date: "2024-10-25", close: 100 }], intraday: [{ date: "2024-10-28T10:00:00Z", close: 130 }] } };
+  const orders = [buy(2, 80), buy(2, 120, "2024-10-28"), sell(1, 125, "2024-10-28")];
+  const partial = calculatePerformance(orders, market, "EUR", "1D", "2024-10-28");
+  // Opening 200 + purchases 240; remaining value 390 + proceeds 125.
+  almost(partial.roi, 75 / 440 * 100);
+  // Surviving FIFO units: 1 at opening 100 and 2 purchased at 120.
+  almost(partial.openRoi, 50 / 340 * 100);
+  const closed = calculatePerformance([...orders, sell(3, 130, "2024-10-28")], market, "EUR", "1D", "2024-10-28");
+  almost(closed.roi, 75 / 440 * 100);
+  assert.equal(closed.openRoi, null);
+  const purchase = calculatePerformance([buy(2, 100, "2024-10-28")], { TEST: { ...market.TEST, history: [] } }, "EUR", "1D", "2024-10-28");
+  almost(purchase.roi, 30);
+  almost(purchase.openRoi, 30);
+  const empty = calculatePerformance([], market, "EUR", "1D", "2024-10-28");
+  assert.deepEqual(empty.data, []);
+  assert.equal(empty.roi, null);
 });
 
 

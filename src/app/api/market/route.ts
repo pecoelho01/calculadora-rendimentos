@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
             name: ticker,
             asOf: null,
             history: [],
+            intraday: [],
             error: "Dados indisponíveis. Tenta novamente mais tarde.",
           },
         ] as const;
