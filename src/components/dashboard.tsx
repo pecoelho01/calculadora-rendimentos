@@ -659,7 +659,6 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           ) : null}
           <div className="page-heading">
             <div>
-              <span className="eyebrow">O TEU PATRIMÓNIO, EM PERSPETIVA</span>
               <h1>
                 {tab === "notes"
                   ? "Conhece os teus números"
@@ -669,7 +668,6 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                       ? "Transações"
                       : "Visão Geral"}
               </h1>
-              <p>{tab === "overview" ? "Uma visão clara de onde estás e como evoluem os teus investimentos." : tab === "positions" ? "Acompanha os teus ativos, os seus valores e os resultados." : tab === "transactions" ? "Consulta as compras e vendas que constroem a tua carteira." : "As fórmulas e os dados por trás da tua carteira."}</p>
             </div>
             <div className="heading-actions no-print">
               <details
@@ -894,21 +892,19 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                     featured
                   />
                   <Metric
-                    label="Ganho total"
-                    value={money(summary.gain)}
-                    detail={`${pct(summary.roi)} de ROI sobre todas as compras`}
+                    label="ROI sobre todas as compras"
+                    value={pct(summary.roi)}
+                    detail={`${money(summary.gain)} de ganho total`}
                     trend={summary.gain}
                   />
                   <Metric
                     label="Ganho realizado"
                     value={money(summary.realized)}
-                    detail="Resultado das vendas"
                     trend={summary.realized}
                   />
                   <Metric
                     label="Compras acumuladas"
                     value={money(summary.invested)}
-                    detail="Total de todas as compras"
                   />
                 </div>
               ) : null}

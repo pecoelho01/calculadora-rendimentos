@@ -153,7 +153,11 @@ export function PositionsTable({
                 </td>
                 <td className={`position-gain ${gainClass(gain)}`}>
                   <span className="position-mobile-label">{closed ? "Ganho realizado" : "Ganho não realizado"}</span>
-                  <strong>{money(gain, true)}</strong><span className="gain-percent">{percent(gainPercent)}</span>
+                  {closed ? (
+                    <><strong>{money(gain, true)}</strong><span className="gain-percent">{percent(gainPercent)}</span></>
+                  ) : (
+                    <><strong className="gain-percent">{percent(gainPercent)}</strong><span className="gain-amount">{money(gain, true)}</span></>
+                  )}
                   {filter === "all" ? <small className="position-desktop-label">{closed ? "Realizado" : "Não realizado"}</small> : null}
                 </td>
               </tr>

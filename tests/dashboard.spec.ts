@@ -162,7 +162,8 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
     });
   await expect(page.locator(".metric").nth(0)).toContainText("2100,00");
   await expect(page.locator(".metric").nth(1)).toContainText("550,00");
-  await expect(page.locator(".metric").nth(1)).toContainText("+25%");
+  await expect(page.locator(".metric").nth(1).locator(":scope > strong")).toHaveText("+25%");
+  await expect(page.locator(".metric").nth(1).locator("small")).toContainText("550,00");
   await page
     .getByRole("textbox", { name: "Pesquisar ativo" })
     .fill("inexistente");
@@ -172,7 +173,8 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const position = page.locator("tbody tr").first();
   await expect(position.locator(".position-gain")).toContainText("400,00");
-  await expect(position.locator(".position-gain")).toContainText("+23,53%");
+  await expect(position.locator(".position-gain > strong")).toHaveText("+23,53%");
+  await expect(position.locator(".gain-amount")).toContainText("400,00");
   await position.getByLabel("Ver detalhes de TEST", { exact: true }).click();
   await expect(position.locator(".position-details")).toContainText("+30%");
   await page
