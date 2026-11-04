@@ -1053,13 +1053,13 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({ page }
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   await page.getByRole("button", { name: "Ativar tema escuro", exact: true }).click();
-  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(24, 26, 31)");
+  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(28, 38, 43)");
   await assertNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("entrada-tema-escuro.png"), fullPage: true });
   await login(page);
   await expect(page.locator(".local-badge")).toContainText("Modo conta");
   await openAccountSettings(page);
-  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(24, 26, 31)");
+  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(17, 23, 25)");
   await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
   await assertNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("conta-tema-escuro.png"), fullPage: true });
@@ -1069,7 +1069,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({ page }
   await accountAction(page, "Sair da conta");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Ativar tema claro", exact: true }).click();
-  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(246, 249, 250)");
   await login(page);
   await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(255, 255, 255)");

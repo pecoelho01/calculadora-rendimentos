@@ -11,6 +11,17 @@ export async function openSidebar(page: Page) {
 }
 
 export async function navigateTo(page: Page, name: string | RegExp) {
+  if ((page.viewportSize()?.width ?? 1440) <= 800) {
+    if (await page.locator("#workspace-drawer").evaluate((element) => (element as HTMLDialogElement).open)) {
+      await page.getByRole("button", { name: "Fechar menu", exact: true }).click();
+    }
+    const mobileTarget = page.getByRole("navigation", { name: "Navegação móvel" }).getByRole("button", { name, exact: typeof name === "string" });
+    if (await mobileTarget.count()) {
+      await mobileTarget.click();
+      await expect(page.locator("#workspace-drawer")).not.toHaveAttribute("open");
+      return;
+    }
+  }
   await openSidebar(page);
   await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name, exact: typeof name === "string" }).click();
   if ((page.viewportSize()?.width ?? 1440) <= 800) await expect(page.locator("#workspace-drawer")).not.toHaveAttribute("open");

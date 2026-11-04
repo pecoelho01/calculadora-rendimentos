@@ -26,11 +26,13 @@ const getMobile = () => window.matchMedia(mobileQuery).matches;
 
 export function WorkspaceShell({
   sidebar,
+  mobileNavigation,
   portfolioName,
   currency,
   children,
 }: {
   sidebar: ReactNode;
+  mobileNavigation?: ReactNode;
   portfolioName: string;
   currency?: string;
   children: ReactNode;
@@ -190,6 +192,7 @@ export function WorkspaceShell({
         </aside>
       </dialog>
       {children}
+      {mobileNavigation}
     </div>
   );
 }
