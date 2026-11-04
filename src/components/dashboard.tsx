@@ -256,7 +256,6 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     () => calculatePortfolio(orders, market, currency),
     [orders, market, currency],
   );
-  const openPositionCount = summary.positions.filter((p) => p.shares > 0).length;
   const openTickers = summary.positions
     .filter((p) => p.shares > 0)
     .map((p) => p.ticker)
@@ -888,7 +887,6 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                   <Metric
                     label="Valor da carteira"
                     value={money(summary.value)}
-                    detail={`${openPositionCount} ${openPositionCount === 1 ? "posição aberta" : "posições abertas"}`}
                     featured
                   />
                   <Metric
