@@ -749,7 +749,7 @@ test("recolher navegação mantém atalhos no desktop e devolve foco no telemóv
     const reopen = page.getByRole("button", { name: "Abrir sidebar", exact: true });
     await expect(reopen).toBeFocused();
     await expect(reopen).toHaveAttribute("aria-expanded", "false");
-    await page.getByRole("navigation").getByRole("button", { name: "Transações", exact: true }).click();
+    await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Transações", level: 1, exact: true })).toBeVisible();
     await expect(page.locator(".sidebar-portfolios")).toBeHidden();
     await expect(page.getByRole("separator", { name: "Largura da sidebar" })).toBeHidden();
@@ -763,6 +763,45 @@ test("recolher navegação mantém atalhos no desktop e devolve foco no telemóv
   await page.emulateMedia({ media: "print" });
   await expect(drawer).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("barra inferior permite navegar e mantém o conteúdo acessível no telemóvel", async ({ page }, testInfo) => {
+  await openLocal(page);
+  const navigation = page.locator(".mobile-navigation");
+  if (testInfo.project.name === "desktop") {
+    await expect(navigation).toBeHidden();
+    await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+    return;
+  }
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("button")).toHaveCount(3);
+  for (const [name, heading] of [["Posições", "Posições"], ["Transações", "Transações"], ["Visão geral", "Visão Geral"]]) {
+    const target = navigation.getByRole("button", { name, exact: true });
+    await target.focus();
+    await page.keyboard.press("Enter");
+    await expect(target).toHaveAttribute("aria-current", "page");
+    await expect(navigation.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: heading, level: 1, exact: true })).toBeVisible();
+    await expect(page.locator("#workspace-drawer")).not.toHaveAttribute("open");
+  }
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const lastAction = page.getByRole("button", { name: "Eliminar carteira", exact: true });
+  await expect(lastAction).toBeInViewport();
+  expect((await lastAction.boundingBox())!.y + (await lastAction.boundingBox())!.height).toBeLessThanOrEqual((await navigation.boundingBox())!.y);
+  await navigation.getByRole("button", { name: "Posições", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await navigateTo(page, "Notas explicativas");
+  await expect(navigation.locator('[aria-current="page"]')).toHaveCount(0);
+  await navigation.getByRole("button", { name: "Transações", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Transações", level: 1, exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("barra-inferior.png"), fullPage: true });
+  await page.emulateMedia({ media: "print" });
+  await expect(navigation).toBeHidden();
+  await expect(page.locator(".main-area")).toHaveCSS("padding-bottom", "0px");
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(navigation).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Transações", exact: true })).toHaveAttribute("aria-current", "page");
 });
 
 test("gaveta móvel contém o foco, fecha pelo fundo e adapta-se ao desktop", async ({ page }, testInfo) => {
@@ -824,7 +863,7 @@ test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({ p
   await openSidebar(page);
   const content = page.locator(".sidebar-content");
   expect(await content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-  const navBottom = await page.getByRole("navigation").evaluate((element) => element.getBoundingClientRect().bottom);
+  const navBottom = await page.getByRole("navigation", { name: "Navegação principal" }).evaluate((element) => element.getBoundingClientRect().bottom);
   const portfoliosTop = await page.locator(".sidebar-portfolios").evaluate((element) => element.getBoundingClientRect().top);
   expect(portfoliosTop).toBeGreaterThanOrEqual(navBottom);
   const last = page.locator(".portfolio-link").last();

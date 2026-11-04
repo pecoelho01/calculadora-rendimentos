@@ -112,6 +112,7 @@ h3 {
   min-height: 100vh;
 }
 .mobile-workspace-bar { display: none; }
+.mobile-navigation { display: none; }
 .workspace-drawer {
   position: fixed;
   inset: 0 auto 0 0;
@@ -1403,8 +1404,38 @@ ul.import-help {
   .sidebar-closed :is(.brand-name, .workspace-label, .nav-label, .nav-item small, .sidebar-portfolios, .sidebar-bottom, .sidebar-resizer) { display: none; }
   .sidebar-closed .nav-item { justify-content: center; padding: 12px; }
 }
-@media (max-width: 800px) {
+@media screen and (max-width: 800px) {
   .app-shell { display: block; }
+  .app-shell > .main-area { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .sidebar-primary-link { display: none; }
+  .mobile-navigation {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 9;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+  .mobile-navigation button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 56px;
+    min-width: 0;
+    border-radius: 3px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .mobile-navigation button:hover { background: var(--surface-hover); }
+  .mobile-navigation button[aria-current="page"] {
+    color: var(--on-active);
+    background: var(--active);
+  }
   .mobile-workspace-bar {
     display: flex;
     align-items: center;

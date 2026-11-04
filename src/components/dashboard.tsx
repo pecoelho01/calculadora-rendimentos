@@ -46,6 +46,11 @@ const initialPortfolio = (): Portfolio => ({
   orders: [],
 });
 type Tab = "overview" | "positions" | "transactions" | "notes";
+const primaryNavigation = [
+  { key: "overview", icon: "overview", text: "Visão geral" },
+  { key: "positions", icon: "positions", text: "Posições" },
+  { key: "transactions", icon: "transactions", text: "Transações" },
+] as const;
 type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
@@ -139,6 +144,10 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   const [storageBroken, setStorageBroken] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  function navigateToTab(nextTab: Tab) {
+    setTab(nextTab);
+    if (accountPage) router.push("/");
+  }
   const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
   const [modal, setModal] = useState<Modal>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -500,29 +509,41 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     <WorkspaceShell
       portfolioName={portfolio?.name ?? "As tuas carteiras"}
       currency={portfolio?.currency}
+      mobileNavigation={
+        <nav className="mobile-navigation no-print" aria-label="Navegação móvel">
+          {primaryNavigation.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              aria-current={!accountPage && tab === item.key ? "page" : undefined}
+              onClick={() => {
+                navigateToTab(item.key);
+                window.scrollTo({ top: 0, behavior: "instant" });
+              }}
+            >
+              <Icon name={item.icon} />
+              <span>{item.text}</span>
+            </button>
+          ))}
+        </nav>
+      }
       sidebar={
         <>
           <span className="workspace-label">ESPAÇO PESSOAL</span>
           <nav aria-label="Navegação principal">
             {(
               [
-                { key: "overview", icon: "overview", text: "Visão geral" },
-                { key: "positions", icon: "positions", text: "Posições" },
-                {
-                  key: "transactions",
-                  icon: "transactions",
-                  text: "Transações",
-                },
+                ...primaryNavigation,
                 { key: "notes", icon: "info", text: "Notas explicativas" },
               ] as const
             ).map((n) => (
               <button
                 key={n.key}
-                className={!accountPage && tab === n.key ? "nav-item active" : "nav-item"}
+                className={`nav-item ${n.key !== "notes" ? "sidebar-primary-link" : ""} ${!accountPage && tab === n.key ? "active" : ""}`}
                 aria-label={n.text}
                 title={n.text}
                 aria-current={!accountPage && tab === n.key ? "page" : undefined}
-                onClick={() => { setTab(n.key); if (accountPage) router.push("/"); }}
+                onClick={() => navigateToTab(n.key)}
               >
                 <Icon name={n.icon} />
                 <span className="nav-label">{n.text}</span>
