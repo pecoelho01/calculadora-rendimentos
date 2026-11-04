@@ -205,7 +205,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   }, []);
   const portfolio = portfolios.find((p) => p.id === selected) ?? portfolios[0];
   const orders = portfolio?.orders ?? EMPTY_ORDERS;
-  const tickers = [...new Set(orders.map((o) => o.ticker))].sort().join(",");
+  const tickers = [...new Set(orders.map((o) => o.ticker))].sort((a, b) => a.localeCompare(b)).join(",");
   const start = orders.length ? chronological(orders)[0].date : "";
   const requestKey = `${portfolio?.id}|${tickers}|${start}|${refresh}`;
   useEffect(() => {
@@ -260,7 +260,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   const openTickers = summary.positions
     .filter((p) => p.shares > 0)
     .map((p) => p.ticker)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
   const geography = useGeography(openTickers, ready && tab === "overview", refresh);
   const geographicMarket = Object.fromEntries(
@@ -466,7 +466,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
       currency: "USD",
       orders: demoOrders(),
     };
-    persist([...portfolios, p], p.id);
+    void persist([...portfolios, p], p.id);
   }
 
   if (!ready && !accountPage)
@@ -1301,7 +1301,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               >
                 Cancelar
               </button>
-              <button className="button primary" disabled={saveState === "saving"}>Criar carteira</button>
+              <button type="submit" className="button primary" disabled={saveState === "saving"}>Criar carteira</button>
             </div>
           </form>
         </Dialog>

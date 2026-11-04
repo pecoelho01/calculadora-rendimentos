@@ -289,7 +289,7 @@ function historyDates(
           .map((point) => point.date),
       ),
     ),
-  ].sort();
+  ].sort((a, b) => a.localeCompare(b));
 }
 export function calculateHistory(
   orders: Order[],

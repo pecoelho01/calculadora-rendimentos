@@ -1184,7 +1184,7 @@ test("mostrar exposição geográfica ponderada, cobertura e fonte em ecrã e im
   }
   await expect(
     chart.getByRole("link", { name: "TEST · iShares" }),
-  ).toHaveAttribute("href", /ishares\.com/);
+  ).toHaveAttribute("href", "https://www.ishares.com/us/products/239726/ishares-core-s-p-500-etf/latest-holdings.csv");
   await expect(chart).toContainText("30/09/2026");
   await expect(chart).toContainText("509 posições no ficheiro da gestora");
   expect(
