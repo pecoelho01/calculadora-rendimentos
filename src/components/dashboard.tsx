@@ -10,7 +10,8 @@ import {
   validateOrders,
   validatePortfolio,
 } from "@/lib/validation";
-import { parseCsv, exportCsv } from "@/lib/csv";
+import { parseCsvDraft, exportCsv, type CsvDraftOrder } from "@/lib/csv";
+import { CsvImportReview } from "./csv-import-review";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
 import { PerformanceChart } from "./performance-chart";
@@ -150,6 +151,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   }
   const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
   const [modal, setModal] = useState<Modal>(null);
+  const [csvReview, setCsvReview] = useState<{
+    portfolio: Portfolio;
+    filename: string;
+    drafts: CsvDraftOrder[];
+  } | null>(null);
+  const csvReadRequest = useRef(0);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [searches, setSearches] = useState<Record<Tab, string>>({
@@ -409,12 +416,14 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     }
   }
   async function importFile(file: File | undefined, backup = false) {
-    if (!file || (!backup && !portfolio)) return;
+    if (!file || (!backup && !portfolio) || writing.current) return;
+    const destination = portfolio;
+    const request = ++csvReadRequest.current;
     try {
       if (file.size > (backup ? 10_000_000 : 2_000_000))
         throw new Error(`O ficheiro excede ${backup ? 10 : 2} MB.`);
       const text = await file.text();
-      if (!mounted.current) return;
+      if (!mounted.current || request !== csvReadRequest.current) return;
       if (backup) {
         const next = decodeStorage(text);
         if (
@@ -424,15 +433,28 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         )
           await persist(next, next[0].id);
       } else {
-        const imported = parseCsv(text);
-        if (portfolio && await update({ ...portfolio, orders: [...orders, ...imported] }))
-          setMessage(
-            `${imported.length} ${imported.length === 1 ? "transação importada" : "transações importadas"}. Confirma a moeda dos ativos antes de analisar os totais.`,
-          );
+        const drafts = parseCsvDraft(text);
+        if (destination) {
+          setModal(null);
+          setCsvReview({ portfolio: destination, filename: file.name, drafts });
+        }
       }
     } catch (e) {
       setMessage((e as Error).message);
     }
+  }
+  async function confirmCsvImport(imported: Order[]) {
+    if (!csvReview) return;
+    const destination = portfolios.find((p) => p.id === csvReview.portfolio.id);
+    if (!destination || JSON.stringify(destination) !== JSON.stringify(csvReview.portfolio)) {
+      throw new Error("A carteira de destino foi alterada. Cancela esta revisão e importa o ficheiro novamente para rever os dados atualizados.");
+    }
+    const next = validatePortfolio({ ...destination, orders: [...destination.orders, ...imported] });
+    if (!await persist(portfolios.map((p) => p.id === next.id ? next : p), next.id)) {
+      throw new Error("Não foi possível guardar a importação. As edições foram mantidas. Cancela a revisão e consulta o aviso na página antes de tentar novamente.");
+    }
+    setCsvReview(null);
+    setMessage(`${imported.length} ${imported.length === 1 ? "transação importada" : "transações importadas"}. Confirma a moeda dos ativos antes de analisar os totais.`);
   }
   async function deleteOrder(id: string) {
     if (!portfolio || !window.confirm("Remover esta transação?")) return;
@@ -1104,6 +1126,14 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           </>}
         </main>
       </div>
+      {csvReview ? <CsvImportReview
+        key={csvReview.drafts[0].id}
+        portfolio={csvReview.portfolio}
+        filename={csvReview.filename}
+        drafts={csvReview.drafts}
+        onClose={() => setCsvReview(null)}
+        onConfirm={confirmCsvImport}
+      /> : null}
       {modal === "rename" ? (
         <Dialog title="Renomear carteira" onClose={() => setModal(null)}>
           <form onSubmit={renamePortfolio}>
@@ -1141,7 +1171,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           <p className="import-help">
             Prepara o teu ficheiro com uma transação por linha, como neste
             exemplo. Podes descarregar o modelo e substituir os dados pelos
-            teus.
+            teus. Antes de guardar, podes rever e editar as transações.
           </p>
           <pre className="csv-example" aria-label="Exemplo de CSV">
             <code>{`date,ticker,name,pricebuy,shares,type

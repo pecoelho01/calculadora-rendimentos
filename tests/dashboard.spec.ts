@@ -1,3 +1,4 @@
+import { confirmCsvReview } from "./csv-helpers";
 import { openSidebar, navigateTo, selectedPortfolio } from "./sidebar-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -33,6 +34,7 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   await expect(page.locator(".metric")).toHaveCount(4);
   await expect(page.locator(".metric").first()).toContainText("2100,00");
 
@@ -66,6 +68,7 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
   await search.fill("Teste");
   await navigateTo(page, /^Posições/);
@@ -107,6 +110,7 @@ test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
     name: "fechada.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell"),
   });
+  await confirmCsvReview(page);
   await expect(page.locator("tbody tr")).toHaveCount(2);
   await navigateTo(page, /^Posições/);
   await expect(page.getByText("Não tens posições abertas.", { exact: false })).toBeVisible();
@@ -139,6 +143,7 @@ test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page 
   await dialog.getByRole("button", { name: "Escolher ficheiro CSV" }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({ name: "modelo.csv", mimeType: "text/csv", buffer: Buffer.from(sample) });
+  await confirmCsvReview(page);
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("status")).toContainText("2 transações importadas");
   await page.getByRole("button", { name: "Transações", exact: true }).first().click();
@@ -160,6 +165,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await expect(page.locator(".metric").nth(0)).toContainText("2100,00");
   await expect(page.locator(".metric").nth(1)).toContainText("550,00");
   await expect(page.locator(".metric").nth(1).locator(":scope > strong")).toHaveText("+25%");
@@ -230,6 +236,7 @@ test("ganhos de compras fechadas e vendas permanecem sem cotação atual", async
     mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,130,10,sell\n2024-01-03,TEST,Teste,120,1,buy"),
   });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Transações", exact: true }).first().click();
   const closed = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-01"]') }).locator(".transaction-gain");
   const sale = page.locator("tbody tr").filter({ has: page.locator('time[datetime="2024-01-02"]') }).locator(".transaction-gain");
@@ -249,6 +256,7 @@ test("escolher tickers da carteira e registar um novo ativo", async ({ page }) =
     mimeType: "text/csv",
     buffer: Buffer.from(`${csv}\n2024-01-04,CLOSED,Ativo fechado,10,1,buy\n2024-01-05,CLOSED,Ativo fechado,12,1,sell`),
   });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Nova transação" }).click();
   const dialog = page.getByRole("dialog");
   const choice = dialog.getByLabel("Ativo da transação");
@@ -353,6 +361,7 @@ test("falha de mercado e CSV inválido não inventam valores nem perdem ordens",
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "indisponível",
   );
@@ -368,7 +377,7 @@ test("falha de mercado e CSV inválido não inventam valores nem perdem ordens",
         "date,ticker,pricebuy,shares,type\n2024-01-04,TEST,100,99,sell",
       ),
     });
-  await expect(page.getByRole("status")).toContainText("superior");
+  await expect(page.getByRole("dialog", { name: "Rever importação CSV" }).getByRole("alert")).toContainText("superior");
   const stored = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!),
   );
@@ -386,6 +395,7 @@ test("alteração noutro separador impede sobrescrita", async ({
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const second = await context.newPage();
   await second.route("**/api/geography?*", (route) => route.fulfill({ json: { geographies: {} } }));
@@ -401,6 +411,7 @@ test("alteração noutro separador impede sobrescrita", async ({
       mimeType: "text/csv",
       buffer: Buffer.from("date,ticker,pricebuy,shares\n2024-01-04,TEST,100,1"),
     });
+  await confirmCsvReview(page);
   await expect(page.getByRole("status")).toContainText("1 transação importada");
   await second
     .getByLabel("Importar ficheiro CSV", { exact: true })
@@ -409,6 +420,9 @@ test("alteração noutro separador impede sobrescrita", async ({
       mimeType: "text/csv",
       buffer: Buffer.from("date,ticker,pricebuy,shares\n2024-01-05,TEST,100,2"),
     });
+  await confirmCsvReview(second);
+  await expect(second.getByRole("dialog", { name: "Rever importação CSV" }).getByRole("alert")).toContainText("Não foi possível guardar");
+  await second.getByRole("button", { name: "Cancelar", exact: true }).click();
   await expect(second.getByRole("status")).toContainText("noutro separador");
   const stored = await second.evaluate(() =>
     JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!),
@@ -522,6 +536,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   const current = page.locator(".performance-current");
   await expect(page.getByRole("button", { name: "Posições abertas", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(current).toContainText("+41,18%");
@@ -569,6 +584,7 @@ test("distinguir preço histórico zero de retorno atual zero", async ({ page })
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-01,TEST,100,10,buy"),
   });
+  await confirmCsvReview(page);
   await expect(page.locator(".performance-current")).toContainText("+0%");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   await chart.focus();
@@ -586,6 +602,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
   await expect(page.locator(".performance-current")).toContainText("+0%");
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fifo.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await confirmCsvReview(page);
   const current = page.locator(".performance-current");
   await expect(current).toContainText("+25%");
   await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
@@ -612,6 +629,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".chart-readout")).toContainText("-2,27%");
   await expect(current).toContainText("+25%");
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fecho.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-15,TEST,140,15,sell") });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
   await expect(current).toContainText("Indisponível");
   // Existing historical points remain available after the current position closes.
@@ -649,6 +667,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   } } }));
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "periodos.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
+  await confirmCsvReview(page);
   const current = page.locator(".performance-current");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
@@ -738,6 +757,7 @@ test("1D preenche falhas curtas, identifica estimativas e mantém interrupções
   } } }));
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "falhas.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy") });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "1D", exact: true }).click();
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const current = page.locator(".performance-current");
@@ -775,6 +795,7 @@ test("1D sem observações intradiárias não desenha uma reta com os fechos di�
   await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "1D", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sem dados intradiários neste dia" })).toBeVisible();
   await expect(page.locator(".performance-current")).toContainText("Indisponível");
@@ -803,6 +824,7 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   const methodology = page.locator(".chart-methodology");
   const explanation = methodology.locator(".fine-print");
   await expect(page.locator(".chart-limitations")).toBeVisible();
@@ -1025,6 +1047,7 @@ test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o con
 test("renomear por botão direito ou edição preserva seleção, transações e gravação", async ({ page }, testInfo) => {
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await confirmCsvReview(page);
   await expect(page.locator(".metric").first()).toContainText("2100,00");
   const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
   await openSidebar(page);
@@ -1066,6 +1089,7 @@ test("renomear por botão direito ou edição preserva seleção, transações e
 test("conflito ao renomear mostra erro no diálogo e preserva a versão mais recente", async ({ page }) => {
   await openLocal(page);
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await confirmCsvReview(page);
   await openSidebar(page);
   await page.getByRole("button", { name: "Renomear carteira A minha carteira", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Renomear carteira", exact: true });
@@ -1130,6 +1154,7 @@ test("eliminar a última carteira local mantém uma carteira vazia no navegador"
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "carteira.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios[0].id);
   page.once("dialog", (dialog) => dialog.accept());
@@ -1167,6 +1192,7 @@ test("mostrar exposição geográfica ponderada, cobertura e fonte em ecrã e im
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
@@ -1213,6 +1239,7 @@ test("exposição sem composição permanece sem classificação e moeda incompa
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
@@ -1284,6 +1311,7 @@ test("agrupar composição completa apenas por continentes em ecrã e impressão
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+  await confirmCsvReview(page);
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
@@ -1354,6 +1382,7 @@ test("alternar distribuição no mesmo card e alinhar altura com a rentabilidade
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
     name: "portfolio.csv", mimeType: "text/csv", buffer: Buffer.from(csv),
   });
+  await confirmCsvReview(page);
   await expect(card.locator(".geographic-allocation .allocation-list")).toContainText("100%");
   await assertLayout();
   await assetsButton.click();
@@ -1389,6 +1418,7 @@ test("explorar fatias dos ETFs e continentes por rato, toque e teclado", async (
     name: "fatias.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-01,TEST,100,10,buy\n2024-01-01,ZERO,100,10,buy\n2024-01-01,OTHER,100,10,buy"),
   });
+  await confirmCsvReview(page);
   const card = page.getByRole("region", { name: "Distribuição da carteira", exact: true });
   const assetsChart = card.locator(".asset-allocation");
   await expect(assetsChart.locator("svg path")).toHaveCount(2);
@@ -1467,6 +1497,7 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
       "2024-01-02,CLOSED,Encerrada,15,2,sell",
     ].join("\n")),
   });
+  await confirmCsvReview(page);
   await navigateTo(page, /^Posições/);
   const rows = page.locator(".positions-table tbody tr");
   const tickers = () => page.locator(".position-identity a").allTextContents();
@@ -1550,6 +1581,7 @@ test("filtrar e ordenar transações, consultar detalhes e preservar a validaç�
     name: "transacoes.csv", mimeType: "text/csv",
     buffer: Buffer.from(`${csv}\n2024-01-02,AAA,Alpha,25,2,buy\n2024-01-04,TEST,Teste,150,1,sell`),
   });
+  await confirmCsvReview(page);
   await navigateTo(page, "Transações");
   const rows = page.locator(".transactions-table tbody tr");
   await expect(rows).toHaveCount(5);
@@ -1643,6 +1675,7 @@ test("acomodar totais elevados nos cartões e recuperar de um filtro sem vendas"
     name: "valor-elevado.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,1000000000000,1000000000000,buy"),
   });
+  await confirmCsvReview(page);
   await navigateTo(page, "Transações");
   await page.getByRole("button", { name: "Vendas 0", exact: true }).click();
   await expect(page.locator(".no-results")).toContainText("Não tens vendas registadas.");

@@ -75,6 +75,8 @@ Aceita separador de colunas vírgula ou ponto e vírgula, UTF-8 com BOM, aspas e
 
 - [Modelo](public/modelo_site_ativos.csv) e [exemplo anterior](public/sample_combo.csv).
 - Os ficheiros na raiz são mantidos por compatibilidade; atualizar também as cópias em `public/`.
+- Antes de guardar, a revisão CSV mostra a carteira de destino e uma tabela editável, paginada a 25 linhas. É possível corrigir campos e desmarcar transações; cancelar não altera a carteira nem consulta o mercado. Erros estruturais (como cabeçalhos inválidos ou aspas por fechar) impedem abrir a revisão.
+- Possíveis duplicados são assinalados por data, ticker, operação, quantidade e preço normalizados, ignorando nome e ID. São detetados na carteira e entre as linhas selecionadas do ficheiro; não são removidos automaticamente. Importá-los exige confirmação explícita.
 - Importação atómica: se uma transação for inválida ou criar uma venda excessiva na carteira resultante, nenhuma é adicionada.
 - Ordens são ordenadas por data; no mesmo dia, mantém-se a ordem de registo/linhas.
 - Limites: 30 carteiras, 20 tickers e 5000 transações por carteira; CSV até 2 MB e backups JSON até 10 MB.
