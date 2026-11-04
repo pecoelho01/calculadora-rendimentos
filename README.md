@@ -199,6 +199,7 @@ tests/                        # Testes determinísticos e fluxos Playwright
 
 ```bash
 npm test
+npm run test:sql
 npm run typecheck
 npm run lint
 npm run build
@@ -229,8 +230,18 @@ Depois dos testes com configuração fictícia ou vazia, executar novamente `npm
 Para testar conjuntamente a API e as migrations num PostgreSQL local em memória, sem credenciais nem dados reais:
 
 ```bash
-npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
-npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+npm ci --ignore-scripts
+npm run test:sql
 ```
 
 O teste usa o handler real da API e SQL real para verificar escrita/leitura no limite de 3 MB, rejeição de um byte adicional e preservação dos dados após a rejeição. Auth e o transporte RPC são injetados; este teste não comprova o fluxo completo numa deployment Vercel.
+
+O PGlite é uma dependência de desenvolvimento com versão exata e lockfile. O job `SQL migrations and isolation` executa a mesma verificação no CI, incluindo migrações, isolamento entre utilizadores, permissões, conflitos e rollback. O argumento opcional com o caminho para outro módulo PGlite continua disponível para verificações locais.
+
+### Manutenção e checks obrigatórios
+
+O Dependabot está configurado para atualizações semanais de npm e GitHub Actions dirigidas a `t3/migrar-nextjs-vercel-portfolio`. Atualizações npm minor/patch são agrupadas por dependências de produção e desenvolvimento; versões major ficam em PRs individuais. As Actions são agrupadas num único PR.
+
+O GitHub só ativa esta configuração quando `.github/dependabot.yml` existe na branch predefinida (`main`). O ficheiro deve ser publicado aí por PR próprio; a presença apenas na branch T3 não ativa o serviço. As atualizações de segurança do Dependabot continuam associadas à branch predefinida.
+
+Na proteção da branch T3, exigir `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript`, `CodeQL` e `SonarCloud Code Analysis`, associados às Apps que os publicam, com a branch atualizada antes do merge. Ao migrar para `main`, atualizar os triggers dos workflows, o destino do Dependabot e as regras de proteção em conjunto.

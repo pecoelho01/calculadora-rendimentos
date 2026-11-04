@@ -1,14 +1,14 @@
-// Optional deterministic PostgreSQL verification using PGlite outside project dependencies.
-// npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
-// npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+// Verificação determinística de PostgreSQL com a versão PGlite do lockfile.
+// Executar depois de npm ci --ignore-scripts: npm run test:sql
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { PGlite as InstalledPGlite } from "@electric-sql/pglite";
 import { createAccountHandler } from "../../src/lib/account-server.ts";
 
 const modulePath = process.argv[2];
-if (!modulePath) throw new Error("Indica o caminho para o módulo PGlite instalado separadamente.");
-const { PGlite } = await import(pathToFileURL(modulePath).href);
+// Preservar o argumento opcional usado para verificar outra versão local.
+const PGlite = modulePath ? (await import(pathToFileURL(modulePath).href)).PGlite : InstalledPGlite;
 const db = new PGlite();
 const u1 = "11111111-1111-4111-8111-111111111111";
 const u2 = "22222222-2222-4222-8222-222222222222";
