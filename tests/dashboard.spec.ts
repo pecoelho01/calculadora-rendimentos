@@ -240,6 +240,50 @@ test("ganhos de compras fechadas e vendas permanecem sem cotação atual", async
   await expect(open).toContainText("—");
   await expect(open).not.toContainText("0,00");
 });
+test("escolher tickers da carteira e registar um novo ativo", async ({ page }) => {
+  await openLocal(page);
+  await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+    name: "portfolio.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(`${csv}\n2024-01-04,CLOSED,Ativo fechado,10,1,buy\n2024-01-05,CLOSED,Ativo fechado,12,1,sell`),
+  });
+  await page.getByRole("button", { name: "Nova transação" }).click();
+  const dialog = page.getByRole("dialog");
+  const choice = dialog.getByLabel("Ativo da transação");
+  await expect(choice.locator("option")).toHaveText([
+    "Novo ticker", "CLOSED · Ativo fechado", "TEST · Teste",
+  ]);
+  await choice.selectOption("CLOSED");
+  await expect(dialog.getByLabel("Nome do ativo")).toHaveValue("Ativo fechado");
+  await choice.selectOption("TEST");
+  await expect(dialog.getByLabel("Nome do ativo")).toHaveValue("Teste");
+  await expect(dialog.getByLabel("Ticker Yahoo")).toHaveCount(0);
+  await dialog.getByLabel("Quantidade", { exact: true }).fill("2");
+  await dialog.getByLabel("Preço por unidade").fill("100");
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await dialog.getByRole("button", { name: "Guardar transação" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Nova transação" }).click();
+  await choice.selectOption("TEST");
+  await choice.selectOption("");
+  await expect(dialog.getByLabel("Nome do ativo")).toHaveValue("");
+  await dialog.getByLabel("Ticker Yahoo").fill("NEW");
+  await dialog.getByLabel("Nome do ativo").fill("Novo ativo");
+  await dialog.getByLabel("Quantidade", { exact: true }).fill("1");
+  await dialog.getByLabel("Preço por unidade").fill("50");
+  await dialog.getByRole("button", { name: "Guardar transação" }).click();
+  await expect(dialog).toHaveCount(0);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
+  expect(saved.portfolios[0].orders.slice(-2)).toMatchObject([
+    { ticker: "TEST", name: "Teste", shares: 2, pricebuy: 100 },
+    { ticker: "NEW", name: "Novo ativo", shares: 1, pricebuy: 50 },
+  ]);
+  await page.getByRole("button", { name: "Nova transação" }).click();
+  await expect(choice.locator("option")).toHaveText([
+    "Novo ticker", "CLOSED · Ativo fechado", "NEW · Novo ativo", "TEST · Teste",
+  ]);
+});
+
 test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   page,
 }) => {
@@ -278,6 +322,11 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   await expect(
     selectedPortfolio(page).filter({ hasText: "Longo prazo" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Nova transação" }).click();
+  await expect(page.getByLabel("Ativo da transação")).toHaveCount(0);
+  await expect(page.getByLabel("Ticker Yahoo")).toHaveValue("");
+  await expect(page.getByLabel("Nome do ativo")).toHaveValue("");
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await page.locator(".data-actions summary").click();
   await expect(
     page.getByRole("button", { name: "Exportar backup JSON", exact: true }),
