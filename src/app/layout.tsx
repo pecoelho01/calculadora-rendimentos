@@ -1,6 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 export const metadata: Metadata = {
   title: "Rendimentos · A tua carteira, em perspetiva",
   description:

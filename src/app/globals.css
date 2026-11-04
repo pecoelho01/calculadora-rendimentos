@@ -1406,7 +1406,7 @@ ul.import-help {
 }
 @media screen and (max-width: 800px) {
   .app-shell { display: block; }
-  .app-shell > .main-area { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .app-shell > .main-area { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
   .sidebar-primary-link { display: none; }
   .mobile-navigation {
     position: fixed;
@@ -1414,7 +1414,7 @@ ul.import-help {
     z-index: 9;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    padding: 6px max(8px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     background: var(--surface);
     border-top: 1px solid var(--line);
   }
