@@ -47,7 +47,7 @@ jobs:
         run: npm run build
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: End-to-end tests
         run: npm run test:e2e -- --reporter=line,html --output=test-results/local
