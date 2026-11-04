@@ -2,7 +2,6 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
-    target-branch: t3/migrar-nextjs-vercel-portfolio
     schedule:
       interval: weekly
       day: monday
@@ -25,7 +24,6 @@ updates:
       include: scope
   - package-ecosystem: github-actions
     directory: /
-    target-branch: t3/migrar-nextjs-vercel-portfolio
     schedule:
       interval: weekly
       day: monday

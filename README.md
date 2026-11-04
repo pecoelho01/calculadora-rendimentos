@@ -142,7 +142,7 @@ Estas integrações públicas não oficiais não precisam de chave de API. Os ca
 
 O Next.js tem suporte nativo na [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). Não é preciso `vercel.json` para os defaults desta aplicação. Os testes devem passar antes de publicar; a integração Git faz deploy em cada push, pelo que convém configurar checks obrigatórios.
 
-O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. A versão Streamlit não é desligada por esta migração. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
+O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. Os ficheiros Streamlit passam da raiz para `legacy/streamlit/`. Antes do merge para `main`, confirmar a branch e o entrypoint do serviço Streamlit existente: se acompanhar `main` e procurar `app.py` na raiz, a atualização automática pode falhar. A continuidade desse serviço exige configuração externa própria; este PR não a altera. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
 
 ## Configurar a conta opcional (Supabase)
 
@@ -240,8 +240,8 @@ O PGlite é uma dependência de desenvolvimento com versão exata e lockfile. O 
 
 ### Manutenção e checks obrigatórios
 
-O Dependabot está configurado para atualizações semanais de npm e GitHub Actions dirigidas a `t3/migrar-nextjs-vercel-portfolio`. Atualizações npm minor/patch são agrupadas por dependências de produção e desenvolvimento; versões major ficam em PRs individuais. As Actions são agrupadas num único PR.
+O Dependabot está configurado para atualizações semanais de npm e GitHub Actions dirigidas à branch predefinida (`main`), sem `target-branch` explícito. Atualizações npm minor/patch são agrupadas por dependências de produção e desenvolvimento; versões major ficam em PRs individuais. As Actions são agrupadas num único PR.
 
-O GitHub só ativa esta configuração quando `.github/dependabot.yml` existe na branch predefinida (`main`). O ficheiro deve ser publicado aí por PR próprio; a presença apenas na branch T3 não ativa o serviço. As atualizações de segurança do Dependabot continuam associadas à branch predefinida.
+O GitHub só ativa esta configuração quando `.github/dependabot.yml` existe na branch predefinida (`main`). O PR de migração inclui este ficheiro; o serviço só fica ativo depois do merge. A presença apenas na branch T3 não ativa o serviço. O PR draft #25 (`ci/activate-dependabot`) fica redundante após esta migração e deve ser tratado separadamente, sem merge. As atualizações de segurança do Dependabot continuam associadas à branch predefinida.
 
-Na proteção da branch T3, exigir `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript`, `CodeQL` e `SonarCloud Code Analysis`, associados às Apps que os publicam, com a branch atualizada antes do merge. Ao migrar para `main`, atualizar os triggers dos workflows, o destino do Dependabot e as regras de proteção em conjunto.
+Os workflows de CI e CodeQL cobrem PRs e pushes para `main` e `t3/migrar-nextjs-vercel-portfolio`. Na proteção de ambas as branches, exigir `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript`, `CodeQL` e `SonarCloud Code Analysis`, associados às Apps que os publicam, com a branch atualizada antes do merge. Ativar também a exigência de atualização da branch e aplicar as regras aos administradores. Preservar quaisquer proteções adicionais existentes. A publicação deste PR em draft não autoriza merge, passagem a pronto ou deploy manual.

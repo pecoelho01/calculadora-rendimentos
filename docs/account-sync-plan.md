@@ -1,6 +1,6 @@
 # Contas e sincronização — plano de implementação
 
-Estado: requisito aprovado; configuração da integração remota pendente de acesso à equipa Vercel. A aplicação atual continua a usar armazenamento local até à conclusão desta etapa.
+Estado: plano histórico anterior à implementação. O contrato final está em [supabase/CONTRACT.md](../supabase/CONTRACT.md) e a configuração verificada em [supabase/SETUP.md](../supabase/SETUP.md). A aplicação já suporta modo local e conta opcional; os endpoints e revisões propostos abaixo foram substituídos pelo contrato final.
 
 ## Decisão
 

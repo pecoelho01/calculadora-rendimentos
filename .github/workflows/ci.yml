@@ -3,9 +3,11 @@ name: CI - Quality and Security
 on:
   pull_request:
     branches:
+      - main
       - t3/migrar-nextjs-vercel-portfolio
   push:
     branches:
+      - main
       - t3/migrar-nextjs-vercel-portfolio
   workflow_dispatch:
 

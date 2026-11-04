@@ -19,11 +19,11 @@ Os conflitos de negócio usam SQLSTATE `PT409`, traduzido pelo PostgREST em HTTP
 
 ## Verificação SQL local sem credenciais
 
-Além de `npm test` (contratos/API com backend injetado), é possível executar a migration num PostgreSQL WASM local através de PGlite, instalado fora das dependências do projeto:
+Além de `npm test` (contratos/API com backend injetado), é possível executar a migration num PostgreSQL WASM local através de PGlite, fixado em `0.5.15` nas dependências de desenvolvimento e no lockfile:
 
 ```bash
-npm install --prefix /tmp/rendimentos-sql-check @electric-sql/pglite
-npm run test:sql -- /tmp/rendimentos-sql-check/node_modules/@electric-sql/pglite/dist/index.js
+npm ci --ignore-scripts
+npm run test:sql
 ```
 
 O harness simula apenas o esquema `auth`, utilizadores fictícios e os papéis Supabase; executa as funções, grants e políticas SQL reais. Verifica CAS, rollback de lote e recibos, limites, isolamento/RLS, proibição de escrita direta, ordem de transações, vendas excessivas, migração repetida e revisão após apagar/recriar. Inclui limites Unicode/UTF-16, valores não representáveis em JavaScript e arredondamento das quantidades grandes conforme `shareUnits`. No limite de tamanho, também executa o handler real de `/api/account`: POST seguido de GET no máximo SQL, rejeição de uma escrita um byte acima e GET posterior inalterado. As validações TypeScript e as funções PostgreSQL são reais; Auth e o transporte RPC são injetados. Não testa o serviço Supabase Auth real, a Data API HTTP, email/SMTP ou Vercel.

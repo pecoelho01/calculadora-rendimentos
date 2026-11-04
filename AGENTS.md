@@ -24,7 +24,7 @@ Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito 
 - Preferir Server Components por omissão; usar `use client` apenas nas fronteiras interativas. Nunca importar o adaptador Yahoo num componente cliente.
 - Não enviar carteiras, quantidades ou preços de compra ao endpoint de mercado. Enviar apenas os tickers e a data inicial necessários.
 - Não guardar dados de carteiras em memória global, ficheiros temporários ou cache partilhada da Vercel. A cache do servidor contém apenas dados públicos de mercado.
-- A persistência atual é `localStorage`, sem autenticação ou sincronização. Validar esquema/versão antes de carregar ou restaurar e não sobrescrever dados corrompidos automaticamente.
+- O modo local usa `localStorage`, sem autenticação ou sincronização. A conta Supabase opcional segue `supabase/CONTRACT.md`, com autenticação, RLS e revisões por carteira; não sincronizar os dois modos implicitamente. Validar esquema/versão antes de carregar ou restaurar e não sobrescrever dados corrompidos automaticamente.
 - Uma carteira tem uma moeda. Sem conversão cambial explícita, não somar cotações incompatíveis como se fossem da mesma moeda. Preservar a distinção entre preço zero e cotação ausente.
 - Validar vendas cronologicamente; não permitir vender mais do que a posição. Para ordens no mesmo dia, preservar a ordem de registo. Importações devem ser atómicas.
 - Manter contabilização FIFO por lotes, rentabilidade das posições abertas e ROI sobre todas as compras conforme o README. Não apresentar essa métrica como retorno anualizado, TWR ou XIRR.
