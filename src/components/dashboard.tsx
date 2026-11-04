@@ -902,11 +902,13 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                   <Metric
                     label="Ganho realizado"
                     value={money(summary.realized)}
+                    detail="Resultado das vendas"
                     trend={summary.realized}
                   />
                   <Metric
                     label="Compras acumuladas"
                     value={money(summary.invested)}
+                    detail="Total de todas as compras"
                   />
                 </div>
               ) : null}
