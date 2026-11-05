@@ -5,7 +5,7 @@ import { assertBrowserAuthLock, AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_SE
 type RawAuth = InstanceType<typeof AuthClient>;
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void | Promise<void>;
-type AuthMethods = Pick<RawAuth, "getSession" | "signInWithPassword" | "signUp" | "resetPasswordForEmail" | "updateUser" | "signOut" | "exchangeCodeForSession"> & {
+type AuthMethods = Pick<RawAuth, "getSession" | "signInWithPassword" | "signUp" | "resetPasswordForEmail" | "updateUser" | "reauthenticate" | "signOut" | "exchangeCodeForSession"> & {
   onAuthStateChange: (listener: Listener) => { data: { subscription: { id: string; callback: Listener; unsubscribe: () => void } } };
 };
 
@@ -138,6 +138,7 @@ export function createBrowserAuthClient(url: string, key: string): BrowserSupaba
     signUp: async (...args) => (await initialize()).client.signUp(...args),
     resetPasswordForEmail: async (...args) => (await initialize()).client.resetPasswordForEmail(...args),
     updateUser: async (...args) => (await initialize()).client.updateUser(...args),
+    reauthenticate: async () => (await initialize()).client.reauthenticate(),
     signOut: async (...args) => (await initialize()).client.signOut(...args),
     exchangeCodeForSession: async (...args) => (await initialize(true)).client.exchangeCodeForSession(...args),
     onAuthStateChange(listener: Listener) {
