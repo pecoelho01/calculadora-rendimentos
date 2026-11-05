@@ -62,11 +62,13 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://rendimentos-test.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: public-test-key
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
 
       - name: Account end-to-end tests with HTTP mocks
         run: npm run test:e2e -- tests/account.spec.ts --reporter=line,html --output=test-results/account
         env:
           TEST_ACCOUNT_AUTH: "1"
+          TEST_CAPTCHA: "1"
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/account
 
       - name: Upload Playwright diagnostics

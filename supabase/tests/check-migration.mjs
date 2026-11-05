@@ -17,12 +17,28 @@ await db.exec(`
   create role authenticated;
   create schema auth;
   create table auth.users(id uuid primary key);
+  create table auth.sessions(id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade);
+  create function auth.fixture_session() returns trigger language plpgsql as $$
+    begin insert into auth.sessions(id,user_id) values(new.id,new.id); return new; end $$;
+  create trigger fixture_session after insert on auth.users for each row execute function auth.fixture_session();
+  create function auth.jwt() returns jsonb language sql stable as
+    $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
   grant usage on schema auth to authenticated, anon;
-  grant execute on function auth.uid() to authenticated, anon;
+  grant execute on function auth.uid(), auth.jwt() to authenticated, anon;
   insert into auth.users values ('${u1}'),('${u2}');
 `);
+// A deterministic active session is seeded by the isolated auth.users fixture trigger.
+// Identity and session claims must change together, just as they do in a real JWT.
+const setIdentity = async (id) => {
+  await db.query("select set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claims',$2,false)",
+    [id, JSON.stringify({ sub: id, session_id: id })]);
+};
+const setOwner = async (id) => {
+  await db.exec("set role authenticated");
+  await setIdentity(id);
+};
 const grandfatherUser = "44444444-4444-4444-8444-444444444444";
 const historicalPortfolio = { id: "historical-active", name: "Histórico preservado", currency: "EUR", orders: [] };
 const historicalKey = "8".repeat(64);
@@ -37,7 +53,7 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
   if (file.startsWith("202610300003")) {
     // A receipt created by migration 002 must prevent duplicates after upgrading.
     const legacy = { id: "legacy", name: "Antes da atualização", currency: "EUR", orders: [] };
-    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u1]);
+    await setIdentity(u1);
     await db.query("select public.account_apply('[]'::jsonb,$1::jsonb)", [JSON.stringify({ key: "d".repeat(64), portfolios: [legacy] })]);
     const legacyNumeric = { ...legacy, id: "legacy-numeric", orders: [{ id: "order", date: "2024-01-01", ticker: "TEST", name: "", type: "buy", shares: 2, pricebuy: 20 }] };
     const oldNumericPayload = JSON.stringify({ key: "6".repeat(64), portfolios: [legacyNumeric] }).replace('"shares":2', '"shares":2.0');
@@ -65,7 +81,7 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
   } else if (file.startsWith("202611020005")) {
     // Create these records through the old RPC, before strict validation exists.
     await db.query("insert into auth.users values ($1)", [extraFieldsUser]);
-    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [extraFieldsUser]);
+    await setIdentity(extraFieldsUser);
     await db.query("select public.account_apply('[]'::jsonb,$1::jsonb)", [JSON.stringify(historicalExtraMigration)]);
     const storedState = async () => (await db.query(`select
       (select jsonb_agg(to_jsonb(p) order by id) from public.account_portfolios p) as portfolios,
@@ -74,6 +90,15 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
     const beforeUpgrade = await storedState();
     await db.exec(await readFile(new URL(file, migrations), "utf8"));
     assert.deepEqual(await storedState(), beforeUpgrade, "005 must not rewrite existing records, receipts or counters.");
+  } else if (file.startsWith("202611030006")) {
+    const storedState = async () => (await db.query(`select
+      (select jsonb_agg(to_jsonb(p) order by user_id,id) from public.account_portfolios p) as portfolios,
+      (select jsonb_agg(to_jsonb(m) order by user_id,key) from public.account_migrations m) as receipts,
+      (select jsonb_agg(to_jsonb(l) order by user_id) from private.account_write_limits l) as limits,
+      (select jsonb_agg(to_jsonb(s) order by id) from auth.sessions s) as sessions`)).rows[0];
+    const beforeUpgrade = await storedState();
+    await db.exec(await readFile(new URL(file, migrations), "utf8"));
+    assert.deepEqual(await storedState(), beforeUpgrade, "006 must preserve data, receipts, revisions, limits and sessions.");
   } else await db.exec(await readFile(new URL(file, migrations), "utf8"));
 }
 // Check binary rounding matches the existing JavaScript shareUnits contract.
@@ -81,7 +106,7 @@ for (const value of [1e-8, 0.12345678, 1, 1e12, 999999999999.1234, 999999999999.
   const result = await db.query("select private.account_units($1::numeric)::text as units", [String(value)]);
   assert.equal(BigInt(result.rows[0].units), BigInt(value.toFixed(8).replace(".", "")));
 }
-await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${u1}',false)`);
+await setOwner(u1);
 const p = { id: "p1", name: "Exemplo", currency: "EUR", orders: [
   { id: "buy", date: "2024-01-01", ticker: "TEST", name: "Teste", type: "buy", shares: 2, pricebuy: 20 },
   { id: "sell", date: "2024-01-01", ticker: "TEST", name: "Teste", type: "sell", shares: 1, pricebuy: 30 },
@@ -123,16 +148,65 @@ assert.ok(largeSaved.portfolios.some((item) => item.portfolio.id === largeQuanti
 await apply([{ id: largeQuantity.id, portfolio: null, expectedRevision: 1 }]);
 await rejectsCode(() => db.query("update public.account_portfolios set revision=999"), "42501");
 await rejectsCode(() => db.query("insert into public.account_portfolios(user_id,id,revision,portfolio) values($1,'x',1,$2)", [u1, JSON.stringify(p)]), "42501");
-await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u2]);
+await setIdentity(u2);
 assert.deepEqual(await snap(), { version: 1, portfolios: [] });
 assert.equal((await db.query("select * from public.account_portfolios")).rows.length, 0);
 await apply([change({ ...p, name: "Segundo utilizador" })]);
-await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u1]);
+await setIdentity(u1);
 assert.equal((await snap()).portfolios[0].portfolio.name, "Exemplo");
 // Idempotency is scoped to a user and a payload; imports only create new IDs.
 const migration = { key: "a".repeat(64), portfolios: [p] };
 current = await apply([], migration);
 assert.equal(current.portfolios.length, 2);
+// Direct Data API access and both SECURITY DEFINER RPCs require the active JWT session.
+const activeSnapshot = await snap();
+const checkSessionDenied = async () => {
+  assert.equal((await db.query("select * from public.account_portfolios")).rows.length, 0);
+  assert.equal((await db.query("select * from public.account_migrations")).rows.length, 0);
+  await rejectsCode(() => snap(), "42501");
+  await rejectsCode(() => apply([change({ ...p, id: "session-must-not-write" })]), "42501");
+  await rejectsCode(() => apply([], migration), "42501");
+};
+assert.ok((await db.query("select * from public.account_portfolios")).rows.length > 0);
+assert.ok((await db.query("select * from public.account_migrations")).rows.length > 0);
+for (const claims of [{}, { session_id: null }, { session_id: 123 }, { session_id: false }, { session_id: {} }, { session_id: [] },
+  { session_id: "" }, { session_id: "invalid" }, { session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  { session_id: u2 }]) {
+  await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: u1, ...claims })]);
+  await checkSessionDenied();
+}
+await db.query("select set_config('request.jwt.claim.sub','',false)");
+await checkSessionDenied();
+await setIdentity(u1);
+assert.deepEqual(await snap(), activeSnapshot);
+await rejectsCode(() => db.query("select * from auth.sessions"), "42501");
+await rejectsCode(() => db.query("select private.account_apply('[]'::jsonb,null)"), "42501");
+await db.exec("reset role");
+assert.equal((await db.query("select has_function_privilege('authenticated','private.account_apply(jsonb,jsonb)','EXECUTE') as allowed")).rows[0].allowed, false);
+assert.equal((await db.query("select has_function_privilege('anon','private.account_session_active()','EXECUTE') as allowed")).rows[0].allowed, false);
+const rawAccountState = async () => (await db.query(`select
+  (select jsonb_agg(to_jsonb(p) order by user_id,id) from public.account_portfolios p) as portfolios,
+  (select jsonb_agg(to_jsonb(m) order by user_id,key) from public.account_migrations m) as receipts,
+  (select jsonb_agg(to_jsonb(l) order by user_id) from private.account_write_limits l) as limits`)).rows[0];
+const beforeLogout = await rawAccountState();
+// Simulate successful Auth logout: JWT is unchanged, but its session row is deleted.
+await db.query("delete from auth.sessions where id=$1", [u1]);
+await setOwner(u1);
+await checkSessionDenied();
+await db.exec("reset role");
+assert.deepEqual(await rawAccountState(), beforeLogout, "Rejected revoked-session RPCs must not change data or consume write quota.");
+// Another session of the same account remains usable (scope: local).
+const otherSession = "88888888-8888-4888-8888-888888888888";
+await db.query("insert into auth.sessions(id,user_id) values($1,$2)", [otherSession, u1]);
+await setOwner(u1);
+await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: u1, session_id: otherSession })]);
+assert.deepEqual(await snap(), activeSnapshot);
+assert.deepEqual(await apply([], migration), activeSnapshot);
+await db.exec("reset role");
+await db.query("insert into auth.sessions(id,user_id) values($1,$1)", [u1]);
+await setOwner(u1);
+assert.deepEqual(await snap(), activeSnapshot);
+console.log("SQL/PGlite: sessão ativa exigida em RLS e RPCs; logout, claims inválidas, isolamento e segunda sessão verificados.");
 const imported = current.portfolios.find((item) => item.portfolio.id.startsWith("import-"));
 assert.ok(imported);
 assert.deepEqual(imported.portfolio.orders, p.orders);
@@ -155,10 +229,10 @@ assert.deepEqual(await apply([], { ...migration, key: "2".repeat(64) }), deleted
 // Recreate only through an explicit revision-aware write for later capacity assertions.
 await apply([change(imported.portfolio)]);
 // Content receipts are scoped to the authenticated owner.
-await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u2]);
+await setIdentity(u2);
 const other = await apply([], migration);
 assert.equal(other.portfolios.length, 2);
-await db.query("select set_config('request.jwt.claim.sub',$1,false)", [u1]);
+await setIdentity(u1);
 await rejectsCode(() => apply([], { ...migration, portfolios: [{ ...p, name: "Different" }] }), "22023");
 // Deleted IDs keep their revision so stale device writes fail after recreation.
 await apply([{ id: p.id, portfolio: null, expectedRevision: 1 }]);
@@ -179,7 +253,8 @@ assert.equal((await db.query("select * from public.account_migrations where key=
 await apply([{ id: "capacity-0", portfolio: null, expectedRevision: 1 }]);
 assert.equal((await apply([], retriable)).portfolios.length, 30);
 // At the SQL byte limit, compact JSON array punctuation must not break reads.
-await db.exec("reset role; insert into auth.users values ('33333333-3333-4333-8333-333333333333'); set role authenticated; select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',false)");
+await db.exec("reset role; insert into auth.users values ('33333333-3333-4333-8333-333333333333')");
+await setOwner("33333333-3333-4333-8333-333333333333");
 const boundary = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}`, name: "N".repeat(60), currency: "EUR", orders: [] }));
 const boundaryOrder = (i) => ({ id: String(i).padEnd(200, "x"), date: "2024-01-01", ticker: "TEST", name: "N".repeat(100), type: "buy", shares: 1, pricebuy: 1 });
 const sqlBytes = async (portfolios) => (await db.query("select sum(octet_length(value::text))::int as size from jsonb_array_elements($1::jsonb)", [JSON.stringify(portfolios)])).rows[0].size;
@@ -263,10 +338,6 @@ for (const role of ["anon", "authenticated"]) {
   assert.deepEqual(privileges, { table_access: false, helper_access: false, validator_access: false });
 }
 await db.query("insert into auth.users values ($1),($2)", [resourceUser, rateUser]);
-const setOwner = async (id) => {
-  await db.exec("set role authenticated");
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
-};
 const resourceCounts = async (id) => {
   await db.exec("reset role");
   const result = (await db.query(`select

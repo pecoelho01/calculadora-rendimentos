@@ -34,13 +34,40 @@ function session(id = userA, lifetime = 3600, options: { sessionId?: string; non
 function remote(name = "Carteira da Ana", id = "remote-a"): AccountSnapshot {
   return { version: 1, portfolios: [{ portfolio: { id, name, currency: "EUR", orders: [] }, revision: 3 }] };
 }
-async function setup(page: Page, signedIn: boolean | "expired" = false) {
+async function setup(page: Page, signedIn: boolean | "expired" = false, autoCaptcha = true) {
   const accounts: Record<string, AccountSnapshot> = { [userA]: remote(), [userB]: remote("Carteira do Bruno", "remote-b") };
   const requests: AccountWrite[] = [];
   const authRequests: { path: string; body: Record<string, unknown>; grant: string | null; authorization: string }[] = [];
   const pkceFlows = new Map<string, { challenge: string; id: string }>();
   const receipts = new Set<string>();
-  const state = { failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, delayAuthPath: "", releaseAuth: () => {}, nextTokenSession: null as ReturnType<typeof session> | null, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
+  const state = { requireReauthentication: false, failReauthenticationSend: false, failNextLogin: false, failNextWrite: 0, delayNextWrite: false, releaseWrite: () => {}, delayRefresh: false, releaseRefresh: () => {}, failRefresh: false, delayAuthPath: "", releaseAuth: () => {}, nextTokenSession: null as ReturnType<typeof session> | null, accountReads: 0, marketRequests: 0, accounts, requests, authRequests };
+  await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: `(() => {
+      let next = 0;
+      const widgets = new Map();
+      const mock = window.__captchaMock = {
+        active: null,
+        issue() { mock.active?.callback('captcha-test-' + (++next)); },
+        expire() { mock.active?.['expired-callback'](); },
+        fail() { mock.active?.['error-callback'](); },
+        timeout() { mock.active?.['timeout-callback'](); }
+      };
+      window.turnstile = {
+        render(container, options) {
+          const id = String(++next); widgets.set(id, options); mock.active = options;
+          container.textContent = 'Verificação de segurança simulada';
+          // Match Cloudflare's documented widget footprint for responsive checks.
+          container.style.width = options.size === 'compact' ? '150px' : '100%';
+          container.style.minWidth = options.size === 'compact' ? '150px' : '300px';
+          container.style.height = options.size === 'compact' ? '140px' : '65px';
+          ${autoCaptcha ? "queueMicrotask(() => options.callback('captcha-test-' + (++next)));" : ""}
+          return id;
+        },
+        remove(id) { if (mock.active === widgets.get(id)) mock.active = null; widgets.delete(id); }
+      };
+    })();`,
+  }));
   await page.addInitScript(({ key, json, authKey, authSession }) => {
     localStorage.setItem(key, json);
     if (authSession) localStorage.setItem(authKey, JSON.stringify(authSession));
@@ -70,6 +97,22 @@ async function setup(page: Page, signedIn: boolean | "expired" = false) {
         await route.fulfill({ status: 400, json: { code: "refresh_token_not_found", message: "Invalid Refresh Token" }, headers: { "Access-Control-Allow-Origin": "*" } });
         return;
       }
+    }
+    if (path.endsWith("/reauthenticate") && state.failReauthenticationSend) {
+      await route.fulfill({ status: 429, json: { code: "over_email_send_rate_limit", message: "Rate limited" }, headers: { "Access-Control-Allow-Origin": "*" } });
+      return;
+    }
+    if (path.endsWith("/user") && body?.password && state.requireReauthentication) {
+      const code = !body.nonce ? "reauthentication_needed" : body.nonce !== "123456" ? "reauthentication_not_valid" : null;
+      if (code) {
+        await route.fulfill({ status: 401, json: { code, message: code }, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "X-Supabase-Api-Version", "X-Supabase-Api-Version": "2024-01-01" } });
+        return;
+      }
+    }
+    if (path.endsWith("/token") && grant === "password" && state.failNextLogin) {
+      state.failNextLogin = false;
+      await route.fulfill({ status: 400, json: { code: "invalid_credentials", message: "Invalid credentials" }, headers: { "Access-Control-Allow-Origin": "*" } });
+      return;
     }
     if (path.endsWith("/signup") || path.endsWith("/recover")) {
       const code = path.endsWith("/signup") ? "confirmation-test-code" : "recovery-test-code";
@@ -300,6 +343,12 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
   await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
   await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
   expect(state.authRequests.some((request) => request.path.endsWith("/recover") && request.body.email === "ana@example.test")).toBe(true);
+  if (process.env.TEST_CAPTCHA) {
+    const tokens = state.authRequests.filter((request) => request.path.endsWith("/signup") || request.path.endsWith("/recover"))
+      .map((request) => (request.body.gotrue_meta_security as { captcha_token: string }).captcha_token);
+    expect(tokens).toHaveLength(2);
+    expect(tokens.every(Boolean)).toBe(true);
+  }
   expect(state.requests).toHaveLength(0);
   await assertNoOverflow(page);
 });
@@ -738,7 +787,13 @@ test("renovação pendente mantém o lock até persistir e bloqueia logout conco
 test("respostas incluem proteção contra enquadramento e fuga de referrer", async ({ request }) => {
   for (const path of ["/", "/api/account"]) {
     const response = await request.get(path);
-    expect(response.headers()["content-security-policy"]).toBe("frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+    const policy = response.headers()["content-security-policy"];
+    for (const directive of ["frame-ancestors 'none'", "base-uri 'none'", "object-src 'none'"]) expect(policy).toContain(directive);
+    if (path === "/") {
+      expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+      expect(policy).toContain("script-src-attr 'none'");
+      expect(policy).not.toContain("unsafe-eval");
+    }
     expect(response.headers()["x-frame-options"]).toBe("DENY");
     expect(response.headers()["x-content-type-options"]).toBe("nosniff");
     expect(response.headers()["referrer-policy"]).toBe("no-referrer");
@@ -1247,4 +1302,147 @@ test("revisão CSV da conta aguarda confirmação e conserva edições perante c
   await expect(dialog.getByLabel("Nome da linha 2", { exact: true })).toHaveValue("Preservar no conflito");
   expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(1);
   expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+});
+
+test("alteração de palavra-passe pede código quando Auth exige reautenticação", async ({ page }, testInfo) => {
+  const state = await setup(page);
+  const dialog = await openRecovery(page);
+  state.requireReauthentication = true;
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("reauth-password-test");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(dialog.getByLabel("Código de confirmação", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/Enviámos um código de confirmação/)).toBeVisible();
+  await assertNoOverflow(page);
+  await expect(dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("recuperacao-codigo.png"), fullPage: true });
+  expect(state.authRequests.filter((request) => request.path.endsWith("/reauthenticate"))).toHaveLength(1);
+  await dialog.getByLabel("Código de confirmação", { exact: true }).fill("000000");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(dialog.getByText(/O código de confirmação é inválido ou expirou/)).toBeVisible();
+  expect(state.authRequests.filter((request) => request.path.endsWith("/reauthenticate"))).toHaveLength(1);
+  await dialog.getByLabel("Código de confirmação", { exact: true }).fill("123456");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
+  expect(state.authRequests.filter((request) => request.body.password === "reauth-password-test").map((request) => request.body.nonce)).toEqual([undefined, "000000", "123456"]);
+});
+
+test("falha ao enviar código permite reenviar sem perder recuperação", async ({ page }) => {
+  const state = await setup(page);
+  const dialog = await openRecovery(page);
+  state.requireReauthentication = true;
+  state.failReauthenticationSend = true;
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("reauth-password-test");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect(dialog.getByText(/Não foi possível enviar o código/)).toBeVisible();
+  state.failReauthenticationSend = false;
+  await dialog.getByRole("button", { name: "Enviar novo código", exact: true }).click();
+  await expect(dialog.getByText(/Enviámos um novo código/)).toBeVisible();
+  await expect(dialog.getByLabel("Nova palavra-passe", { exact: true })).toHaveValue("reauth-password-test");
+  await publishAuthSession(page, session(userA, 3600, { sessionId: "33333333-3333-4333-8333-333333333333" }), "SIGNED_IN");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+});
+
+type CaptchaMockWindow = Window & { __captchaMock: { issue(): void; expire(): void; fail(): void; timeout(): void } };
+
+test("CAPTCHA mantém o nonce do documento após navegar para as definições da conta", async ({ page }) => {
+  test.skip(!process.env.TEST_CAPTCHA, "Requer build com site key Turnstile fictícia.");
+  const state = await setup(page, true, false);
+  await page.goto("/");
+  await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  const documentNonce = await page.locator("head script[nonce]").first().evaluate((script) => (script as HTMLScriptElement).nonce);
+  expect(documentNonce).toBeTruthy();
+  await openAccountSettings(page);
+  await page.locator(".account-actions").getByRole("button", { name: "Sair da conta", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
+  await expect(dialog.getByText("Verificação de segurança simulada")).toBeVisible();
+  expect(await page.locator('script[src*="challenges.cloudflare.com/turnstile/"]').evaluate((script) => (script as HTMLScriptElement).nonce)).toBe(documentNonce);
+  await assertNoOverflow(page);
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.issue());
+  await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
+  await dialog.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(state.authRequests.filter((request) => request.grant === "password")).toHaveLength(1);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Definições da conta", exact: true })).toBeVisible();
+  await expect(page.locator(".account-actions").getByRole("button", { name: "Sair da conta", exact: true })).toBeVisible();
+});
+
+test("CAPTCHA expira e cada tentativa Auth exige um token novo", async ({ page }, testInfo) => {
+  test.skip(!process.env.TEST_CAPTCHA, "Requer build com site key Turnstile fictícia.");
+  const state = await setup(page, false, false);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const submit = dialog.getByRole("button", { name: "Iniciar sessão", exact: true });
+  await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
+  await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
+  await expect(dialog.getByText("Verificação de segurança simulada")).toBeVisible();
+  await assertNoOverflow(page);
+  await expect(submit).toBeInViewport();
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("login-captcha.png"), fullPage: true });
+  await expect(submit).toBeDisabled();
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.issue());
+  await expect(submit).toBeEnabled();
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.expire());
+  await expect(submit).toBeDisabled();
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.issue());
+  state.failNextLogin = true;
+  await submit.click();
+  await expect(dialog.getByText(/Não foi possível iniciar sessão/)).toBeVisible();
+  await expect(submit).toBeDisabled();
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.issue());
+  await submit.click();
+  await expect(dialog).toBeHidden();
+  const attempts = state.authRequests.filter((request) => request.grant === "password");
+  const tokens = attempts.map((request) => (request.body.gotrue_meta_security as { captcha_token: string }).captcha_token);
+  expect(tokens).toHaveLength(2);
+  expect(tokens[0]).toBeTruthy();
+  expect(tokens[1]).not.toBe(tokens[0]);
+});
+
+test("CAPTCHA bloqueado permite repetir a verificação sem enviar Auth", async ({ page }) => {
+  test.skip(!process.env.TEST_CAPTCHA, "Requer build com site key Turnstile fictícia.");
+  const state = await setup(page, false, false);
+  let blockScript = true;
+  await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", (route) => blockScript ? route.abort() : route.fallback());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(/Não foi possível concluir a verificação/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Criar conta", exact: true })).toBeDisabled();
+  expect(state.authRequests).toHaveLength(0);
+  blockScript = false;
+  // A network failure never leaves a previous token usable, even after retry.
+  await dialog.getByRole("button", { name: "Tentar verificação novamente", exact: true }).click();
+  await expect(dialog.getByText("Verificação de segurança simulada")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Criar conta", exact: true })).toBeDisabled();
+  expect(state.authRequests).toHaveLength(0);
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.issue());
+  await expect(dialog.getByRole("button", { name: "Criar conta", exact: true })).toBeEnabled();
+  await page.evaluate(() => (window as unknown as CaptchaMockWindow).__captchaMock.timeout());
+  await expect(dialog.getByText(/Não foi possível concluir a verificação/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Criar conta", exact: true })).toBeDisabled();
+});
+
+
+test("mudar de sessão durante envio de reautenticação descarta a conclusão antiga", async ({ page }) => {
+  const state = await setup(page);
+  const dialog = await openRecovery(page);
+  state.requireReauthentication = true;
+  state.delayAuthPath = "/reauthenticate";
+  await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("discarded-reauth-password-test");
+  await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
+  await expect.poll(() => state.authRequests.some((request) => request.path.endsWith("/reauthenticate"))).toBe(true);
+  await publishAuthSession(page, session(userA, 3600, { sessionId: "33333333-3333-4333-8333-333333333333" }), "SIGNED_IN");
+  await expect(dialog).toBeHidden();
+  state.releaseAuth();
+  await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+  await expect(page.getByText(/Enviámos um código de confirmação/)).toHaveCount(0);
+  expect(state.authRequests.filter((request) => request.body.password === "discarded-reauth-password-test")).toHaveLength(1);
+  expect(state.authRequests.some((request) => request.body.nonce)).toBe(false);
 });

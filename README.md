@@ -175,7 +175,13 @@ O backend verifica o Bearer token com Auth `getUser`, deriva a identidade da ses
 
 A sessão Auth é persistida pelo SDK Supabase no navegador; terminar sessão fecha imediatamente o espaço da conta e termina a sessão neste navegador. Uma falha é mostrada e permite repetir. O modo local não cifra dados; usar um dispositivo de confiança. Apagar a conta e exportações administrativas não têm interface nesta versão.
 
-Access/refresh tokens ficam acessíveis a JavaScript da mesma origem. Logout revoga a renovação desta sessão; um access token já emitido pode continuar válido na Data API até expirar. Definir uma duração adequada no Auth e validar a política de reautenticação/alteração de palavra-passe antes de utilização real. A aplicação envia headers contra enquadramento, objetos incorporados, alteração da URL base e fuga de referrer. A CSP é parcial e não substitui a prevenção de XSS.
+Aplicar também `202611030006_account_active_sessions.sql`, depois da 005, antes de aceitar dados reais. Exige que o `session_id` do JWT pertença ao utilizador e ainda exista em `auth.sessions`, tanto nas duas políticas de leitura como nas RPCs `account_snapshot` e `account_apply`. Após o logout confirmado no Auth, novas chamadas com o JWT antigo deixam de ler ou escrever dados da aplicação, mesmo antes de expirar. A implementação de escrita passa para o schema privado, sem execução pelos clientes, mantendo o contrato da RPC pública. Não altera carteiras, revisões, recibos ou sessões. Pedidos já iniciados podem concluir; esta verificação não cancela operações retroativamente nem protege outros serviços/tabelas sem políticas equivalentes.
+
+Access/refresh tokens continuam acessíveis a JavaScript da mesma origem. A CSP restringe scripts através de um nonce aleatório por pedido e limita ligações ao próprio site, ao Supabase configurado e, quando necessário, ao Turnstile. O script de tema recebe o mesmo nonce. Os documentos passam a renderização dinâmica, sem cache de HTML, para não reutilizar nonces. Mantém-se `unsafe-inline` apenas para estilos devido aos gráficos e indicadores existentes, além das origens Google Fonts; em desenvolvimento permite-se `unsafe-eval` e WebSocket local. A CSP reduz exposição mas não elimina XSS nem torna os tokens HttpOnly; tal exigiria migrar o fluxo de autenticação para o servidor.
+
+Para preparar proteção contra bots, criar um widget Cloudflare Turnstile com os hosts autorizados e definir a site key pública em `NEXT_PUBLIC_TURNSTILE_SITE_KEY` antes do build. O widget é apresentado em login, registo e recuperação; falha/expiração bloqueia o envio e cada tentativa exige um token novo. Só depois de disponibilizar o widget, configurar o segredo Turnstile e ativar CAPTCHA no Supabase Auth. Sem a variável, a aplicação mantém o fluxo anterior; sem enforcement no Supabase, os endpoints Auth diretos continuam sem esta proteção. Nunca guardar o segredo numa variável `NEXT_PUBLIC_*`. A quota de emails continua partilhada: manter limites e monitorização SMTP/Auth, mesmo com CAPTCHA. A Secret key e o fornecedor Turnstile foram guardados no Supabase em 4 de novembro de 2026, mantendo CAPTCHA desativado. A Site key pública foi configurada na Vercel para Production em 4 de novembro de 2026. A publicação do widget e a ativação da proteção continuam pendentes; consultar o [registo de configuração](supabase/SETUP.md).
+
+Ativar **Secure password change / Require reauthentication when changing password** no Supabase após disponibilizar esta versão. Se Auth exigir reautenticação, a recuperação permite enviar/reenviar o código por email e repetir a alteração com o `nonce`; código inválido ou expirado não confirma a alteração. Esta etapa mantém o vínculo à sessão de recuperação. A política Supabase dispensa sessões criadas nas últimas 24 horas; não garante reautenticação em todas as alterações. **Require current password** é uma opção distinta e não deve ser ativada sem definir e validar o contrato da recuperação de acesso. A configuração externa continua pendente; a UI por si só não impõe a política a pedidos Auth diretos.
 
 Referências oficiais: [Auth por palavra-passe](https://supabase.com/docs/guides/auth/passwords), [verificação getUser](https://supabase.com/docs/reference/javascript/auth-getuser), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) e [funções Postgres](https://supabase.com/docs/guides/database/functions).
 
@@ -211,6 +217,8 @@ npm run test:e2e
 
 O Playwright inicia `next start` depois do build e testa desktop/móvel, persistência, CSV, carteiras, falhas de dados e relatório. Os dados de mercado dos testes de UI são controlados para resultados determinísticos; não validam a disponibilidade real do Yahoo nem o comportamento de uma conta Vercel.
 
+Se a porta 3100 estiver ocupada por outro worktree, definir `PLAYWRIGHT_PORT` com uma porta livre no comando de teste; o servidor e os callbacks usam a mesma origem isolada.
+
 Os testes de conta no Playwright exigem um build com configuração pública fictícia, sem credenciais reais:
 
 ```bash
@@ -219,6 +227,8 @@ TEST_ACCOUNT_AUTH=1 npm run test:e2e
 ```
 
 Estes testes interceptam Auth e `/api/account`; verificam UI, isolamento do estado e pedidos, sem comprovar a execução real do SQL/RLS ou entrega de emails. Um build sem configuração continua a suportar todos os fluxos locais.
+
+Para incluir Turnstile, acrescentar `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` ao comando de build fictício e executar `TEST_ACCOUNT_AUTH=1 TEST_CAPTCHA=1 npm run test:e2e`. O script/widget Cloudflare também é simulado; os testes verificam tokens novos por tentativa, bloqueio na expiração/falha, repetição e reautenticação com nonce. Não comprovam CAPTCHA ou SMTP reais. Não usar a chave de teste num build publicado. Os testes CSP verificam headers reais, nonces diferentes, hidratação e bloqueio de scripts sem nonce em Chromium.
 
 Para verificar a entrada sem Supabase mesmo quando existe `.env.local`, usar um build com as variáveis públicas explicitamente vazias:
 
