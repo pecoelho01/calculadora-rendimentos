@@ -1,3 +1,4 @@
+import { confirmCsvReview } from "./csv-helpers";
 import { test, expect } from "@playwright/test";
 
 const themeKey = "rendimentos-theme-v1";
@@ -91,6 +92,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({ page
     name: "theme.csv", mimeType: "text/csv",
     buffer: Buffer.from("date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy"),
   });
+  await confirmCsvReview(page);
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   await expect(page.locator(".performance svg").last()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

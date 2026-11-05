@@ -1,3 +1,4 @@
+import { confirmCsvReview } from "./csv-helpers";
 import { openSidebar, navigateTo, selectedPortfolio } from "./sidebar-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
@@ -948,6 +949,7 @@ test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/da
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   const csv = "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-01,TEST,Teste,120,3,sell";
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "ordens.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await confirmCsvReview(page);
   await expect.poll(() => state.accounts[userA].portfolios[0].portfolio.orders.length).toBe(2);
   expect(state.accounts[userA].portfolios[0].portfolio.orders.map((order) => order.type)).toEqual(["buy", "sell"]);
   expect(state.requests[0].changes[0].expectedRevision).toBe(3);
@@ -1265,6 +1267,42 @@ test("recuperação local permite iniciar sessão sem repor dados corrompidos", 
   await assertNoOverflow(page);
 });
 
+test("revisão CSV da conta aguarda confirmação e conserva edições perante conflito", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.goto("/");
+  await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  const upload = async (date: string) => {
+    await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({
+      name: "revisao-conta.csv", mimeType: "text/csv",
+      buffer: Buffer.from(`date,ticker,name,pricebuy,shares,type\n${date},TEST,Teste,100,10,buy`),
+    });
+  };
+  await upload("2024-01-01");
+  const dialog = page.getByRole("dialog", { name: "Rever importação CSV", exact: true });
+  await expect(dialog).toContainText("Carteira da Ana · EUR");
+  expect(state.requests).toHaveLength(0);
+  expect(state.marketRequests).toBe(0);
+  await dialog.getByLabel("Quantidade da linha 2", { exact: true }).fill("11");
+  state.delayNextWrite = true;
+  await dialog.getByRole("button", { name: "Confirmar importação", exact: true }).click();
+  await expect.poll(() => state.requests.length).toBe(1);
+  await expect(dialog.getByLabel("Quantidade da linha 2", { exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(0);
+  state.releaseWrite();
+  await expect(dialog).toBeHidden();
+  expect(state.accounts[userA].portfolios[0].portfolio.orders[0].shares).toBe(11);
+  await upload("2024-01-02");
+  await dialog.getByLabel("Nome da linha 2", { exact: true }).fill("Preservar no conflito");
+  state.failNextWrite = 409;
+  await dialog.getByRole("button", { name: "Confirmar importação", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("As edições foram mantidas");
+  await expect(dialog.getByLabel("Nome da linha 2", { exact: true })).toHaveValue("Preservar no conflito");
+  expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(1);
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
+});
 
 test("alteração de palavra-passe pede código quando Auth exige reautenticação", async ({ page }, testInfo) => {
   const state = await setup(page);

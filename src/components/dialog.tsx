@@ -5,11 +5,13 @@ export function Dialog({
   title,
   onClose,
   closeDisabled = false,
+  className,
   children,
 }: {
   title: string;
   onClose: () => void;
   closeDisabled?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -25,7 +27,7 @@ export function Dialog({
     };
   }, []);
   return (
-    <dialog ref={ref} onCancel={(event) => {
+    <dialog ref={ref} className={className} onCancel={(event) => {
       event.preventDefault();
       if (!closeDisabled) onClose();
     }} aria-labelledby="dialog-title">
