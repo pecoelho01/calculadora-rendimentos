@@ -1,13 +1,13 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { loadGeography } from "./geography-source";
+import { loadGeography } from "../../lib/geography-source";
 import {
   loadIsharesGeography,
   compactIsharesCatalog,
   ukCatalogUrl,
   usCatalogUrl,
-} from "./ishares-geography";
-import { publicText } from "./public-data";
+} from "../../lib/ishares-geography";
+import { publicText } from "../../lib/public-data";
 
 const cachedCatalog = unstable_cache(
   async (region: "uk" | "us") => {

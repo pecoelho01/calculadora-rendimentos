@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { PGlite as InstalledPGlite } from "@electric-sql/pglite";
-import { createAccountHandler } from "../../src/lib/account-server.ts";
+import { createAccountHandler } from "../../tests/helpers/account-handler.ts";
 
 const modulePath = process.argv[2];
 // Preservar o argumento opcional usado para verificar outra versão local.
@@ -99,6 +99,55 @@ for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".
     const beforeUpgrade = await storedState();
     await db.exec(await readFile(new URL(file, migrations), "utf8"));
     assert.deepEqual(await storedState(), beforeUpgrade, "006 must preserve data, receipts, revisions, limits and sessions.");
+  } else if (file.startsWith("202611100007")) {
+    const names = [
+      ["public.account_snapshot()", "public.get_account_portfolios()"],
+      ["public.account_apply(jsonb,jsonb)", "public.apply_account_changes(jsonb,jsonb)"],
+      ["private.account_apply(jsonb,jsonb)", "private.apply_account_changes(jsonb,jsonb)"],
+      ["private.account_session_active()", "private.is_account_session_active()"],
+    ];
+    const renamed = (text) => text
+      .replaceAll("public.account_snapshot()", "public.get_account_portfolios()")
+      .replaceAll("private.account_apply(", "private.apply_account_changes(")
+      .replaceAll("private.account_session_active()", "private.is_account_session_active()");
+    const metadata = async (signature) => (await db.query(`select
+      oid::text, proowner, proacl::text, prosecdef, provolatile, proconfig, prosrc,
+      pg_get_function_arguments(oid) as arguments
+      from pg_proc where oid=$1::regprocedure`, [signature])).rows[0];
+    const storedState = async () => (await db.query(`select
+      (select jsonb_agg(to_jsonb(p) order by user_id,id) from public.account_portfolios p) as portfolios,
+      (select jsonb_agg(to_jsonb(m) order by user_id,key) from public.account_migrations m) as receipts,
+      (select jsonb_agg(to_jsonb(l) order by user_id) from private.account_write_limits l) as limits,
+      (select jsonb_agg(to_jsonb(s) order by id) from auth.sessions s) as sessions`)).rows[0];
+    const policies = async () => (await db.query(`select polname, pg_get_expr(polqual,polrelid) as expression
+      from pg_policy where polrelid in ('public.account_portfolios'::regclass,'public.account_migrations'::regclass)
+      order by polname`)).rows;
+    const beforeState = await storedState();
+    const beforeMetadata = await Promise.all(names.map(([old]) => metadata(old)));
+    const beforePolicies = await policies();
+    await setIdentity(grandfatherUser);
+    const beforeSnapshot = (await db.query("select public.account_snapshot() as value")).rows[0].value;
+    await db.exec(await readFile(new URL(file, migrations), "utf8"));
+    assert.deepEqual(await storedState(), beforeState, "007 must preserve account data, receipts, limits and sessions.");
+    assert.deepEqual((await db.query("select public.get_account_portfolios() as value")).rows[0].value, beforeSnapshot);
+    assert.deepEqual(await policies(), beforePolicies.map((policy) => ({ ...policy, expression: renamed(policy.expression) })));
+    for (const [index, [old, next]] of names.entries()) {
+      assert.equal((await db.query("select to_regprocedure($1) as function", [old])).rows[0].function, null);
+      const after = await metadata(next);
+      assert.deepEqual(after, { ...beforeMetadata[index], prosrc: renamed(beforeMetadata[index].prosrc) },
+        "007 must change only names/calls, retaining function OIDs, ACLs, owners, security and arguments.");
+      assert.equal(after.prosecdef, true);
+      assert.deepEqual(after.proconfig, ['search_path=""']);
+      assert.doesNotMatch(after.prosrc, /account_snapshot|private\.account_apply|private\.account_session_active/);
+      const allowed = next.startsWith("public.") || next.includes("is_account_session_active");
+      assert.equal((await db.query("select has_function_privilege('authenticated',$1,'EXECUTE') as allowed", [next])).rows[0].allowed, allowed);
+      assert.equal((await db.query("select has_function_privilege('anon',$1,'EXECUTE') as allowed", [next])).rows[0].allowed, false);
+      assert.equal((await db.query(`select exists(select 1 from pg_proc p,
+        lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        where p.oid=$1::regprocedure and acl.grantee=0 and acl.privilege_type='EXECUTE') as allowed`, [next])).rows[0].allowed, false);
+    }
+    assert.equal((await metadata("private.is_account_session_active()")).provolatile, "s");
+    console.log("SQL/PGlite: renomeação 007 preserva dados, OIDs, grants, argumentos, segurança e políticas; nomes antigos removidos.");
   } else await db.exec(await readFile(new URL(file, migrations), "utf8"));
 }
 // Check binary rounding matches the existing JavaScript shareUnits contract.
@@ -111,8 +160,8 @@ const p = { id: "p1", name: "Exemplo", currency: "EUR", orders: [
   { id: "buy", date: "2024-01-01", ticker: "TEST", name: "Teste", type: "buy", shares: 2, pricebuy: 20 },
   { id: "sell", date: "2024-01-01", ticker: "TEST", name: "Teste", type: "sell", shares: 1, pricebuy: 30 },
 ] };
-const snap = async () => (await db.query("select public.account_snapshot() as value")).rows[0].value;
-const apply = async (changes, migration = null) => (await db.query("select public.account_apply($1::jsonb,$2::jsonb) as value", [JSON.stringify(changes), migration === null ? null : JSON.stringify(migration)])).rows[0].value;
+const snap = async () => (await db.query("select public.get_account_portfolios() as value")).rows[0].value;
+const apply = async (changes, migration = null) => (await db.query("select public.apply_account_changes($1::jsonb,$2::jsonb) as value", [JSON.stringify(changes), migration === null ? null : JSON.stringify(migration)])).rows[0].value;
 const change = (portfolio, expectedRevision = null) => ({ id: portfolio.id, portfolio, expectedRevision });
 const rejectsCode = async (fn, code) => assert.rejects(fn, (error) => error.code === code);
 assert.deepEqual(await snap(), { version: 1, portfolios: [] });
@@ -132,9 +181,9 @@ await rejectsCode(() => apply([change({ ...p, id: "invalid", orders: [{ ...p.ord
 await rejectsCode(() => apply([change({ ...p, id: "invalid", orders: [p.orders[0], p.orders[0]] })]), "22023");
 // Values accepted over direct Data API must remain representable by JavaScript numbers.
 const tooSmall = JSON.stringify([change({ ...p, id: "underflow" })]).replace('"pricebuy":20', '"pricebuy":1e-400');
-await assert.rejects(() => db.query("select public.account_apply($1::jsonb,null)", [tooSmall]), (error) => error.code.startsWith("22"));
+await assert.rejects(() => db.query("select public.apply_account_changes($1::jsonb,null)", [tooSmall]), (error) => error.code.startsWith("22"));
 const tooPrecise = JSON.stringify([change({ ...p, id: "precision" })]).replace('"shares":2', '"shares":100000000000.00000001');
-await rejectsCode(() => db.query("select public.account_apply($1::jsonb,null)", [tooPrecise]), "22023");
+await rejectsCode(() => db.query("select public.apply_account_changes($1::jsonb,null)", [tooPrecise]), "22023");
 await rejectsCode(() => apply([change({ ...p, id: "unicode-name", name: "😀".repeat(31) })]), "22023");
 await rejectsCode(() => apply([change({ ...p, id: "😀".repeat(101) })]), "22023");
 await rejectsCode(() => apply([change({ ...p, id: "blank-name", name: "\u00a0\ufeff" })]), "22023");
@@ -180,10 +229,10 @@ await checkSessionDenied();
 await setIdentity(u1);
 assert.deepEqual(await snap(), activeSnapshot);
 await rejectsCode(() => db.query("select * from auth.sessions"), "42501");
-await rejectsCode(() => db.query("select private.account_apply('[]'::jsonb,null)"), "42501");
+await rejectsCode(() => db.query("select private.apply_account_changes('[]'::jsonb,null)"), "42501");
 await db.exec("reset role");
-assert.equal((await db.query("select has_function_privilege('authenticated','private.account_apply(jsonb,jsonb)','EXECUTE') as allowed")).rows[0].allowed, false);
-assert.equal((await db.query("select has_function_privilege('anon','private.account_session_active()','EXECUTE') as allowed")).rows[0].allowed, false);
+assert.equal((await db.query("select has_function_privilege('authenticated','private.apply_account_changes(jsonb,jsonb)','EXECUTE') as allowed")).rows[0].allowed, false);
+assert.equal((await db.query("select has_function_privilege('anon','private.is_account_session_active()','EXECUTE') as allowed")).rows[0].allowed, false);
 const rawAccountState = async () => (await db.query(`select
   (select jsonb_agg(to_jsonb(p) order by user_id,id) from public.account_portfolios p) as portfolios,
   (select jsonb_agg(to_jsonb(m) order by user_id,key) from public.account_migrations m) as receipts,
@@ -218,7 +267,7 @@ await rejectsCode(() => apply([], { ...alternate, portfolios: [{ ...p, name: "Ch
 const reordered = { ...Object.fromEntries(Object.entries(p).reverse()), orders: p.orders.map((order) => Object.fromEntries(Object.entries(order).reverse())) };
 assert.deepEqual(await apply([], { key: "4".repeat(64), portfolios: [reordered] }), current);
 const numericReplay = JSON.stringify({ ...migration, key: "f".repeat(64) }).replace('"shares":2', '"shares":2.000').replace('"pricebuy":20', '"pricebuy":20.0');
-assert.deepEqual((await db.query("select public.account_apply('[]'::jsonb,$1::jsonb) as value", [numericReplay])).rows[0].value, current);
+assert.deepEqual((await db.query("select public.apply_account_changes('[]'::jsonb,$1::jsonb) as value", [numericReplay])).rows[0].value, current);
 // Receipts survive edits and deletion; retry must never resurrect an imported portfolio.
 await apply([change({ ...imported.portfolio, name: "Edited import" }, imported.revision)]);
 const edited = await snap();
@@ -282,12 +331,12 @@ const rpcCalls = [];
 let rejectedSqlCode = null;
 const handle = createAccountHandler(() => ({
   async getUser(token) {
-    return token === "boundary-test-token" ? { id: "33333333-3333-4333-8333-333333333333" } : null;
+    return { data: { user: token === "boundary-test-token" ? { id: "33333333-3333-4333-8333-333333333333" } : null }, error: null };
   },
   async rpc(name, args) {
     rpcCalls.push(name);
     try {
-      const data = name === "account_apply"
+      const data = name === "apply_account_changes"
         ? await apply(args.p_changes, args.p_migration)
         : await snap();
       return { data, error: null };
@@ -305,7 +354,7 @@ const apiRequest = (body) => new Request("http://localhost/api/account", {
 const writeAtLimit = await handle(apiRequest({ changes: boundary.map((portfolio) => change(portfolio)) }));
 assert.equal(writeAtLimit.status, 200, "POST no limite SQL deve confirmar a escrita e devolver um snapshot válido.");
 assert.equal(writeAtLimit.headers.get("cache-control"), "private, no-store");
-assert.deepEqual(rpcCalls, ["account_apply"]);
+assert.deepEqual(rpcCalls, ["apply_account_changes"]);
 const atLimit = await writeAtLimit.json();
 const readAtLimit = await handle(apiRequest());
 assert.equal(readAtLimit.status, 200, "GET após a escrita no limite deve continuar legível pela API.");
@@ -319,7 +368,7 @@ assert.equal(await sqlBytes(overflowingPortfolios), 3_000_001);
 const oversizedWrite = await handle(apiRequest({ changes: [change(enlarged.portfolio, enlarged.revision)] }));
 assert.equal(oversizedWrite.status, 400, "POST um byte acima do limite SQL deve ser rejeitado, sem confirmação seguida de 503.");
 assert.equal(rejectedSqlCode, "22023", "A rejeição deve vir do PostgreSQL, não apenas da validação de entrada.");
-assert.deepEqual(rpcCalls, ["account_apply", "account_snapshot", "account_apply"]);
+assert.deepEqual(rpcCalls, ["apply_account_changes", "get_account_portfolios", "apply_account_changes"]);
 const afterRejectedWrite = await handle(apiRequest());
 assert.equal(afterRejectedWrite.status, 200);
 assert.equal(afterRejectedWrite.headers.get("cache-control"), "private, no-store");
