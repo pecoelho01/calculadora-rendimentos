@@ -10,8 +10,9 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 - `src/lib/validation.ts`: validação partilhada de números, datas, tickers, ordens e carteiras.
 - `src/lib/csv.ts`: contrato de importação/exportação CSV.
 - `src/lib/storage.ts`: persistência local versionada e validação de cópias de segurança.
-- `src/lib/market.ts`: adaptador Yahoo Finance exclusivamente no servidor, com cache curto.
-- `src/app/api/market/route.ts`: validação dos pedidos e resposta de mercado.
+- `src/server/market/yahoo.adapter.ts`: adaptador Yahoo Finance exclusivamente no servidor, com cache curto.
+- `src/app/api/`: rotas finas e composição de dependências por pedido.
+- `src/server/`: controllers HTTP, services de casos de uso, repository de conta e adaptadores externos.
 - `public/`: modelos CSV para download; manter sincronizados com os exemplos na raiz.
 - `tests/`: cálculos determinísticos e fluxos Playwright.
 - `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.

@@ -189,19 +189,24 @@ Referências oficiais: [Auth por palavra-passe](https://supabase.com/docs/guides
 
 ```text
 src/app/                     # App Router, layout e estilos
-src/app/api/market/route.ts   # Endpoint de mercado com validação e limites
-src/app/api/account/route.ts  # API privada da conta, sessão e gravações atómicas
+src/app/api/market/route.ts   # Composição do endpoint de mercado
+src/app/api/account/route.ts  # Composição da API privada da conta
+src/server/account/          # Controller HTTP, casos de uso, repository RPC e erros
+src/server/market/           # Controller, service e adaptador Yahoo
+src/server/geography/        # Controller, service e adaptador geográfico
+src/server/shared/           # Auth, cliente Supabase por pedido e leitura HTTP limitada
 supabase/                    # Contrato, migrations SQL e políticas RLS
 src/components/              # Dashboard, gráfico e diálogo
 src/lib/portfolio.ts          # Cálculos puros e reconstrução histórica
 src/lib/validation.ts         # Validação de ordens/carteiras
 src/lib/csv.ts                # Importação/exportação CSV
-src/lib/market.ts             # Adaptador Yahoo, exclusivamente no servidor
 src/lib/storage.ts            # Formato local versionado e validação
 public/                       # CSV para download
 legacy/streamlit/             # Referência Python anterior, fora da aplicação ativa
 tests/                        # Testes determinísticos e fluxos Playwright
 ```
+
+As rotas compõem dependências por pedido. Os controllers tratam HTTP; os services validam e executam casos de uso sem conhecer HTTP ou parâmetros RPC. O repository de conta encapsula as RPCs e traduz SQLSTATE em erros da aplicação; transações, RLS, revisões e quotas continuam no PostgreSQL. Os adaptadores de fornecedores mantêm apenas caches públicas. Os parsers e auxiliares puros existentes permanecem em `src/lib/`.
 
 ## Validação
 

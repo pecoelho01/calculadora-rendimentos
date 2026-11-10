@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { PGlite as InstalledPGlite } from "@electric-sql/pglite";
-import { createAccountHandler } from "../../src/lib/account-server.ts";
+import { createAccountHandler } from "../../tests/helpers/account-handler.ts";
 
 const modulePath = process.argv[2];
 // Preservar o argumento opcional usado para verificar outra versão local.
@@ -282,7 +282,7 @@ const rpcCalls = [];
 let rejectedSqlCode = null;
 const handle = createAccountHandler(() => ({
   async getUser(token) {
-    return token === "boundary-test-token" ? { id: "33333333-3333-4333-8333-333333333333" } : null;
+    return { data: { user: token === "boundary-test-token" ? { id: "33333333-3333-4333-8333-333333333333" } : null }, error: null };
   },
   async rpc(name, args) {
     rpcCalls.push(name);

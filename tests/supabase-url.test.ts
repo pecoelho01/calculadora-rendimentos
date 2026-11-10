@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateSupabaseUrl } from "../src/lib/supabase-url";
-import { supabaseAccountBackend, createAccountHandler } from "../src/lib/account-server";
+import { createAccountHandler } from "./helpers/account-handler";
+import { createSupabaseClient } from "../src/server/shared/supabase/create-client";
 
 test("Supabase exige HTTPS remoto e permite HTTP apenas em loopback", () => {
   for (const url of [
@@ -30,7 +31,7 @@ test("API rejeita URL insegura antes de transmitir o Bearer", async (t) => {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "public-test-key";
     for (const url of ["http://remote.example", "inválida", "ftp://localhost"]) {
       process.env.NEXT_PUBLIC_SUPABASE_URL = url;
-      assert.equal(supabaseAccountBackend("test-token"), null);
+      assert.equal(createSupabaseClient("test-token"), null);
       const response = await createAccountHandler()(new Request("http://localhost/api/account", {
         headers: { Authorization: "Bearer test-token" },
       }));
@@ -40,7 +41,7 @@ test("API rejeita URL insegura antes de transmitir o Bearer", async (t) => {
     assert.equal(fetchMock.mock.callCount(), 0);
     for (const url of ["https://example.supabase.co", "http://127.0.0.1:54321"]) {
       process.env.NEXT_PUBLIC_SUPABASE_URL = url;
-      assert.ok(supabaseAccountBackend("test-token"));
+      assert.ok(createSupabaseClient("test-token"));
     }
   } finally {
     if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
