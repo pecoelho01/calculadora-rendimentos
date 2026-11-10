@@ -111,8 +111,8 @@ test("cliente Supabase é isolado por pedido e usa JWT, no-store e timeout em Au
     assert.notEqual(one, two);
     assert.deepEqual(await authenticate(one, "user-one"), { id: "one" });
     assert.deepEqual(await authenticate(two, "user-two"), { id: "two" });
-    await one.rpc("account_snapshot");
-    await two.rpc("account_snapshot");
+    await one.rpc("get_account_portfolios");
+    await two.rpc("get_account_portfolios");
     assert.deepEqual(calls.map((call) => call.token), ["Bearer user-one", "Bearer user-two", "Bearer user-one", "Bearer user-two"]);
   } finally {
     if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;

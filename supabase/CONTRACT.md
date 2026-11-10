@@ -2,6 +2,7 @@
 
 Definido antes da implementação. O formato `Portfolio` e o armazenamento local v1 mantêm-se. A conta é um domínio de persistência separado; nunca faz sincronização implícita com o navegador.
 
+- RPCs atuais (migration 007): `public.get_account_portfolios()` para leitura e `public.apply_account_changes(p_changes jsonb, p_migration jsonb default null)` para escrita.
 - `GET /api/account`: sessão Bearer verificada com Supabase Auth `getUser`; identidade nunca aceite no corpo. Devolve `{version:1,portfolios:[{portfolio,revision}]}`. Uma conta nova pode ter zero carteiras.
 - `POST /api/account`: `{changes:[{id,portfolio,expectedRevision}],migration?}`. `portfolio:null` elimina; revisão `null` apenas cria; revisão inteira positiva atualiza/elimina exclusivamente a versão lida. Apenas diferenças são enviadas. Um conflito aborta todas as alterações com HTTP 409. A resposta é o snapshot confirmado da base de dados.
 - Limites: 30 carteiras ativas, 3 MB de dados ativos por conta; após a migration 004, máximo de 1 000 IDs de carteira (incluindo apagadas) e 1 000 recibos/chaves de importação por conta; limites financeiros/validação partilhados. IDs não vazios até 200 caracteres. Ordens originais em JSONB, sem cálculos derivados; a posição no array desempata datas iguais.
@@ -68,3 +69,20 @@ O helper `private.account_session_active()` é `STABLE SECURITY DEFINER` com `se
 A migration não reescreve dados nem termina sessões. Tokens Auth anteriores com uma sessão válida continuam funcionais. A exigência de sessão aplica-se aos dados da aplicação; não revoga criptograficamente o JWT nem protege outras superfícies Supabase. A verificação usa a visibilidade transacional: pedidos já iniciados antes do logout podem concluir. Não equivale à expiração proativa por inatividade ou duração máxima de sessão.
 
 O harness local simula `auth.sessions` e claims verificadas; remove apenas uma sessão para testar logout com o mesmo JWT, mantém outra sessão funcional e verifica claims ausentes/malformadas/alheias, leitura direta, ambas as RPCs, execução privada revogada, preservação dos dados no upgrade e ausência de efeitos/contagem de quota em escritas rejeitadas. Não comprova a remoção de sessões pelo Auth real nem o transporte PostgREST. A 006 ainda não foi aplicada no Supabase real nesta alteração.
+
+## Nomes legíveis das funções (migration 007)
+
+Aplicar `202611100007_readable_account_function_names.sql` depois da 006, de forma coordenada com a atualização da API. As secções anteriores e as migrations 001–006 conservam os nomes históricos.
+
+| Nome anterior | Nome após a 007 |
+| --- | --- |
+| `public.account_snapshot()` | `public.get_account_portfolios()` |
+| `public.account_apply(jsonb,jsonb)` | `public.apply_account_changes(jsonb,jsonb)` |
+| `private.account_apply(jsonb,jsonb)` | `private.apply_account_changes(jsonb,jsonb)` |
+| `private.account_session_active()` | `private.is_account_session_active()` |
+
+A migration renomeia as funções existentes, preservando OIDs, proprietários, permissões e referências das políticas RLS. Atualiza também as chamadas textuais nos corpos PL/pgSQL; não duplica nem altera a implementação transacional. Mantém parâmetros, valor predefinido de `p_migration`, respostas, códigos SQLSTATE, `SECURITY DEFINER`, `search_path` vazio e volatilidade do helper. Carteiras, revisões, tombstones, recibos, contadores e sessões não são reescritos. O commit notifica o PostgREST para atualizar a cache do esquema.
+
+Os nomes antigos deixam de existir, sem aliases. Consumidores RPC diretos e versões anteriores do servidor precisam de atualização: coordenar a aplicação da 007 e a entrada da API nova, evitando pedidos durante a transição. A aplicação nova requer a 007; a versão antiga requer o esquema anterior. Um rollback só da aplicação é incompatível com a base de dados já renomeada. Os endpoints HTTP `/api/account` e os respetivos contratos mantêm-se.
+
+A verificação local compara dados, snapshots, OIDs, ACLs, proprietários, argumentos, atributos e políticas antes/depois do upgrade; toda a suite SQL passa a usar os novos nomes. A 007 está preparada no repositório, sem aplicação ou validação no Supabase real.

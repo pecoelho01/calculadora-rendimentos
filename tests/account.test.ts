@@ -76,7 +76,7 @@ test("API usa token autenticado no backend, devolve snapshot confirmado e nunca 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   assert.deepEqual(await response.json(), snapshot);
-  assert.deepEqual(called, ["valid", "valid", { name: "account_apply", args: { p_changes: [{ ...change, expectedRevision: 5 }], p_migration: null } }]);
+  assert.deepEqual(called, ["valid", "valid", { name: "apply_account_changes", args: { p_changes: [{ ...change, expectedRevision: 5 }], p_migration: null } }]);
 });
 test("API verifica hash do snapshot migrado e preserva original e ordem de registo", async () => {
   const original = encodeStorage([p]);

@@ -8,7 +8,7 @@ export type AccountRepository = {
 };
 
 export function createAccountRepository(backend: Pick<SupabaseBackend, "rpc">): AccountRepository {
-  async function execute(name: "account_snapshot" | "account_apply", args?: Record<string, unknown>) {
+  async function execute(name: "get_account_portfolios" | "apply_account_changes", args?: Record<string, unknown>) {
     const result = await backend.rpc(name, args);
     if (result.error) {
       const code = result.error.code;
@@ -21,8 +21,8 @@ export function createAccountRepository(backend: Pick<SupabaseBackend, "rpc">): 
     return result.data;
   }
   return {
-    snapshot: () => execute("account_snapshot"),
-    apply: (write) => execute("account_apply", {
+    snapshot: () => execute("get_account_portfolios"),
+    apply: (write) => execute("apply_account_changes", {
       p_changes: write.changes,
       p_migration: write.migration ?? null,
     }),
