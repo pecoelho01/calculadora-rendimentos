@@ -211,7 +211,13 @@ src/server/market/           # Controller, service e adaptador Yahoo
 src/server/geography/        # Controller, service e adaptador geográfico
 src/server/shared/           # Auth, cliente Supabase por pedido e leitura HTTP limitada
 supabase/                    # Contrato, migrations SQL e políticas RLS
-src/components/              # Dashboard, gráfico e diálogo
+src/components/dashboard/    # Dashboard e estrutura de navegação
+src/components/account/      # Entrada, autenticação e estilos da conta
+src/components/tables/       # Listas, ordenação partilhada e estilos
+src/components/charts/       # Gráficos e obtenção de geografia
+src/components/orders/       # Formulário e campos das transações
+src/components/csv/          # Interface de revisão CSV
+src/components/shared/       # Diálogos, ícones e controlo de tema
 src/lib/portfolio.ts          # Cálculos puros e reconstrução histórica
 src/lib/validation.ts         # Validação de ordens/carteiras
 src/lib/csv.ts                # Importação/exportação CSV

@@ -11,21 +11,21 @@ import {
   validatePortfolio,
 } from "@/lib/validation";
 import { parseCsvDraft, exportCsv, type CsvDraftOrder } from "@/lib/csv";
-import { CsvImportReview } from "./csv-import-review";
+import { CsvImportReview } from "../csv/csv-import-review";
 import { decodeStorage, encodeStorage, STORAGE_KEY } from "@/lib/storage";
 import { demoOrders } from "@/lib/demo";
-import { PerformanceChart } from "./performance-chart";
-import { TransactionsTable } from "./transactions-table";
-import { PositionsTable } from "./positions-table";
-import { AllocationDonut } from "./allocation-donut";
-import { GeographicChart } from "./geographic-chart";
-import { useGeography } from "./use-geography";
-import { Dialog } from "./dialog";
-import { OrderEntryForm } from "./order-entry-form";
-import { Icon } from "./icon";
-import { ThemeControl } from "./theme-control";
+import { PerformanceChart } from "../charts/performance-chart";
+import { TransactionsTable } from "../tables/transactions-table";
+import { PositionsTable } from "../tables/positions-table";
+import { AllocationDonut } from "../charts/allocation-donut";
+import { GeographicChart } from "../charts/geographic-chart";
+import { useGeography } from "../charts/use-geography";
+import { Dialog } from "../shared/dialog";
+import { OrderEntryForm } from "../orders/order-entry-form";
+import { Icon } from "../shared/icon";
+import { ThemeControl } from "../shared/theme-control";
 import { WorkspaceShell } from "./workspace-shell";
-import type { AccountIdentity } from "./account-gateway";
+import type { AccountIdentity } from "../account/account-gateway";
 import { buildAccountChanges, validateAccountSnapshot, type AccountSnapshot } from "@/lib/account";
 
 function download(text: string, name: string, type: string) {
