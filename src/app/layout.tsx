@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
 import "./fidelity.css";
+import "@/components/portfolio-lists.css";
 export const viewport: Viewport = {
   viewportFit: "cover",
 };

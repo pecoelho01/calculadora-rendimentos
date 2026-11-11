@@ -1,6 +1,7 @@
 "use client";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,6 +38,7 @@ export function PerformanceChart({
   market: MarketData;
   currency: Currency;
 }) {
+  const gradientId = useId();
   const [selection, setSelection] = useState<{
     data: Point[];
     index: number;
@@ -70,7 +72,7 @@ export function PerformanceChart({
     observer.observe(panel);
     return () => observer.disconnect();
   }, []);
-  const plotWidth = Math.max(1, chartWidth - 85);
+  const plotWidth = Math.max(1, chartWidth - 48);
   const points = data.map((p) => ({
     ...p,
     roi: mode === "total" ? p.roi : p.openRoi,
@@ -88,10 +90,10 @@ export function PerformanceChart({
     ? Date.parse(points[points.length - 1].date) - firstTime
     : 0;
   const x = (i: number) =>
-    55 +
+    24 +
     (timeSpan ? (Date.parse(points[i].date) - firstTime) / timeSpan : 0) *
       plotWidth;
-  const y = (v: number) => 195 - ((v - min) / span) * 160;
+  const y = (v: number) => 150 - ((v - min) / span) * 120;
   const path = () => {
     let connected = false;
     return points
@@ -115,7 +117,7 @@ export function PerformanceChart({
     );
     const targetTime =
       firstTime +
-      Math.max(0, Math.min(1, (position.x - 55) / plotWidth)) * timeSpan;
+      Math.max(0, Math.min(1, (position.x - 24) / plotWidth)) * timeSpan;
     const index = points.reduce(
       (nearest, point, i) =>
         Math.abs(Date.parse(point.date) - targetTime) <
@@ -130,40 +132,8 @@ export function PerformanceChart({
     <section ref={panelRef} className="panel performance">
       <div className="panel-heading">
         <div>
-          <h2>Evolução da rentabilidade</h2>
+          <h2>Evolução da rentabilidade</h2><p className="panel-subtitle">Desempenho das tuas posições ao longo do tempo</p>
         </div>
-        <div className="segments" aria-label="Período do gráfico">
-          {periods.map((p) => (
-            <button
-              key={p}
-              aria-pressed={p === period}
-              onClick={() => {
-                setPeriod(p);
-                setSelection(null);
-              }}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div
-        className="performance-modes no-print"
-        role="group"
-        aria-label="Tipo de rentabilidade"
-      >
-        {(["open", "total"] as const).map((option) => (
-          <button
-            key={option}
-            aria-pressed={mode === option}
-            onClick={() => {
-              setMode(option);
-              setSelection(null);
-            }}
-          >
-            {option === "total" ? "Rentabilidade total" : "Posições abertas"}
-          </button>
-        ))}
       </div>
       <div className="performance-current">
         <span>
@@ -183,12 +153,12 @@ export function PerformanceChart({
         >
           {percent(displayedRoi)}
         </strong>
-        <small>{explanation}{displayedRoi !== null && data.at(-1)?.estimated ? ` · ${estimateLabel}` : ""}</small>
+        <small className={displayedRoi !== null && data.at(-1)?.estimated ? "performance-estimate" : "performance-explanation"}>{explanation}{displayedRoi !== null && data.at(-1)?.estimated ? ` · ${estimateLabel}` : ""}</small>
       </div>
       {values.length > 0 && points.some((p) => p.roi !== null) ? (
         <>
           <div
-            className="chart-readout no-print"
+            className={`chart-readout no-print ${active ? "is-active" : ""}`}
             aria-live="polite"
             aria-atomic="true"
           >
@@ -250,18 +220,20 @@ export function PerformanceChart({
           >
             <svg
               ref={svgRef}
-              viewBox={`0 0 ${chartWidth} 235`}
+              viewBox={`0 0 ${chartWidth} 180`}
+              preserveAspectRatio="none"
               role="img"
               aria-label={modeLabel}
             >
               <title>Rentabilidade em percentagem</title>
+              <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--green)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--green)" stopOpacity=".015" /></linearGradient></defs>
               {[0, 1, 2, 3, 4].map((i) => {
                 const v = min + (span * i) / 4;
                 return (
                   <g key={i}>
                     <line
-                      x1="55"
-                      x2={chartWidth - 30}
+                      x1="24"
+                      x2={chartWidth - 24}
                       y1={y(v)}
                       y2={y(v)}
                       stroke="var(--chart-grid)"
@@ -271,13 +243,22 @@ export function PerformanceChart({
                       x="42"
                       y={y(v) + 4}
                       textAnchor="end"
-                      className="chart-label"
+                      className="chart-label chart-axis-label"
                     >
                       {v.toFixed(0)}%
                     </text>
                   </g>
                 );
               })}
+              {(() => {
+                const segments: number[][] = [];
+                points.forEach((point, index) => {
+                  if (point.roi === null) return;
+                  if (index === 0 || points[index - 1].roi === null) segments.push([]);
+                  segments.at(-1)!.push(index);
+                });
+                return segments.filter((segment) => segment.length > 1).map((segment) => <path key={segment[0]} d={`M${x(segment[0])},150 ${segment.map((index) => `L${x(index)},${y(points[index].roi!)}`).join(" ")} L${x(segment.at(-1)!)},150 Z`} fill={`url(#${gradientId})`} />);
+              })()}
               <path
                 d={path()}
                 stroke="var(--accent)"
@@ -303,8 +284,8 @@ export function PerformanceChart({
                   <line
                     x1={x(activeIndex)}
                     x2={x(activeIndex)}
-                    y1="30"
-                    y2="200"
+                    y1="25"
+                    y2="150"
                     stroke="var(--chart-cursor)"
                     strokeDasharray="4 4"
                   />
@@ -323,8 +304,8 @@ export function PerformanceChart({
               {(timeSpan ? [0, 0.5, 1] : [0]).map((fraction) => (
                 <text
                   key={fraction}
-                  x={55 + fraction * plotWidth}
-                  y="225"
+                  x={24 + fraction * plotWidth}
+                  y="173"
                   textAnchor={
                     fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"
                   }
@@ -347,10 +328,8 @@ export function PerformanceChart({
             Retorno simples · Sem dividendos, comissões ou câmbio.
             {period === "1D" ? ` Observações de 5 min · Horas em UTC. Falhas curtas usam a última cotação válida por até ${INTRADAY_MAX_AGE_MINUTES} min, com valores assinalados como estimados.` : ""}
           </p>
-          <details className="chart-methodology">
-            <summary>
-              Como interpretar o gráfico <Icon name="chevron" />
-            </summary>
+          <details className="chart-methodology" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+            <summary aria-label="Como interpretar o gráfico" title="Como interpretar o gráfico"><span aria-hidden="true">•••</span></summary>
             <p className="fine-print">
               {mode === "total"
                 ? period === "Máximo"
@@ -381,6 +360,40 @@ export function PerformanceChart({
           </p>
         </div>
       )}
+      <div className="performance-controls no-print">
+        <div className="segments" aria-label="Período do gráfico">
+          {periods.map((p) => (
+            <button
+              key={p}
+              aria-pressed={p === period}
+              onClick={() => {
+                setPeriod(p);
+                setSelection(null);
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      <div
+        className="performance-modes no-print"
+        role="group"
+        aria-label="Tipo de rentabilidade"
+      >
+        {(["open", "total"] as const).map((option) => (
+          <button
+            key={option}
+            aria-pressed={mode === option}
+            onClick={() => {
+              setMode(option);
+              setSelection(null);
+            }}
+          >
+            {option === "total" ? "Rentabilidade total" : "Posições abertas"}
+          </button>
+        ))}
+      </div>
+      </div>
     </section>
   );
 }
