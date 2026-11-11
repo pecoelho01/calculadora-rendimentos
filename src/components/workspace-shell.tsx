@@ -45,8 +45,12 @@ export function WorkspaceShell({
   // Native dialog supplies focus containment, Escape and an inert background on mobile.
   useEffect(() => {
     const drawer = drawerRef.current!;
+    // Opening the desktop navigation during a resize must not steal focus from a form.
+    const focused = document.activeElement;
+    const restoreModalFocus = focused instanceof HTMLElement && Boolean(focused.closest("dialog:modal"));
     drawer.close();
     if (!mobile) drawer.show();
+    if (restoreModalFocus && focused.isConnected) focused.focus({ preventScroll: true });
     const beforePrint = () => drawer.close();
     const afterPrint = () => { if (!mobile) drawer.show(); };
     window.addEventListener("beforeprint", beforePrint);

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
+import "./fidelity.css";
 export const viewport: Viewport = {
   viewportFit: "cover",
 };
