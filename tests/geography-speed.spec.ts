@@ -87,7 +87,8 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   expect(requests).toHaveLength(1);
   expect([...requests[0].searchParams.keys()]).toEqual(["tickers"]);
   expect(requests[0].searchParams.get("tickers")).toBe("TEST");
-  await page.getByRole("button", { name: "Atualizar preços" }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
+  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
   await navigateTo(page, /^Posições/);
   await navigateTo(page, "Visão geral");
   await expect(chart).toContainText("A obter a distribuição por continente");
@@ -102,7 +103,8 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
     "Segunda",
   );
   await expect(chart.locator(".donut")).toContainText("100%");
-  await page.getByRole("button", { name: "Atualizar preços" }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
+  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toHaveLength(1);
 });
@@ -165,7 +167,8 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
   await expect(chart.locator(".allocation-list")).toContainText(
     "Sem classificação",
   );
-  await page.getByRole("button", { name: "Atualizar preços" }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
+  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toBe(1);
 });

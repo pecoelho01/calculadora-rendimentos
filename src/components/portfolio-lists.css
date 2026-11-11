@@ -1,0 +1,209 @@
+/* Tables and compact cards mirror the supplied desktop/mobile screens. */
+@media screen {
+  :is(.fidelity-positions, .fidelity-transactions) { position: relative; container-type: normal; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu { display: contents; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu > summary { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu::details-content { display: contents; content-visibility: visible; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-content { display: contents; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.positions-toolbar, .transactions-toolbar) { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 24px 16px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) { display: flex; width: auto; border: 0; background: none; padding: 0; gap: 6px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) button { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; font-weight: 600; padding: 7px 12px; gap: 4px; flex: none; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) button[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent-soft); color: var(--link); }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) button span { color: inherit; font-size: inherit; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) { display: flex; width: auto; gap: 6px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) label > span { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) select { font-size: 11px; min-height: 36px; max-width: 150px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-direction, .transaction-direction) { min-height: 36px; min-width: 36px; font-size: 16px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-context, .transaction-context) { margin: 0; padding: 0 24px 8px; font-size: 10px; color: var(--muted); }
+  :is(.fidelity-positions, .fidelity-transactions).list-compact :is(.positions-toolbar, .transactions-toolbar, .position-context, .transaction-context) { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) table { display: table; table-layout: fixed; width: 100%; font-size: 12px; line-height: 1.45; white-space: normal; }
+  :is(.fidelity-positions, .fidelity-transactions) table thead { display: table-header-group; }
+  :is(.fidelity-positions, .fidelity-transactions) table tbody { display: table-row-group; padding: 0; }
+  :is(.fidelity-positions, .fidelity-transactions) table tr { display: table-row; padding: 0; margin: 0; border: 0; box-shadow: none; }
+  :is(.fidelity-positions, .fidelity-transactions) table th { padding: 9px 10px; background: none; color: var(--muted); font-size: 10px; font-weight: 600; }
+  :is(.fidelity-positions, .fidelity-transactions) table td { display: table-cell; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: right; }
+  :is(.fidelity-positions, .fidelity-transactions) table th:first-child, :is(.fidelity-positions, .fidelity-transactions) table td:first-child { padding-left: 24px; }
+  :is(.fidelity-positions, .fidelity-transactions) table th:last-child, :is(.fidelity-positions, .fidelity-transactions) table td:last-child { padding-right: 16px; }
+  .fidelity-positions .positions-table th { width: 14%; }
+  .fidelity-positions .positions-table th:first-child { width: 28%; }
+  .fidelity-positions .positions-table th:last-child { width: 54px; }
+  .fidelity-positions .positions-table .position-asset { display: table-cell; text-align: left; }
+  .fidelity-positions .positions-table .position-holding { display: table-cell; }
+  .fidelity-positions .positions-table .position-quote { display: table-cell; }
+  .fidelity-positions .positions-table .position-holding strong { font-weight: 500; }
+  .fidelity-positions .position-identity a { font-size: 12px; font-weight: 750; }
+  .fidelity-positions .position-identity a .icon { display: none; }
+  .fidelity-positions .position-identity small { font-size: 10px; margin-top: 3px; line-height: 1.4; }
+  .fidelity-positions .asset-cell { display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; }
+  .fidelity-positions .asset-monogram, .fidelity-transactions .asset-monogram { width: 30px; height: 30px; border-radius: 9px; font-size: 11px; }
+  .fidelity-positions .position-gain > strong.gain-percent, .fidelity-positions .position-profit strong { font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .fidelity-positions .position-value > strong { font-size: 12px; }
+  .fidelity-positions :is(.position-mobile-label, .position-mobile-units), .fidelity-transactions .transaction-mobile-label, .fidelity-transactions .transaction-mobile-description { display: none; }
+  .fidelity-positions .position-quote small.quote-issue { display: block; font-size: 9px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) { position: relative; margin: 0; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) summary { display: grid; place-items: center; width: 44px; min-height: 44px; margin: -8px 0; color: var(--muted); font-size: 18px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) summary .icon { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-detail-panel { position: absolute; z-index: 5; width: min(340px, calc(100vw - 40px)); right: 0; top: calc(100% + 8px); padding: 18px; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 40px #101f301a; text-align: left; }
+  .fidelity-positions .position-details .list-detail-panel > div { display: block; margin: 0 0 10px; }
+  .fidelity-transactions .transactions-table th { width: 12%; }
+  .fidelity-transactions .transactions-table th:nth-child(2) { width: 24%; }
+  .fidelity-transactions .transactions-table th:nth-child(3) { width: 10%; }
+  .fidelity-transactions .transactions-table th:nth-child(4) { width: 8%; }
+  .fidelity-transactions .transactions-table th:last-child { width: 54px; }
+  .fidelity-transactions .transactions-table :is(.transaction-date, .transaction-asset) { display: table-cell; text-align: left; }
+  .fidelity-transactions .transaction-identity { display: flex; align-items: center; gap: 10px; }
+  .fidelity-transactions .transaction-identity strong { font-size: 12px; }
+  .fidelity-transactions .transaction-identity .transaction-name { font-size: 10px; margin-top: 3px; line-height: 1.4; }
+  .fidelity-transactions .transaction-date time { font-size: 11px; white-space: nowrap; }
+  .fidelity-transactions .transaction-total > strong, .fidelity-transactions .transaction-gain strong { font-size: 12px; }
+  .fidelity-transactions .transactions-table .transaction-long-amount { font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+  .fidelity-transactions .transaction-gain > span:not(.transaction-mobile-label) { display: block; }
+  .fidelity-transactions .transaction-gain .gain-percent, .fidelity-transactions .transaction-result-kind { display: none; }
+  .fidelity-transactions .transaction-mobile-detail { display: grid; grid-template-columns: 1fr 1fr; padding: 0; border: 0; background: none; }
+  .fidelity-transactions .transaction-mobile-detail dd { margin: 4px 0 0; }
+  .fidelity-transactions .transaction-explanation { font-size: 12px; }
+  .fidelity-transactions .transaction-detail-result { font-size: 12px; line-height: 1.6; margin: 10px 0; }
+  .fidelity-transactions .order-badge { font-size: 10px; font-weight: 700; padding: 5px 8px; }
+  @media (min-width: 801px) and (max-width: 1200px) {
+    :is(.fidelity-positions, .fidelity-transactions) table td, :is(.fidelity-positions, .fidelity-transactions) table th { padding-inline: 6px; font-size: 10px; }
+    :is(.fidelity-positions, .fidelity-transactions) table td:first-child, :is(.fidelity-positions, .fidelity-transactions) table th:first-child { padding-left: 16px; }
+    .fidelity-positions .position-identity a, .fidelity-transactions .transaction-identity strong { font-size: 11px; }
+    .fidelity-positions .position-gain > strong.gain-percent, .fidelity-positions .position-profit strong, .fidelity-positions .position-value > strong, .fidelity-transactions .transaction-total > strong, .fidelity-transactions .transaction-gain strong { font-size: 10px; }
+  }
+}
+@media screen and (max-width: 800px) {
+  :is(.fidelity-positions, .fidelity-transactions) { position: relative; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu { display: block; position: absolute; top: -60px; right: 0; z-index: 6; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu > summary { display: grid; place-items: center; width: 44px; height: 44px; list-style: none; cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; color: var(--ink); }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu > summary::-webkit-details-marker { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu::details-content { display: block; content-visibility: hidden; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu[open]::details-content { content-visibility: visible; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-filter-content { display: flex; position: absolute; top: 52px; right: 0; width: min(330px, calc(100vw - 32px)); flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; box-shadow: 0 12px 40px #101f3020; }
+  .fidelity-positions .positions-toolbar { padding: 0; min-height: 0; }
+  .fidelity-transactions .transactions-toolbar { padding: 0 0 14px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) { width: 100%; justify-content: space-between; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) label { flex: 1; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-order, .transaction-order) select { min-height: 44px; width: 100%; max-width: none; font-size: 13px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-direction, .transaction-direction) { min-height: 44px; min-width: 44px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) { width: 100%; gap: 7px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-filters, .transaction-filters) button { flex: 1; padding-inline: 8px; justify-content: center; min-height: 44px; font-size: 11px; white-space: nowrap; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-context, .transaction-context) { position: absolute; width: 1px; height: 1px; padding: 0; clip-path: inset(50%); overflow: hidden; }
+  :is(.fidelity-positions, .fidelity-transactions) table, :is(.fidelity-positions, .fidelity-transactions) table tbody { display: block; width: 100%; }
+  :is(.fidelity-positions, .fidelity-transactions) table thead { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) table tr { display: grid; position: relative; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; padding: 14px; margin: 0 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 2px 6px #101f3003; }
+  :is(.fidelity-positions, .fidelity-transactions) table td { display: block; padding: 0; border: 0; min-width: 0; }
+  :is(.fidelity-positions, .fidelity-transactions) table td:first-child, :is(.fidelity-positions, .fidelity-transactions) table td:last-child { padding: 0; }
+  .fidelity-positions .positions-table .position-asset { display: contents; }
+  .fidelity-positions .positions-table .asset-cell { grid-column: 1 / -1; grid-row: 1; padding-right: 40px; align-items: center; min-height: 34px; }
+  .fidelity-positions .position-identity a { font-size: 14px; line-height: 1.2; }
+  .fidelity-positions .position-identity small { font-size: 10px; margin-top: 3px; }
+  .fidelity-positions .positions-table .position-holding { display: block; grid-column: 1; grid-row: 2; text-align: left; }
+  .fidelity-positions .positions-table .position-value { grid-column: 2; grid-row: 2; text-align: center; }
+  .fidelity-positions .positions-table .position-profit { grid-column: 3; grid-row: 2; text-align: right; }
+  .fidelity-positions .positions-table .position-quote { display: none; }
+  .fidelity-positions .position-mobile-label { display: block; font-size: 9px; text-transform: uppercase; font-weight: 500; margin: 0 0 4px; white-space: nowrap; color: var(--muted); }
+  .fidelity-positions .positions-table .position-holding strong, .fidelity-positions .positions-table .position-value strong, .fidelity-positions .positions-table .position-profit strong { font-size: 11px; letter-spacing: -.3px; white-space: nowrap; }
+  .fidelity-positions .positions-table .position-gain { grid-row: 3; grid-column: 1 / -1; padding: 9px 0 0; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .fidelity-positions .position-gain .position-mobile-label { margin: 0; font-size: 10px; }
+  .fidelity-positions .positions-table .position-gain > strong.gain-percent { font-size: 13px; }
+  .fidelity-positions .positions-table .position-actions, .fidelity-transactions .transactions-table .transaction-actions { display: contents; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) { display: contents; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) > summary { position: absolute; right: 5px; top: 7px; display: grid; min-height: 44px; width: 44px; margin: 0; z-index: 1; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) > summary .list-more { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) > summary .icon { display: block; width: 15px; height: 15px; transform: rotate(-90deg); }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details)[open] > summary .icon { transform: rotate(0); }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details)::details-content { display: contents; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details):not([open]) .list-detail-panel { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-detail-panel { grid-column: 1 / -1; grid-row: 4; position: static; width: auto; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; padding: 12px 0 0; box-shadow: none; font-size: 12px; }
+  .fidelity-positions .position-details .list-detail-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fidelity-positions .position-details .list-detail-panel > div { margin: 0; }
+  .fidelity-transactions .transactions-table tr { grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 10px 8px; }
+  .fidelity-transactions .transactions-table .transaction-date { display: block; grid-column: 1; grid-row: 1; text-align: left; }
+  .fidelity-transactions .transaction-date time { font-size: 11px; }
+  .fidelity-transactions .transactions-table .transaction-operation { grid-column: 2; grid-row: 1; text-align: right; }
+  .fidelity-transactions .transactions-table .transaction-asset { display: contents; }
+  .fidelity-transactions .transaction-identity { grid-column: 1; grid-row: 2; align-items: center; gap: 9px; min-width: 0; }
+  .fidelity-transactions .transaction-identity strong { font-size: 13px; }
+  .fidelity-transactions .transaction-identity .transaction-name { display: none; }
+  .fidelity-transactions .transaction-mobile-description { display: block; font-size: 10px; color: var(--muted); margin-top: 3px; white-space: normal; }
+  .fidelity-transactions .transactions-table :is(.transaction-units, .transaction-price) { display: none; }
+  .fidelity-transactions .transactions-table .transaction-total { grid-column: 2; grid-row: 2; text-align: right; align-self: center; }
+  .fidelity-transactions .transaction-total > strong { font-size: 13px; }
+  .fidelity-transactions .transactions-table .transaction-gain { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid var(--line); padding-top: 9px; display: flex; justify-content: space-between; align-items: center; text-align: right; gap: 8px; }
+  .fidelity-transactions .transaction-gain .transaction-mobile-label { display: block; margin: 0; padding-left: 39px; font-size: 10px; }
+  .fidelity-transactions .transaction-gain strong { font-size: 12px; }
+  .fidelity-transactions .transaction-gain .gain-percent, .fidelity-transactions .transaction-result-kind { display: none; }
+  .fidelity-transactions .transaction-details > summary { inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .fidelity-transactions .transaction-details > summary:focus-visible { opacity: 1; outline-offset: 3px; border-radius: 15px; }
+  .fidelity-transactions .transaction-details > summary:focus-visible .icon { visibility: hidden; }
+  .fidelity-transactions .transaction-details[open] > summary { inset: 0 0 auto auto; width: 44px; height: 44px; opacity: 1; background: var(--surface); border-radius: 10px; }
+  .fidelity-transactions .transaction-operation { padding-right: 0; }
+  .fidelity-transactions .transaction-wide-total .transaction-total { grid-column: 1 / -1; grid-row: 3; }
+  .fidelity-transactions .transaction-wide-total .transaction-gain { grid-row: 4; display: block; }
+  .fidelity-transactions .transaction-wide-total .transaction-gain .transaction-mobile-label { text-align: left; padding-left: 0; margin-bottom: 5px; }
+  .fidelity-transactions .transaction-wide-total .transaction-gain > span:not(.transaction-mobile-label) { width: 100%; display: block; }
+  .fidelity-transactions .transaction-wide-total .list-detail-panel { grid-row: 5; }
+  .fidelity-transactions .transactions-table .transaction-long-amount { font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+  .fidelity-positions .positions-table .position-profit strong { overflow-wrap: anywhere; }
+  .fidelity-positions .position-wide-values :is(.position-holding, .position-value, .position-profit) { grid-column: 1 / -1; display: flex !important; align-items: center; justify-content: space-between; gap: 12px; }
+  .fidelity-positions .positions-table .position-wide-values .position-value { grid-row: 3; }
+  .fidelity-positions .positions-table .position-wide-values .position-profit { grid-row: 4; }
+  .fidelity-positions .positions-table .position-wide-values .position-gain { grid-row: 5; }
+  .fidelity-positions .position-wide-values .list-detail-panel { grid-row: 6; }
+  .fidelity-positions .position-wide-values .position-mobile-label { margin-bottom: 0; }
+}
+@media print {
+  :is(.fidelity-positions, .fidelity-transactions) table { table-layout: auto; font-size: 9px; }
+  :is(.fidelity-positions, .fidelity-transactions) table th, :is(.fidelity-positions, .fidelity-transactions) table td { padding: 8px 6px; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details) > summary { display: none; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-details, .transaction-details)::details-content { display: block; content-visibility: visible; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-detail-panel { display: block !important; position: static; width: auto; padding: 0; margin: 0; background: none; border: 0; box-shadow: none; }
+  .fidelity-positions .positions-table th:last-child { width: 24%; }
+  .fidelity-transactions .transactions-table th:last-child { width: 26%; }
+  .fidelity-transactions .transaction-mobile-description, .fidelity-transactions .asset-monogram { display: none; }
+  .fidelity-transactions .transaction-mobile-detail { display: block !important; }
+  .fidelity-transactions .transaction-result-kind, .fidelity-transactions .gain-percent { display: block; }
+}
+
+@media screen and (min-width: 801px) {
+  :is(.fidelity-positions, .fidelity-transactions) { display: flex; flex-direction: column; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.positions-toolbar, .transactions-toolbar) { order: 0; padding: 0 0 8px; }
+  :is(.fidelity-positions, .fidelity-transactions) table { order: 1; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-context, .transaction-context) { order: 2; padding: 10px 0 0; }
+
+}
+
+/* Reserve readable space for expanded details in the browser's PDF report. */
+@media print {
+  :is(.fidelity-positions, .fidelity-transactions) table { table-layout: fixed; }
+  .fidelity-positions .positions-table th:nth-child(1) { width: 19%; }
+  .fidelity-positions .positions-table th:nth-child(2) { width: 7%; }
+  .fidelity-positions .positions-table th:nth-child(3) { width: 10%; }
+  .fidelity-positions .positions-table th:nth-child(4) { width: 12%; }
+  .fidelity-positions .positions-table th:nth-child(5) { width: 10%; }
+  .fidelity-positions .positions-table th:nth-child(6) { width: 12%; }
+  .fidelity-positions .positions-table th:nth-child(7) { width: 30%; }
+  .fidelity-transactions .transactions-table th:nth-child(1) { width: 9%; }
+  .fidelity-transactions .transactions-table th:nth-child(2) { width: 16%; }
+  .fidelity-transactions .transactions-table th:nth-child(3) { width: 7%; }
+  .fidelity-transactions .transactions-table th:nth-child(4) { width: 7%; }
+  .fidelity-transactions .transactions-table th:nth-child(5) { width: 10%; }
+  .fidelity-transactions .transactions-table th:nth-child(6) { width: 11%; }
+  .fidelity-transactions .transactions-table th:nth-child(7) { width: 11%; }
+  .fidelity-transactions .transactions-table th:nth-child(8) { width: 29%; }
+  :is(.fidelity-positions, .fidelity-transactions) :is(.position-actions, .transaction-actions) { text-align: left; }
+  :is(.fidelity-positions, .fidelity-transactions) table th:last-child .visually-hidden { position: static; width: auto; height: auto; clip-path: none; white-space: normal; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-detail-panel { font-size: 8px; line-height: 1.4; }
+  :is(.fidelity-positions, .fidelity-transactions) .list-detail-panel > div + div { margin-top: 5px; }
+  .fidelity-positions .position-details dt { font-size: 8px; }
+  .fidelity-positions .position-details dd { margin-top: 2px; font-size: 8px; }
+  .fidelity-transactions .transaction-explanation { font-size: 8px; line-height: 1.4; }
+  :is(.fidelity-positions, .fidelity-transactions) td :is(strong, span) { white-space: normal; overflow-wrap: anywhere; }
+}
+@media print {
+  .fidelity-positions .position-details dt { display: inline; font-weight: 600; }
+  .fidelity-positions .position-details dt::after { content: ": "; }
+  .fidelity-positions .position-details dd { display: inline; margin: 0; }
+  .fidelity-positions .position-details dd > span, .fidelity-positions .position-details dd > small { display: inline; margin-left: 4px; font-size: 8px; }
+  .fidelity-positions .position-details .list-detail-panel > div { display: block; margin: 0 0 5px; }
+}

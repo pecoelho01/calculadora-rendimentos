@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
+import type { MarketData, Portfolio, Order } from "@/lib/types";
 import { calculatePortfolio } from "@/lib/portfolio";
 import {
   chronological,
@@ -21,7 +21,7 @@ import { AllocationDonut } from "./allocation-donut";
 import { GeographicChart } from "./geographic-chart";
 import { useGeography } from "./use-geography";
 import { Dialog } from "./dialog";
-import { OrderAssetFields } from "./order-asset-fields";
+import { OrderEntryForm } from "./order-entry-form";
 import { Icon } from "./icon";
 import { ThemeControl } from "./theme-control";
 import { WorkspaceShell } from "./workspace-shell";
@@ -147,6 +147,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   const [tab, setTab] = useState<Tab>("overview");
   function navigateToTab(nextTab: Tab) {
     setTab(nextTab);
+    window.scrollTo({ top: 0, behavior: "instant" });
     if (accountPage) router.push("/");
   }
   const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
@@ -526,6 +527,67 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </button>
       </main>
     );
+  const dataMenu = (
+              <details
+                className="data-actions"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.currentTarget.open = false;
+                    event.currentTarget.querySelector("summary")?.focus();
+                  }
+                }}
+              >
+                <summary className="button secondary">
+                  <span className="visually-hidden">Dados e exportação</span><span aria-hidden="true">•••</span>
+                </summary>
+                <div
+                  className="data-actions-panel"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("button, a")) {
+                      event.currentTarget
+                        .closest("details")
+                        ?.removeAttribute("open");
+                    }
+                  }}
+                >
+                  <span className="action-group-label">Carteira atual</span>
+                  <button className="mobile-menu-action" disabled={loading || !orders.length} onClick={() => setRefresh((value) => value + 1)}><Icon name="refresh" /> Atualizar preços</button>
+                  <button disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}>
+                    <Icon name="upload" /> Importar CSV
+                  </button>
+                  <button
+                    onClick={() =>
+                      download(exportCsv(orders), "transacoes.csv", "text/csv")
+                    }
+                  >
+                    <Icon name="download" /> Exportar transações CSV
+                  </button>
+                  <button onClick={() => window.print()}>
+                    <Icon name="file" /> Relatório PDF
+                  </button>
+                  <a href="/modelo_site_ativos.csv" download>
+                    <Icon name="download" /> Modelo de importação CSV
+                  </a>
+                  <button className="delete-button" disabled={!portfolio} onClick={removePortfolio}>Eliminar carteira</button>
+                  <span className="action-group-label">Todas as carteiras</span>
+                  <button
+                    disabled={!portfolios.length}
+                    onClick={() =>
+                      download(
+                        encodeStorage(portfolios),
+                        "carteiras.json",
+                        "application/json",
+                      )
+                    }
+                  >
+                    <Icon name="download" /> Exportar backup JSON
+                  </button>
+                  <button onClick={() => backupRef.current?.click()}>
+                    <Icon name="upload" /> Restaurar cópia de segurança
+                  </button>
+                </div>
+              </details>
+  );
   return (
     <WorkspaceShell
       portfolioName={portfolio?.name ?? "As tuas carteiras"}
@@ -546,6 +608,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               <span>{item.text}</span>
             </button>
           ))}
+          <Link href="/conta" aria-current={accountPage ? "page" : undefined}>
+            <Icon name="shield" /><span>Conta</span>
+          </Link>
         </nav>
       }
       sidebar={
@@ -636,6 +701,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 <strong>{identity ? "Modo conta" : "Modo local"}</strong>
               </div>
             </div>
+            <Link className={`nav-item ${accountPage ? "active" : ""}`} href="/conta" aria-current={accountPage ? "page" : undefined}><Icon name="shield" /><span className="nav-label">Definições da conta</span></Link>
             {sidebarAccountControls}
             <a
               href="https://github.com/pecoelho01"
@@ -648,23 +714,55 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </>
       }
     >
-      <div className="main-area">
+      <div className={`main-area view-${accountPage ? "account" : tab}`}>
         <header className="topbar no-print">
           <div className="breadcrumb">
-            Espaço pessoal <span>/</span> <strong>{accountPage ? "Definições da conta" : "As tuas carteiras"}</strong>
+            Espaço pessoal <span>/</span> <strong>{accountPage ? "Definições da conta" : tab === "notes" ? "Notas explicativas" : primaryNavigation.find((item) => item.key === tab)?.text}</strong>
           </div>
           <div className="topbar-right">
             <span className="market-source">
               <Icon name="shield" />
               Mercado via Yahoo Finance
             </span>
-            <ThemeControl />
+            {!accountPage ? <>{dataMenu}<ThemeControl /></> : null}
           </div>
         </header>
         <main className="content">
           {accountPage ? <>
             {children}
-            {accountControls ?? accountFeedback}
+            {message ? <div className="notice" role={saveState === "error" ? "alert" : "status"}>
+              <span>{message}</span><button aria-label="Fechar aviso" onClick={() => setMessage("")}><Icon name="close" /></button>
+            </div> : null}
+            {identity ? <p className="account-save-status" role="status">{saveState === "saving" ? "A guardar ou carregar carteiras…" : saveState === "error" ? "Erro ao guardar ou carregar. Verifica o aviso e recarrega os dados antes de repetir." : "Guardado na conta"}</p> : null}
+            <div className="account-settings-grid">
+              <div>
+                {accountControls ?? <section className="account-controls"><div className="account-description"><strong>Modo local</strong><p>As carteiras ficam apenas neste navegador. Inicia sessão pelo menu para aceder às carteiras da tua conta.</p></div></section>}
+                {accountControls ? null : accountFeedback}
+                <section className="panel settings-card">
+                  <h2>Preferências</h2>
+                  <p>Personaliza a aparência do teu espaço.</p>
+                  <div className="settings-row"><div><strong>Aparência</strong><span>Alterna entre o tema claro e escuro.</span></div><ThemeControl /></div>
+                  <div className="settings-row"><div><strong>Armazenamento das carteiras</strong><span>{identity ? "Carteiras guardadas na tua conta." : "Carteiras guardadas neste navegador."} Os modos local e conta são independentes.</span></div></div>
+                </section>
+                {identity ? <section className="panel settings-card">
+                  <h2>Carteiras da conta</h2>
+                  <p>Recarrega os dados ou copia as carteiras locais após confirmação.</p>
+                  <div className="account-actions settings-row">
+                    <button className="button secondary" disabled={saveState === "saving"} onClick={() => void reloadAccount()}>Recarregar dados da conta</button>
+                    <button className="button secondary" disabled={saveState === "saving" || !accountSnapshot} onClick={() => void migrateLocal()}>Copiar carteiras locais para a conta</button>
+                  </div>
+                </section> : null}
+              </div>
+              <aside className="panel settings-card">
+                <div className="settings-illustration"><Icon name="shield" /></div>
+                <span className="eyebrow">PROTEÇÃO DOS TEUS DADOS</span>
+                <h2>As tuas carteiras, sob o teu controlo.</h2>
+                <p>Acede aos investimentos através da tua conta ou mantém os dados neste navegador, em modo local. Cada carteira mantém a sua moeda, sem conversão automática.</p>
+                <div className="settings-backup"><h2>Guarda o teu histórico</h2><p>Exporta uma cópia JSON das carteiras do modo ativo para poderes recuperar os teus dados.</p>
+                  <button className="button secondary" disabled={!portfolios.length} onClick={() => download(encodeStorage(portfolios), "carteiras.json", "application/json")}><Icon name="download" /> Exportar backup JSON</button>
+                </div>
+              </aside>
+            </div>
             {storageBroken !== null ? <div className="notice" role="alert">
               <span>Não foi possível ler o armazenamento local. Recupera os dados antes de alterar as carteiras.</span>
               <Link className="button secondary" href="/">Recuperar carteiras</Link>
@@ -672,7 +770,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           </> : <>
           {accountFeedback}
           {identity ? (
-            <div className="account-storage no-print" aria-busy={saveState === "saving"}>
+            <div className={`account-storage account-storage-${saveState} no-print`} aria-busy={saveState === "saving"}>
               <span aria-live="polite">{saveState === "saving" ? "A guardar…" : saveState === "error" ? "Erro ao guardar ou carregar" : "Guardado na conta"}</span>
               <button className="button secondary" disabled={saveState === "saving"} onClick={() => void reloadAccount()}>Recarregar dados da conta</button>
               <button className="button secondary" disabled={saveState === "saving" || !accountSnapshot} onClick={() => void migrateLocal()}>Copiar carteiras locais para a conta</button>
@@ -680,75 +778,21 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           ) : null}
           <div className="page-heading">
             <div>
-              <h1>
+              <span className="eyebrow">{tab === "notes" ? "CENTRO DE AJUDA" : "OS TEUS INVESTIMENTOS"}</span>
+              <h1 aria-label={tab === "overview" ? "Visão Geral" : undefined}>
                 {tab === "notes"
                   ? "Conhece os teus números"
                   : tab === "positions"
                     ? "Posições"
                     : tab === "transactions"
                       ? "Transações"
-                      : "Visão Geral"}
+                      : "Visão geral"}
               </h1>
+              <p>{tab === "notes" ? "Compreende os cálculos e a forma como tratamos os teus dados." : tab === "positions" ? "As tuas posições e o seu desempenho." : tab === "transactions" ? "O histórico de compras e vendas da tua carteira." : "O essencial da tua carteira, apresentado com clareza."}</p>
             </div>
             <div className="heading-actions no-print">
-              <details
-                className="data-actions"
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.currentTarget.open = false;
-                    event.currentTarget.querySelector("summary")?.focus();
-                  }
-                }}
-              >
-                <summary className="button secondary">
-                  <Icon name="file" /> Dados e exportação{" "}
-                  <Icon name="chevron" />
-                </summary>
-                <div
-                  className="data-actions-panel"
-                  onClick={(event) => {
-                    if ((event.target as HTMLElement).closest("button, a")) {
-                      event.currentTarget
-                        .closest("details")
-                        ?.removeAttribute("open");
-                    }
-                  }}
-                >
-                  <span className="action-group-label">Carteira atual</span>
-                  <button disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}>
-                    <Icon name="upload" /> Importar CSV
-                  </button>
-                  <button
-                    onClick={() =>
-                      download(exportCsv(orders), "transacoes.csv", "text/csv")
-                    }
-                  >
-                    <Icon name="download" /> Exportar transações CSV
-                  </button>
-                  <button onClick={() => window.print()}>
-                    <Icon name="file" /> Relatório PDF
-                  </button>
-                  <a href="/modelo_site_ativos.csv" download>
-                    <Icon name="download" /> Modelo de importação CSV
-                  </a>
-                  <span className="action-group-label">Todas as carteiras</span>
-                  <button
-                    disabled={!portfolios.length}
-                    onClick={() =>
-                      download(
-                        encodeStorage(portfolios),
-                        "carteiras.json",
-                        "application/json",
-                      )
-                    }
-                  >
-                    <Icon name="download" /> Exportar backup JSON
-                  </button>
-                  <button onClick={() => backupRef.current?.click()}>
-                    <Icon name="upload" /> Restaurar cópia de segurança
-                  </button>
-                </div>
-              </details>
+              <button className="button secondary import-csv-action" disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}><Icon name="upload" /> Importar CSV</button>
+
               <button
                 className="button primary"
                 disabled={!portfolio || saveState === "saving"}
@@ -810,9 +854,11 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
             </div>
           ) : null}
           {tab === "notes" ? (
+            <div className="notes-layout">
+              <aside className="panel notes-index no-print"><strong>NESTA PÁGINA</strong><nav aria-label="Índice das notas" onClick={(event) => { const link = (event.target as HTMLElement).closest("a"); const target = link?.getAttribute("href")?.slice(1); if (target) document.getElementById(target)?.closest("details")?.setAttribute("open", ""); }}><a href="#fifo">Custo de aquisição FIFO</a><a href="#roi">Ganho e ROI total</a><a href="#posicoes-abertas">Rentabilidade das posições abertas</a><a href="#ganho-transacao">Ganho por transação</a><a href="#historico">Histórico da carteira</a><a href="#moedas">Moedas, preços e limites</a><a href="#exportar">Guardar e exportar</a><a href="#projeto">Sobre o projeto</a></nav></aside>
             <section className="panel notes">
               <h2>Como calculamos a rentabilidade</h2>
-              <h3>Custo de aquisição FIFO</h3>
+              <h3 id="fifo">Custo de aquisição FIFO</h3>
               <p>
                 Cada venda consome primeiro as unidades compradas há mais tempo.
                 O ganho realizado é a receita da venda menos o custo desses
@@ -820,22 +866,24 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 abertos. No mesmo dia, preservamos a ordem de registo das
                 transações.
               </p>
-              <h3>Ganho e ROI total</h3>
+              <div className="formula">Ganho realizado = Valor da venda − Custo de aquisição FIFO</div>
+              <h3 id="roi">Ganho e ROI total</h3>
               <p>
                 Ganho não realizado = valor das posições abertas − custo FIFO
                 dos lotes restantes. Ganho total = realizado + não realizado.
                 ROI = ganho total ÷ valor de todas as compras × 100. Não é uma
                 taxa anualizada nem uma rentabilidade ponderada pelo tempo.
               </p>
-              <h3>Rentabilidade das posições abertas</h3>
+              <div className="formula">ROI total = Ganho total ÷ Compras acumuladas × 100</div>
+              <details className="notes-disclosure"><summary id="posicoes-abertas">Rentabilidade das posições abertas<Icon name="chevron" /></summary>
               <p>
                 Ganho não realizado ÷ custo FIFO das posições abertas × 100. Sem
                 posições abertas, a percentagem fica indisponível. O toggle do
                 gráfico permite consultar esta métrica ou o ROI total. No
                 histórico, consideramos as posições abertas em cada data; as
                 vendas podem alterar a percentagem sem alterar as cotações.
-              </p>
-              <h3>Ganho por transação</h3>
+              </p></details>
+              <details className="notes-disclosure"><summary id="ganho-transacao">Ganho por transação<Icon name="chevron" /></summary>
               <p>
                 Nas compras, mostramos o ganho total do lote: o realizado nas
                 vendas mais o não realizado das unidades ainda em carteira,
@@ -843,8 +891,8 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 sobre o custo FIFO das unidades vendidas. Os preços das transações
                 devem ser superiores a zero. Os valores não incluem
                 comissões nem impostos.
-              </p>
-              <h3>Histórico da carteira</h3>
+              </p></details>
+              <details className="notes-disclosure"><summary id="historico">Histórico da carteira<Icon name="chevron" /></summary>
               <p>
                 Em 1D, usamos observações intradiárias de cinco minutos do dia UTC,
                 com horas em UTC e possíveis atrasos. Sem esses dados, o gráfico
@@ -864,8 +912,8 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 intervalo ou a aquisição. 1D abrange o dia atual e 5D os últimos
                 cinco dias de calendário. YTD começa em 1 de janeiro. As compras
                 entram integralmente na base, sem ponderação temporal.
-              </p>
-              <h3>Moedas, preços e limites</h3>
+              </p></details>
+              <details className="notes-disclosure"><summary id="moedas">Moedas, preços e limites<Icon name="chevron" /></summary>
               <p>
                 Os preços das ordens devem estar na moeda da carteira. Cotações
                 noutra moeda não são convertidas e impedem a valorização de
@@ -874,45 +922,66 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 Yahoo pode ajustar retroativamente os preços históricos por
                 splits; nesses ativos, adapta também as transações antes de
                 interpretar a série.
-              </p>
-              <h3>Guardar e exportar</h3>
+              </p></details>
+              <details className="notes-disclosure"><summary id="exportar">Guardar e exportar<Icon name="chevron" /></summary>
               <p>
                 {identity ? "As carteiras deste modo são guardadas na tua conta e podem ser abertas noutros dispositivos. As carteiras locais permanecem separadas." : "Os dados ficam apenas neste navegador. Não sincronizam com outros dispositivos. A limpeza dos dados do navegador remove as carteiras."} Exporta regularmente uma cópia JSON. O CSV contém
                 apenas as transações da carteira selecionada. «Relatório PDF»
                 abre a impressão do navegador: escolhe «Guardar como PDF».
-              </p>
-              <h3>Sobre o projeto</h3>
+              </p></details>
+              <details className="notes-disclosure"><summary id="projeto">Sobre o projeto<Icon name="chevron" /></summary>
               <p>
                 Criado por Pedro, estudante de Engenharia Informática, para
                 acompanhar investimentos de forma simples. A integração Yahoo
                 Finance é não oficial e pode sofrer atrasos ou interrupções.
-              </p>
+              </p></details>
             </section>
+            </div>
           ) : (
             <>
-              <div className="portfolio-toolbar">
+              <div className={`portfolio-toolbar ${tab !== "overview" ? "portfolio-toolbar-list" : ""}`}>
                 <div className="portfolio-context">
-                  <strong>{portfolio?.name ?? "As tuas carteiras"}</strong>
-                  <span className="currency-tag">Moeda: {currency}</span>
+                  <label className="portfolio-selector no-print">
+                    <Icon name="wallet" />
+                    <span className="portfolio-selection-label" aria-hidden="true"><strong>{portfolio?.name ?? "As tuas carteiras"}</strong><span> · {currency}</span></span><Icon name="chevron" />
+                    <select aria-label="Selecionar carteira" value={portfolio?.id ?? ""} disabled={!ready || !portfolios.length} onChange={(event) => {
+                      setSelected(event.target.value);
+                      setSearches({ overview: "", positions: "", transactions: "", notes: "" });
+                    }}>
+                      {!portfolios.length ? <option value="">As tuas carteiras</option> : portfolios.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}
+                    </select>
+                  </label>
+                  <span className="portfolio-print-context"><strong>{portfolio?.name ?? "As tuas carteiras"}</strong><span className="currency-tag">Moeda: {currency}</span></span>
                 </div>
                 <button
-                  className="text-button no-print"
+                  className="text-button refresh-prices no-print"
+                  aria-label={loading ? "A obter cotações…" : "Atualizar preços"}
                   disabled={loading || !orders.length}
                   onClick={() => setRefresh((n) => n + 1)}
                 >
                   <Icon name="refresh" />
-                  {loading ? "A obter cotações…" : "Atualizar preços"}
+                  <span className="refresh-label">{loading ? "A obter cotações…" : "Atualizar preços"}</span>
                 </button>
               </div>
+              {tab === "positions" ? <div className="summary-strip" aria-label="Resumo das posições">
+                <Metric label="Valor atual" value={money(summary.value)} />
+                <Metric label="Posições abertas" value={`${summary.positions.filter((position) => position.shares > 0).length} ativos`} />
+                <Metric label="Ganho não realizado" value={money(summary.unrealized)} trend={summary.unrealized} />
+              </div> : tab === "transactions" ? <div className="summary-strip" aria-label="Resumo das transações">
+                <Metric label="Total de transações" value={`${orders.length} operações`} />
+                <Metric label="Compras" value={String(orders.filter((order) => order.type === "buy").length)} />
+                <Metric label="Vendas" value={String(orders.filter((order) => order.type === "sell").length)} />
+              </div> : null}
               {tab === "overview" ? (
                 <div className="metrics">
                   <Metric
                     label="Valor da carteira"
                     value={money(summary.value)}
                     featured
+                    detail="Posições abertas · valor de mercado"
                   />
                   <Metric
-                    label="ROI sobre todas as compras"
+                    label="Rentabilidade total"
                     value={pct(summary.roi)}
                     detail={`${money(summary.gain)} de ganho total`}
                     trend={summary.gain}
@@ -920,11 +989,13 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                   <Metric
                     label="Ganho realizado"
                     value={money(summary.realized)}
+                    detail="Em unidades vendidas"
                     trend={summary.realized}
                   />
                   <Metric
                     label="Compras acumuladas"
                     value={money(summary.invested)}
+                    detail="Valor de todas as compras"
                   />
                 </div>
               ) : null}
@@ -939,10 +1010,8 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                   <section className="panel allocation-card" aria-label="Distribuição da carteira">
                     <div className="panel-heading">
                       <div>
-                        <h2>Onde estás a investir</h2>
+                        <h2>A tua distribuição</h2><p className="panel-subtitle">Por valor de mercado</p>
                       </div>
-                      <span className="subtle">{currency}</span>
-                    </div>
                     <div
                       className="segments allocation-toggle no-print"
                       role="group"
@@ -960,6 +1029,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                       >
                         Geografia
                       </button>
+                    </div>
                     </div>
                     <div className="allocation-content">
                       <div className="allocation asset-allocation" hidden={allocationView !== "assets"}>
@@ -994,10 +1064,11 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                         />
                       </div>
                     </div>
+                    <div className="allocation-footer"><span>{summary.positions.filter((position) => position.shares > 0).length} ativos na carteira</span><button className="text-button" onClick={() => navigateToTab("positions")}>Ver posições <span aria-hidden="true">→</span></button></div>
                   </section>
                 </div>
               ) : null}
-              <section className="panel holdings">
+              <section className={`panel holdings ${tab !== "overview" ? "holdings-list" : ""}`}>
                 <div className="panel-heading">
                   <div>
                     <h2>
@@ -1024,21 +1095,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                         }))}
                       />
                     </label>
+                    {tab === "overview" ? <button className="text-button overview-all" onClick={() => navigateToTab("positions")}>Ver todas <span aria-hidden="true">→</span></button> : null}
                   </div>
                 </div>
-                {tab === "overview" ? (
-                  <div className="table-tabs no-print">
-                    <button
-                      className="selected"
-                      onClick={() => setTab("positions")}
-                    >
-                      Posições
-                    </button>
-                    <button onClick={() => setTab("transactions")}>
-                      Transações
-                    </button>
-                  </div>
-                ) : null}
                 {!orders.length ? (
                   <div className="empty-state">
                     <div className="empty-illustration">
@@ -1091,6 +1150,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                       />
                     ) : (
                       <PositionsTable
+                        compact={tab === "overview"}
                         key={portfolio?.id}
                         positions={summary.positions}
                         market={market}
@@ -1119,13 +1179,14 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 <span>
                   <Icon name="download" /> Exporta uma cópia regularmente.
                 </span>
-                <button onClick={removePortfolio}>Eliminar carteira</button>
+                <button className="bottom-delete" onClick={removePortfolio}>Eliminar carteira</button>
               </div>
             </>
           )}
           </>}
         </main>
       </div>
+      {!accountPage ? <button className="mobile-trade-action no-print" aria-label="Nova transação" title="Nova transação" disabled={!portfolio || saveState === "saving"} onClick={() => openModal("order")}><Icon name="plus" /></button> : null}
       {csvReview ? <CsvImportReview
         key={csvReview.drafts[0].id}
         portfolio={csvReview.portfolio}
@@ -1167,7 +1228,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </Dialog>
       ) : null}
       {modal === "import" ? (
-        <Dialog title="Importar CSV" onClose={() => setModal(null)}>
+        <Dialog title="Importar CSV" eyebrow="IMPORTAÇÃO DE DADOS" onClose={() => setModal(null)}>
+          <div className="import-stepper" aria-label="Etapas da importação"><span aria-current="step"><b>1</b> Escolher ficheiro</span><span><b>2</b> Rever dados</span><span><b>3</b> Confirmar</span></div>
+          <button className="import-upload" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setModal(null); void importFile(event.dataTransfer.files[0]); }} onClick={() => { setModal(null); fileRef.current?.click(); }}><Icon name="upload" /><strong>Arrasta o ficheiro CSV para aqui</strong><small>ou escolhe um ficheiro no teu dispositivo</small><span className="button secondary">Escolher ficheiro</span></button>
+          <p className="import-summary">Até 2 MB. As transações são acrescentadas à carteira, após revisão.</p>
+          <p className="import-destination">Carteira: <strong>{portfolio?.name} · {currency}</strong></p>
+          <details className="import-format-details"><summary>Consultar formato e exemplo CSV <Icon name="chevron" /></summary>
           <p className="import-help">
             Prepara o teu ficheiro com uma transação por linha, como neste
             exemplo. Podes descarregar o modelo e substituir os dados pelos
@@ -1204,6 +1270,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
             As transações são acrescentadas à carteira selecionada; importar o
             mesmo ficheiro novamente duplica-as.
           </p>
+          </details>
           <div className="dialog-actions import-actions">
             <a
               className="button secondary"
@@ -1225,73 +1292,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </Dialog>
       ) : null}
       {modal === "order" ? (
-        <Dialog title="Nova transação" onClose={() => setModal(null)}>
-          <form onSubmit={addOrder}>
-            <p className="form-note">
-              Introduz o preço em {currency}. As ordens do mesmo dia seguem a
-              ordem de registo.
-            </p>
-            <div className="form-grid">
-              <label>
-                Operação
-                <select name="type">
-                  <option value="buy">Compra</option>
-                  <option value="sell">Venda</option>
-                </select>
-              </label>
-              <label>
-                Data
-                <input
-                  name="date"
-                  type="date"
-                  required
-                  min="2000-01-01"
-                  max={new Date().toISOString().slice(0, 10)}
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                />
-              </label>
-              <OrderAssetFields orders={orders} />
-              <label>
-                Quantidade
-                <input
-                  name="shares"
-                  required
-                  inputMode="decimal"
-                  placeholder="10"
-                />
-              </label>
-              <label>
-                Preço por unidade ({currency})
-                <input
-                  name="pricebuy"
-                  required
-                  inputMode="decimal"
-                  placeholder="150,00"
-                />
-              </label>
-            </div>
-            {formError ? (
-              <p className="form-error" role="alert">
-                {formError}
-              </p>
-            ) : null}
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setModal(null)}
-              >
-                Cancelar
-              </button>
-              <button className="button primary" disabled={saveState === "saving"} type="submit">
-                Guardar transação
-              </button>
-            </div>
-          </form>
+        <Dialog title="Nova transação" eyebrow="INVESTIMENTOS" className="trade-dialog" onClose={() => setModal(null)}>
+          <OrderEntryForm orders={orders} currency={currency} onSubmit={addOrder} onClose={() => setModal(null)} error={formError} saving={saveState === "saving"} />
         </Dialog>
       ) : null}
       {modal === "portfolio" ? (
-        <Dialog title="Criar carteira" onClose={() => setModal(null)}>
+        <Dialog title="Criar carteira" eyebrow="ORGANIZAÇÃO" onClose={() => setModal(null)}>
           <form onSubmit={addPortfolio}>
             <label>
               Nome da carteira
@@ -1302,14 +1308,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 placeholder="Investimentos a longo prazo"
               />
             </label>
-            <label>
-              Moeda
-              <select name="currency" defaultValue="EUR">
-                {(["EUR", "USD", "GBP"] as Currency[]).map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </label>
+            <fieldset className="choice-segments currency-choice"><legend>Moeda</legend>
+              {([['EUR', '€'], ['USD', '$'], ['GBP', '£']] as const).map(([code, symbol]) => <label key={code}><input type="radio" name="currency" value={code} defaultChecked={code === "EUR"} aria-label={code} /><span>{symbol} {code}</span></label>)}
+            </fieldset>
             <p className="form-note">
               Usa uma carteira por moeda. Não fazemos conversão cambial
               automática.
@@ -1336,10 +1337,10 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   );
 }
 const colors = [
-  "#008569",
-  "#1677d2",
-  "#6d9f93",
-  "#efa749",
+  "#0f9272",
+  "#5979d9",
+  "#9c8bdc",
+  "#e9a968",
   "#d566a8",
   "#7e8b9f",
 ];

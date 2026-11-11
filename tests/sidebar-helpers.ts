@@ -28,5 +28,5 @@ export async function navigateTo(page: Page, name: string | RegExp) {
 }
 
 export function selectedPortfolio(page: Page) {
-  return page.locator((page.viewportSize()?.width ?? 1440) <= 800 ? ".mobile-workspace-title" : ".portfolio-link[aria-current='true']");
+  return page.locator((page.viewportSize()?.width ?? 1440) <= 800 ? ".portfolio-selection-label" : ".portfolio-link[aria-current='true']");
 }

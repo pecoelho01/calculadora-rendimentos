@@ -12,7 +12,7 @@ export function OrderAssetFields({ orders }: { orders: Order[] }) {
   return (
     <>
       {assets.size > 0 ? (
-        <label className={selectedTicker ? undefined : "order-asset-choice"}>
+        <label className={selectedTicker ? "order-existing-asset" : "order-asset-choice"}>
           Ativo da transação
           <select
             name={selectedTicker ? "ticker" : undefined}
@@ -40,7 +40,7 @@ export function OrderAssetFields({ orders }: { orders: Order[] }) {
           <input name="ticker" required placeholder="AAPL" maxLength={25} />
         </label>
       ) : null}
-      <label>
+      <label className="order-asset-name">
         Nome do ativo
         <input
           name="name"
