@@ -35,6 +35,87 @@ Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito 
 - Deploy alvo: Vercel com runtime Node.js; não usar exportação estática para uma aplicação que depende de `/api/market`.
 - Contas, base de dados, câmbio, dividendos e splits automáticos ampliam o âmbito: definir contratos e migração antes de implementar.
 
+## Legibilidade e organização do código
+
+- Priorizar a compreensão por quem mantém o projeto. Não reduzir o número de linhas à custa da clareza.
+- Escrever funções e componentes com uma responsabilidade clara. Separar responsabilidades quando isso facilitar a leitura, os testes ou a manutenção.
+- Usar nomes descritivos para variáveis, funções e tipos. Evitar abreviações que exijam conhecer o contexto.
+- Separar etapas lógicas com uma linha em branco, sem espaçamento excessivo nem separadores decorativos.
+- Dividir chamadas, objetos e expressões extensas por várias linhas, seguindo o formatador do projeto.
+- Dar nomes a resultados intermédios quando isso explicar uma condição, transformação ou cálculo.
+- Preferir condições explícitas e retornos antecipados quando reduzirem a profundidade de indentação.
+- Evitar ternários aninhados, encadeamentos difíceis de acompanhar e várias operações independentes na mesma expressão.
+- Manter o JSX centrado na apresentação. Colocar cálculos de domínio nos módulos existentes e extrair lógica interativa quando necessário.
+- Extrair funções, hooks ou componentes quando tiverem um propósito identificável. Evitar fragmentar o código em pequenas abstrações que obriguem a saltar entre ficheiros sem benefício.
+- Usar comentários para explicar motivos, restrições e decisões. Melhorar nomes e estrutura antes de comentar código confuso.
+- Preservar comportamento, contratos e precisão dos cálculos durante refatorações de legibilidade.
+- Limitar a reorganização ao âmbito do pedido. Não reformatar ficheiros não relacionados.
+
+Antes de concluir, rever o diff à procura de nomes ambíguos, expressões densas, responsabilidades misturadas e abstrações desnecessárias.
+
+### Exemplos de estilo em TypeScript e React
+
+Estes exemplos ilustram legibilidade; não introduzem novas regras de negócio nem justificam duplicar cálculos existentes.
+
+Preferir condições com nomes que revelem a intenção:
+
+```typescript
+type PortfolioSummary = {
+  name: string;
+  currency: string;
+};
+
+function filterPortfolios(
+  portfolios: PortfolioSummary[],
+  search: string,
+  currency: string,
+): PortfolioSummary[] {
+  const normalizedSearch = search.trim().toLocaleLowerCase("pt-PT");
+
+  return portfolios.filter((portfolio) => {
+    const matchesSearch = portfolio.name
+      .toLocaleLowerCase("pt-PT")
+      .includes(normalizedSearch);
+    const matchesCurrency = portfolio.currency === currency;
+
+    return matchesSearch && matchesCurrency;
+  });
+}
+```
+
+Preferir estados explícitos e JSX distribuído por linhas legíveis:
+
+```tsx
+type ExportButtonProps = {
+  isExporting: boolean;
+  onExport: () => void;
+};
+
+function ExportButton({ isExporting, onExport }: ExportButtonProps) {
+  const label = isExporting ? "A exportar…" : "Exportar CSV";
+
+  return (
+    <button
+      type="button"
+      disabled={isExporting}
+      onClick={onExport}
+    >
+      {label}
+    </button>
+  );
+}
+```
+
+### Formatação automática
+
+- Usar a versão local de Prettier fixada no `package-lock.json` e a configuração `.prettierrc.json`: indentação de dois espaços, aspas duplas, ponto e vírgula e largura preferida de 80 colunas. A largura é uma preferência do formatador, não um limite rígido.
+- Formatar apenas os ficheiros abrangidos pelo pedido: `npm run format -- caminho/ficheiro.ts caminho/componente.tsx`.
+- Verificar esses mesmos ficheiros com `npm run format:check -- caminho/ficheiro.ts caminho/componente.tsx`.
+- Os comandos exigem caminhos explícitos para evitar uma reformatação global acidental. Não executar uma reformatação de todo o repositório sem pedido explícito.
+- No editor, usar o Prettier local e a configuração do projeto. Não manter regras de formatação concorrentes no ESLint.
+- O Prettier trata a apresentação do código; nomes, responsabilidades e clareza do fluxo continuam sujeitos a revisão.
+- A reorganização do código existente será feita apenas quando o utilizador a pedir explicitamente.
+
 ## Papel do agente principal
 
 O agente principal é responsável por compreender o pedido, classificar a complexidade e o risco, escolher o routing, fornecer contexto aos agentes, consolidar resultados e validar a solução antes de concluir.
