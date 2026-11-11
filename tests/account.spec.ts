@@ -184,6 +184,8 @@ async function setup(page: Page, signedIn: boolean | "expired" = false, autoCapt
   return state;
 }
 async function openAccountSettings(page: Page) {
+  // The loading screen also uses .entry-page; wait before deciding to skip navigation.
+  await expect(page.locator('.entry-page[aria-busy="true"]')).toBeHidden();
   if (new URL(page.url()).pathname === "/conta" || await page.locator(".entry-page").count()) return;
   await openSidebar(page);
   await page.getByRole("link", { name: "Definições da conta", exact: true }).click();
@@ -806,6 +808,45 @@ test("respostas incluem proteção contra enquadramento e fuga de referrer", asy
       expect(response.headers()["cache-control"]).toBe("private, no-store");
     }
   }
+});
+
+test("abrir definições aguarda o restauro inicial da sessão", async ({ page }) => {
+  const state = await setup(page, true);
+  state.accounts[userA] = { version: 1, portfolios: [] };
+  await page.addInitScript(() => {
+    const originalRequest = navigator.locks.request.bind(navigator.locks);
+    const audit = { blocked: false, release: () => {} };
+    let pending = true;
+    const gate = new Promise<void>((resolve) => {
+      audit.release = () => { pending = false; resolve(); };
+    });
+    (window as unknown as { sessionRestoreAudit: typeof audit }).sessionRestoreAudit = audit;
+    Object.defineProperty(navigator.locks, "request", {
+      configurable: true,
+      value: async (name: string, options: LockOptions, callback: LockGrantedCallback<unknown>) => {
+        if (name === "rendimentos.auth.mutation.v1" && pending) {
+          audit.blocked = true;
+          await gate;
+        }
+        return originalRequest(name, options, callback);
+      },
+    });
+  });
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { sessionRestoreAudit: { blocked: boolean } }).sessionRestoreAudit.blocked,
+  )).toBe(true);
+
+  const navigation = openAccountSettings(page);
+  await expect(page.locator('.entry-page[aria-busy="true"]')).toBeVisible();
+  await page.evaluate(() =>
+    (window as unknown as { sessionRestoreAudit: { release: () => void } }).sessionRestoreAudit.release(),
+  );
+  await navigation;
+  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toBeEnabled();
+  expect(state.requests).toHaveLength(0);
+  expect(await page.evaluate((key) => localStorage.getItem(key), storageKey)).toBe(localJson);
 });
 
 test("conta vazia permite criar a primeira carteira sem copiar dados locais", async ({ page }, testInfo) => {
