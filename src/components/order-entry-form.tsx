@@ -42,6 +42,6 @@ export function OrderEntryForm({ orders, currency, onSubmit, onClose, error, sav
     <div className="trade-total"><span>Valor total da operação</span><output aria-live="polite">{formattedTotal}</output></div>
     <p className="trade-footnote">Valores em {currency}. As ordens do mesmo dia seguem a ordem de registo.</p>
     {error ? <p className="form-error" role="alert">{error}</p> : null}
-    <div className="dialog-actions"><button type="button" className="button secondary" onClick={onClose}>Cancelar</button><button className="button primary" disabled={saving}>Guardar transação <span aria-hidden="true">→</span></button></div>
+    <div className="dialog-actions"><button type="button" className="button secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button primary" disabled={saving}>Guardar transação <span aria-hidden="true">→</span></button></div>
   </form>;
 }
