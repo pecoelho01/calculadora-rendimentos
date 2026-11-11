@@ -1,0 +1,14 @@
+# Artefactos gerados e dependências
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+next-env.d.ts
+package-lock.json
+
+# Referência histórica fora do build ativo
+legacy/

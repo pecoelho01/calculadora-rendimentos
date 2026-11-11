@@ -20,6 +20,19 @@ npm start
 
 O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa Supabase Auth e Postgres; consultar a configuração abaixo.
 
+## Formatação do código
+
+O projeto usa Prettier com configuração partilhada em `.prettierrc.json` e versão fixada no lockfile. No editor, selecionar o Prettier local como formatador para respeitar as mesmas regras. As instruções e os exemplos de legibilidade estão em `AGENTS.md`.
+
+Indicar explicitamente os ficheiros a formatar ou verificar:
+
+```bash
+npm run format -- src/components/exemplo.tsx
+npm run format:check -- src/components/exemplo.tsx
+```
+
+Substituir o caminho ilustrativo pelos ficheiros do pedido. A configuração não reformata automaticamente o código existente. A reorganização e a formatação global ficam dependentes de um pedido explícito; não são necessárias para adotar as regras em novas alterações.
+
 ## Funcionalidades
 
 - Várias carteiras, com moeda EUR, USD ou GBP por carteira.
