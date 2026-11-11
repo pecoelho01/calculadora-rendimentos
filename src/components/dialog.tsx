@@ -3,12 +3,14 @@ import { useLayoutEffect, useRef } from "react";
 import { Icon } from "./icon";
 export function Dialog({
   title,
+  eyebrow,
   onClose,
   closeDisabled = false,
   className,
   children,
 }: {
   title: string;
+  eyebrow?: string;
   onClose: () => void;
   closeDisabled?: boolean;
   className?: string;
@@ -32,7 +34,7 @@ export function Dialog({
       if (!closeDisabled) onClose();
     }} aria-labelledby="dialog-title">
       <div className="dialog-heading">
-        <h2 id="dialog-title">{title}</h2>
+        <div>{eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}<h2 id="dialog-title">{title}</h2></div>
         <button className="icon-button" aria-label="Fechar" disabled={closeDisabled} onClick={onClose}>
           <Icon name="close" />
         </button>

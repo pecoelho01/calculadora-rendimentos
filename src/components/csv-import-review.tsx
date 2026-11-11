@@ -84,6 +84,8 @@ export function CsvImportReview({ portfolio, filename, drafts, onClose, onConfir
         finally { submitting.current = false; setSaving(false); }
       }}>
         <fieldset disabled={saving} className="csv-review-fields">
+          <div className="import-stepper" aria-label="Etapas da importação"><span><b>1</b> Ficheiro escolhido</span><span aria-current="step"><b>2</b> Rever dados</span><span><b>3</b> Confirmar</span></div>
+          <div className="csv-review-stats"><div><strong>{rows.length}</strong><span>Linhas encontradas</span></div><div><strong>{review.orders.length}</strong><span>Linhas válidas selecionadas</span></div><div><strong>{review.duplicates.size}</strong><span>Possíveis duplicados</span></div></div>
           <div className="csv-review-destination">
             <span>Carteira de destino <strong>{portfolio.name} · {portfolio.currency}</strong></span>
             <span className="csv-review-filename">{filename}</span>
