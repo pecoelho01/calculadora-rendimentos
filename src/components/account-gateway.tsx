@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -48,6 +47,8 @@ export function AccountGateway({
   const authPending = useRef(false);
   const recoverySession = useRef<RecoverySession | null>(null);
   const welcomeHeading = useRef<HTMLHeadingElement>(null);
+  const authHeading = useRef<HTMLHeadingElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const receiveCaptcha = useCallback((token: string) => {
     if (!authPending.current) setCaptchaToken(token);
@@ -192,6 +193,7 @@ export function AccountGateway({
     setCaptchaAttempt((value) => value + 1);
     setNeedsReauthentication(false);
     setForm(next);
+    setShowPassword(false);
     setError("");
     setMessage("");
   }
@@ -370,8 +372,11 @@ export function AccountGateway({
     : null;
   const entered = !checking && (!!identity || localChosen);
   useEffect(() => {
-    if (!checking && !entered) welcomeHeading.current?.focus();
-  }, [checking, entered]);
+    if (!checking && !entered && !form) welcomeHeading.current?.focus({ preventScroll: true });
+  }, [checking, entered, form]);
+  useEffect(() => {
+    if (!entered && form && form !== "password") authHeading.current?.focus({ preventScroll: true });
+  }, [entered, form]);
 
   const feedback = <>
     {message && <p className="account-feedback" role="status">{message}</p>}
@@ -379,7 +384,6 @@ export function AccountGateway({
   </>;
   const sidebarControls = session ? (
     <>
-      <Link className="nav-item" href="/conta"><Icon name="shield" /><span className="nav-label">Definições da conta</span></Link>
       <button className="nav-item" disabled={busy} onClick={() => void logout()}>
         <Icon name="logout" /><span className="nav-label">Sair da conta</span>
       </button>
@@ -412,63 +416,107 @@ export function AccountGateway({
           }}>{accountMode ? "Usar modo local" : "Abrir carteiras da conta"}</button>
           <button className="button secondary" disabled={busy} onClick={() => void logout()}>Sair da conta</button>
         </> : configured ? <>
-          <button className="button primary" disabled={busy} onClick={() => open("login")}>Iniciar sessão</button>
-          <button className="button secondary" disabled={busy} onClick={() => open("register")}>Criar conta</button>
+          <button className={`button ${entered ? "primary" : "entry-option"}`} aria-label="Iniciar sessão" disabled={busy} onClick={() => open("login")}>
+            {!entered && <span className="entry-option-icon"><Icon name="shield" /></span>}
+            <span>Iniciar sessão{!entered && <small>Acede às tuas carteiras em qualquer dispositivo.</small>}</span>
+            {!entered && <span className="entry-option-arrow" aria-hidden="true">→</span>}
+          </button>
+          <button className={`button ${entered ? "secondary" : "entry-option"}`} aria-label="Criar conta" disabled={busy} onClick={() => open("register")}>
+            {!entered && <span className="entry-option-icon purple"><Icon name="plus" /></span>}
+            <span>Criar conta{!entered && <small>Guarda os investimentos na tua conta.</small>}</span>
+            {!entered && <span className="entry-option-arrow" aria-hidden="true">→</span>}
+          </button>
         </> : <span className="subtle">As contas estão indisponíveis. Podes continuar no modo local.</span>}
-        {!entered && !checking && <button className="button secondary entry-local" disabled={busy} onClick={continueLocal}>Continuar sem sessão</button>}
+        {!entered && !checking && <>
+          {configured && <div className="entry-divider" aria-hidden="true">ou</div>}
+          <button className="button secondary entry-local" aria-label="Continuar sem sessão" disabled={busy} onClick={continueLocal}>Continuar sem sessão <span aria-hidden="true">→</span></button>
+        </>}
       </div>
       {feedback}
     </section>
   );
+  const inlineAuth = !entered && form !== null && form !== "password";
+  function closeAuth() {
+    if (authPending.current) return;
+    recoverySession.current = null;
+    action.current++;
+    setForm(null);
+    setError("");
+  }
+  const authForm = form ? <form onSubmit={submit} className={`account-form ${inlineAuth ? "auth-inline-form" : ""}`} aria-busy={busy}>
+      <p className="eyebrow auth-eyebrow">{form === "login" ? "Bem-vindo de volta" : form === "register" ? "Começa a investir com clareza" : form === "recover" ? "Recuperação de conta" : "Acesso à tua conta"}</p>
+      {inlineAuth ? <h1 id="auth-inline-title" ref={authHeading} tabIndex={-1}>{titles[form!]}</h1> : null}
+      <p className="form-note">{form === "password"
+        ? "Escolhe uma nova palavra-passe com pelo menos 8 caracteres."
+        : form === "recover"
+          ? "Introduz o email associado à tua conta. Se existir, enviamos uma ligação para definires uma nova palavra-passe."
+          : form === "login" ? "Entra na tua conta para aceder às carteiras guardadas." : "Cria uma conta para guardares as tuas carteiras e acederes aos dados noutros dispositivos."}</p>
+      {form !== "password" && <label>Email<span className="auth-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg><input name="email" type="email" placeholder="nome@exemplo.pt" required autoComplete="email" maxLength={254} disabled={busy} /></span></label>}
+      {form !== "recover" && <div className="auth-password-field"><label htmlFor="auth-password-input">{form === "password" ? "Nova palavra-passe" : "Palavra-passe"}</label><span className="auth-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="auth-password-input" name="password" type={showPassword ? "text" : "password"} placeholder={form === "register" ? "Mínimo de 8 caracteres" : "Palavra-passe"} required minLength={form === "login" ? 1 : 8} maxLength={128} autoComplete={form === "login" ? "current-password" : "new-password"} disabled={busy} /><button type="button" className="auth-password-toggle" aria-label={showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} disabled={busy}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></div>}
+      {form === "password" && needsReauthentication && <>
+        <label>Código de confirmação<input name="nonce" type="text" required inputMode="numeric" autoComplete="one-time-code" minLength={1} maxLength={128} disabled={busy} /></label>
+        <button type="button" className="text-button" disabled={busy} onClick={() => void resendReauthentication()}>Enviar novo código</button>
+      </>}
+      {form === "login" && <button type="button" className="text-button auth-forgot" disabled={busy} onClick={() => open("recover")}>Esqueci a palavra-passe</button>}
+      {form === "register" && <p className="auth-register-note"><Icon name="shield" /> Os investimentos ficam guardados na tua conta.</p>}
+      {form !== "password" && CAPTCHA_SITE_KEY && <AuthCaptcha key={`${form}:${captchaAttempt}`} siteKey={CAPTCHA_SITE_KEY} onToken={receiveCaptcha} />}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {message && <p className="account-feedback" role="status">{message}</p>}
+      <div className="account-form-actions">
+        <button className="button primary" disabled={busy || (!!CAPTCHA_SITE_KEY && form !== "password" && !captchaToken)} type="submit">{busy ? "A aguardar…" : form === "recover" ? "Enviar ligação" : form === "password" ? "Guardar palavra-passe" : titles[form!]}<span aria-hidden="true">→</span></button>
+      </div>
+      {form === "login" ? <>
+        <p className="auth-switch">Ainda não tens conta? <button type="button" className="text-button" disabled={busy} onClick={() => open("register")}>Criar conta</button></p>
+        {!entered ? <><div className="entry-divider" aria-hidden="true">ou</div><button className="button secondary auth-local" type="button" disabled={busy} onClick={continueLocal}>Continuar sem sessão</button></> : null}
+      </> : form === "register" ? <p className="auth-switch">Já tens conta? <button type="button" className="text-button" disabled={busy} onClick={() => open("login")}>Iniciar sessão</button></p> : null}
+      {form !== "login" ? <p className="auth-security-note"><Icon name="shield" />{form === "recover" ? "Por segurança, não confirmamos se um email tem uma conta associada." : "A conta e este navegador guardam carteiras separadas. Não copiamos os teus dados automaticamente."}</p> : null}
+      {form === "recover" && <button type="button" className="text-button auth-recover-back" disabled={busy} onClick={() => open("login")}><span aria-hidden="true">←</span> Voltar ao início de sessão</button>}
+    </form> : null;
   return <>
     {checking ? (
       <main className="entry-page" aria-busy="true">
         <div className="entry-loading" role="status"><Icon name="shield" /> A verificar sessão…</div>
       </main>
     ) : entered ? children(identity, session ? controls : null, sidebarControls, feedback) : (
-      <main className="entry-page">
+      <main className={`entry-page ${inlineAuth ? "entry-auth-active" : ""}`}>
         <div className="entry-layout">
-          <section className="entry-intro" aria-labelledby="entry-title">
-            <div className="entry-brand"><Icon name="trend" /> rendimentos.<ThemeControl /></div>
-            <h1 id="entry-title" ref={welcomeHeading} tabIndex={-1}>Bem-vindo ao Rendimentos</h1>
-            <p>Carteiras, transações e rentabilidade num só lugar.</p>
+          <section className="entry-intro" aria-labelledby="entry-hero-title">
+            <div className="entry-brand"><Icon name="trend" /><span>rendimentos<span className="brand-dot">.</span></span><ThemeControl /></div>
+            <div className="entry-hero">
+              <p className="eyebrow">Os teus investimentos, com clareza</p>
+              <h2 id="entry-hero-title" aria-label={!form ? "Bem-vindo ao Rendimentos" : undefined}>A tua carteira.<br />Uma nova perspetiva.</h2>
+              <p>Reúne os investimentos, acompanha a rentabilidade e toma decisões com informação organizada.</p>
+              <div className="entry-illustration" aria-hidden="true">
+                <span>Uma visão completa dos teus investimentos <Icon name="trend" /></span>
+                <strong>Clareza em cada decisão.</strong>
+                <small>Carteiras · transações · rentabilidade</small>
+                <svg className="entry-preview-chart" viewBox="0 0 460 112" fill="none">
+                  <defs><linearGradient id="entry-chart-fill" x1="0" y1="0" x2="0" y2="112" gradientUnits="userSpaceOnUse"><stop stopColor="#0d9a73" stopOpacity=".18"/><stop offset="1" stopColor="#0d9a73" stopOpacity="0"/></linearGradient></defs>
+                  <path d="M0 25H460M0 62H460M0 99H460" stroke="#edf1f3"/>
+                  <path d="M0 100 20 96 40 99 60 88 80 92 100 74 120 80 140 65 160 72 180 58 200 62 220 48 240 55 260 38 280 43 300 30 320 37 340 21 360 26 380 12 400 16 420 5 440 9 460 0V112H0Z" fill="url(#entry-chart-fill)"/>
+                  <path d="M0 100 20 96 40 99 60 88 80 92 100 74 120 80 140 65 160 72 180 58 200 62 220 48 240 55 260 38 280 43 300 30 320 37 340 21 360 26 380 12 400 16 420 5 440 9 460 0" stroke="#0d9a73" strokeWidth="2.5"/>
+                </svg>
+              </div>
+            </div>
+            <p className="entry-intro-foot"><Icon name="shield" /> Conta e modo local. A escolha é tua.</p>
           </section>
-          <section className="entry-card" aria-labelledby="entry-choice-title">
-            <h2 id="entry-choice-title">Como queres continuar?</h2>
-            {controls}
-            <p className="entry-footnote">A cópia para a conta é opcional e mantém os dados locais.</p>
+          <section className={`entry-card ${inlineAuth ? "entry-auth-card" : ""}`} aria-labelledby={inlineAuth ? "auth-inline-title" : "entry-choice-title"} onKeyDown={(event) => {
+            if (inlineAuth && event.key === "Escape") { event.preventDefault(); closeAuth(); }
+          }}>
+            {inlineAuth ? <>
+              <div className="auth-inline-top"><button type="button" className="icon-button auth-inline-back" aria-label="Fechar" disabled={busy} onClick={closeAuth}><span aria-hidden="true">←</span></button><div className="auth-mobile-theme"><ThemeControl /></div></div>
+              {authForm}
+            </> : <>
+              <p className="eyebrow">Bem-vindo ao Rendimentos</p>
+              <h1 id="entry-choice-title" ref={welcomeHeading} tabIndex={-1}>Começa por aqui.</h1>
+              <p className="entry-choice-intro">Escolhe como queres gerir os investimentos. Podes experimentar sem criar conta.</p>
+              {controls}
+              <p className="entry-footnote"><Icon name="shield" /> Sem conta, os dados ficam apenas neste navegador. Podes exportar uma cópia quando quiseres.</p>
+            </>}
           </section>
         </div>
       </main>
     )}
-    {form && <Dialog title={titles[form]} closeDisabled={busy} onClose={() => {
-      if (authPending.current) return;
-      recoverySession.current = null;
-      action.current++;
-      setForm(null);
-      setError("");
-    }}>
-      <form onSubmit={submit} className="account-form" aria-busy={busy}>
-        <p className="form-note">{form === "password"
-          ? "Escolhe uma nova palavra-passe com pelo menos 8 caracteres."
-          : form === "recover"
-            ? "Enviaremos uma ligação para definires uma nova palavra-passe."
-            : "A conta e este navegador guardam carteiras separadas."}</p>
-        {form !== "password" && <label>Email<input name="email" type="email" required autoComplete="email" maxLength={254} disabled={busy} /></label>}
-        {form !== "recover" && <label>{form === "password" ? "Nova palavra-passe" : "Palavra-passe"}<input name="password" type="password" required minLength={form === "login" ? 1 : 8} maxLength={128} autoComplete={form === "login" ? "current-password" : "new-password"} disabled={busy} /></label>}
-        {form === "password" && needsReauthentication && <>
-          <label>Código de confirmação<input name="nonce" type="text" required inputMode="numeric" autoComplete="one-time-code" minLength={1} maxLength={128} disabled={busy} /></label>
-          <button type="button" className="text-button" disabled={busy} onClick={() => void resendReauthentication()}>Enviar novo código</button>
-        </>}
-        {form !== "password" && CAPTCHA_SITE_KEY && <AuthCaptcha key={`${form}:${captchaAttempt}`} siteKey={CAPTCHA_SITE_KEY} onToken={receiveCaptcha} />}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {message && <p className="account-feedback" role="status">{message}</p>}
-        <div className="account-form-actions">
-          {form === "login" && <button type="button" className="text-button" disabled={busy} onClick={() => open("recover")}>Esqueci a palavra-passe</button>}
-          {form === "recover" && <button type="button" className="text-button" disabled={busy} onClick={() => open("login")}>Voltar ao início de sessão</button>}
-          <button className="button primary" disabled={busy || (!!CAPTCHA_SITE_KEY && form !== "password" && !captchaToken)} type="submit">{busy ? "A aguardar…" : form === "recover" ? "Enviar ligação" : form === "password" ? "Guardar palavra-passe" : titles[form]}</button>
-        </div>
-      </form>
-    </Dialog>}
+    {form && !inlineAuth ? <Dialog title={titles[form]} className="auth-dialog" closeDisabled={busy} onClose={closeAuth}>{authForm}</Dialog> : null}
   </>;
 }
