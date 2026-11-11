@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Currency, MarketData, Portfolio, Order } from "@/lib/types";
+import type { MarketData, Portfolio, Order } from "@/lib/types";
 import { calculatePortfolio } from "@/lib/portfolio";
 import {
   chronological,
