@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AccountGateway } from "./account-gateway";
-import { Dashboard } from "./dashboard";
+import { Dashboard } from "../dashboard/dashboard";
 
 export function AccountDashboard({ children }: { children: ReactNode }) {
   const accountPage = usePathname() === "/conta";

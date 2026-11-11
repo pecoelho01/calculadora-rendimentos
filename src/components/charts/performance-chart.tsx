@@ -14,7 +14,7 @@ import {
   type PerformancePoint as Point,
   type PerformancePeriod,
 } from "@/lib/portfolio";
-import { Icon } from "./icon";
+import { Icon } from "../shared/icon";
 import type { Currency, MarketData, Order } from "@/lib/types";
 const percent = (value: number | null) =>
   value === null

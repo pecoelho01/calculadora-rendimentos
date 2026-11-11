@@ -1,7 +1,9 @@
 import { useState, type KeyboardEvent } from "react";
 import type { OrderGain } from "@/lib/portfolio";
 import type { Currency, Order } from "@/lib/types";
-import { Icon } from "./icon";
+import { Icon } from "../shared/icon";
+import { useTableSort } from "./use-table-sort";
+import { SortableHeading } from "./sortable-heading";
 
 type Filter = "all" | "buy" | "sell";
 type Sort = "date" | "asset" | "total";
@@ -40,8 +42,12 @@ export function TransactionsTable({
   onDelete: (id: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<Sort>("date");
-  const [direction, setDirection] = useState<"asc" | "desc">("desc");
+  const sorting = useTableSort<Sort>("date", {
+    date: "desc",
+    asset: "asc",
+    total: "desc",
+  });
+  const { sort, direction, selectSort, toggleDirection } = sorting;
   const counts = {
     all: orders.length,
     buy: orders.filter((order) => order.type === "buy").length,
@@ -101,39 +107,6 @@ export function TransactionsTable({
     ? "Nenhuma transação corresponde à pesquisa."
     : emptyFilterMessage;
 
-  function changeSort(next: Sort) {
-    if (sort === next) {
-      setDirection(direction === "asc" ? "desc" : "asc");
-      return;
-    }
-
-    selectSort(next);
-  }
-
-  function selectSort(next: Sort) {
-    setSort(next);
-    setDirection(next === "asset" ? "asc" : "desc");
-  }
-
-  function sortHeading(key: Sort, label: string) {
-    const isActive = sort === key;
-    const activeDirection = direction === "asc" ? "ascending" : "descending";
-    const arrow = direction === "asc" ? "↑" : "↓";
-
-    return (
-      <th
-        scope="col"
-        aria-sort={isActive ? activeDirection : "none"}
-      >
-        <button
-          className="transaction-sort"
-          onClick={() => changeSort(key)}
-        >
-          {label} <span aria-hidden="true">{isActive ? arrow : "↕"}</span>
-        </button>
-      </th>
-    );
-  }
   return (
     <div
       className={`transactions-view fidelity-transactions ${compact ? "list-compact" : ""}`}
@@ -191,9 +164,7 @@ export function TransactionsTable({
               </label>
               <button
                 className="transaction-direction"
-                onClick={() =>
-                  setDirection(direction === "asc" ? "desc" : "asc")
-                }
+                onClick={toggleDirection}
                 aria-label={`Ordenação ${direction === "asc" ? "ascendente" : "descendente"}. Inverter ordem`}
               >
                 <span aria-hidden="true">
@@ -226,12 +197,27 @@ export function TransactionsTable({
         >
           <thead>
             <tr>
-              {sortHeading("date", "Data")}
-              {sortHeading("asset", "Ativo")}
+              <SortableHeading
+                sortKey="date"
+                label="Data"
+                sorting={sorting}
+                className="transaction-sort"
+              />
+              <SortableHeading
+                sortKey="asset"
+                label="Ativo"
+                sorting={sorting}
+                className="transaction-sort"
+              />
               <th scope="col">Operação</th>
               <th scope="col">Unidades</th>
               <th scope="col">Preço/un.</th>
-              {sortHeading("total", "Total")}
+              <SortableHeading
+                sortKey="total"
+                label="Total"
+                sorting={sorting}
+                className="transaction-sort"
+              />
               <th scope="col">Resultado</th>
               <th scope="col">
                 <span className="visually-hidden">Detalhes</span>

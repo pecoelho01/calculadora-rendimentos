@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import type { CsvDraftOrder } from "@/lib/csv";
 import { reviewCsvOrders, type CsvReviewRow } from "@/lib/csv-review";
 import type { Order, Portfolio } from "@/lib/types";
-import { Dialog } from "./dialog";
+import { Dialog } from "../shared/dialog";
 
 const PAGE_SIZE = 25;
 const fieldMaxLengths: Partial<Record<keyof CsvReviewRow, number>> = {

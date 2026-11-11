@@ -1,7 +1,9 @@
 import { useState, type KeyboardEvent } from "react";
 import type { Position } from "@/lib/portfolio";
 import type { Currency, MarketData } from "@/lib/types";
-import { Icon } from "./icon";
+import { Icon } from "../shared/icon";
+import { useTableSort } from "./use-table-sort";
+import { SortableHeading } from "./sortable-heading";
 
 type Filter = "open" | "closed" | "all";
 type Sort = "value" | "return" | "asset";
@@ -68,8 +70,12 @@ export function PositionsTable({
   onClearSearch: () => void;
 }) {
   const [filter, setFilter] = useState<Filter>("open");
-  const [sort, setSort] = useState<Sort>("value");
-  const [direction, setDirection] = useState<"asc" | "desc">("desc");
+  const sorting = useTableSort<Sort>("value", {
+    value: "desc",
+    return: "desc",
+    asset: "asc",
+  });
+  const { sort, direction, selectSort, toggleDirection } = sorting;
   const counts = {
     open: positions.filter((position) => position.shares > 0).length,
     closed: positions.filter((position) => position.shares === 0).length,
@@ -148,39 +154,6 @@ export function PositionsTable({
         all: "Não existem posições para mostrar.",
       }[filter];
 
-  function changeSort(next: Sort) {
-    if (sort === next) {
-      setDirection(direction === "asc" ? "desc" : "asc");
-      return;
-    }
-
-    selectSort(next);
-  }
-
-  function selectSort(next: Sort) {
-    setSort(next);
-    setDirection(next === "asset" ? "asc" : "desc");
-  }
-
-  function sortHeading(key: Sort, label: string) {
-    const isActive = sort === key;
-    const activeDirection = direction === "asc" ? "ascending" : "descending";
-    const arrow = direction === "asc" ? "↑" : "↓";
-
-    return (
-      <th
-        scope="col"
-        aria-sort={isActive ? activeDirection : "none"}
-      >
-        <button
-          className="position-sort"
-          onClick={() => changeSort(key)}
-        >
-          {label} <span aria-hidden="true">{isActive ? arrow : "↕"}</span>
-        </button>
-      </th>
-    );
-  }
   return (
     <div
       className={`positions-view fidelity-positions ${compact ? "list-compact" : ""}`}
@@ -238,9 +211,7 @@ export function PositionsTable({
               </label>
               <button
                 className="position-direction"
-                onClick={() =>
-                  setDirection(direction === "asc" ? "desc" : "asc")
-                }
+                onClick={toggleDirection}
                 aria-label={`Ordenação ${direction === "asc" ? "ascendente" : "descendente"}. Inverter ordem`}
               >
                 <span aria-hidden="true">
@@ -272,11 +243,26 @@ export function PositionsTable({
         >
           <thead>
             <tr>
-              {sortHeading("asset", "Ativo")}
+              <SortableHeading
+                sortKey="asset"
+                label="Ativo"
+                sorting={sorting}
+                className="position-sort"
+              />
               <th scope="col">Unidades</th>
               <th scope="col">Cotação</th>
-              {sortHeading("value", "Valor atual")}
-              {sortHeading("return", "Rentabilidade")}
+              <SortableHeading
+                sortKey="value"
+                label="Valor atual"
+                sorting={sorting}
+                className="position-sort"
+              />
+              <SortableHeading
+                sortKey="return"
+                label="Rentabilidade"
+                sorting={sorting}
+                className="position-sort"
+              />
               <th scope="col">{gainHeading}</th>
               <th scope="col">
                 <span className="visually-hidden">Detalhes</span>

@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Icon } from "./icon";
+import { Icon } from "../shared/icon";
 
 const MIN_WIDTH = 224;
 const MAX_WIDTH = 420;

@@ -4,10 +4,10 @@ import type { Session } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE, AUTH_RECOVERY_CHANGED, AUTH_SESSION_MESSAGE, completeBrowserAuthCallback, runBrowserAuthMutation } from "@/lib/browser-auth";
 import { getRecoverySession, matchesRecoverySession, type RecoverySession } from "@/lib/recovery-session";
-import { Dialog } from "./dialog";
+import { Dialog } from "../shared/dialog";
 import { AuthCaptcha } from "./auth-captcha";
-import { Icon } from "./icon";
-import { ThemeControl } from "./theme-control";
+import { Icon } from "../shared/icon";
+import { ThemeControl } from "../shared/theme-control";
 import "./account.css";
 
 export type AccountIdentity = {
