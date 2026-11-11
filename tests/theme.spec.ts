@@ -98,7 +98,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("tema-escuro.png"), fullPage: true });
   await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Importar CSV", exact: true }).click();
+  await page.locator(".data-actions").getByRole("button", { name: "Importar CSV", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);

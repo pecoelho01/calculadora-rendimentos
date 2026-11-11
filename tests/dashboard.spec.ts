@@ -19,6 +19,18 @@ async function openLocal(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
 }
+async function openListFilters(page: Page, kind: "posições" | "transações") {
+  if ((page.viewportSize()?.width ?? 1440) > 800) return;
+  const summary = page.getByLabel(`Filtrar ${kind}`, { exact: true });
+  if (!(await summary.locator("..").evaluate((element) => (element as HTMLDetailsElement).open))) await summary.click();
+}
+async function choosePerformanceMode(page: Page, mode: "Posições abertas" | "Rentabilidade total") {
+  const target = page.getByRole("button", { name: mode, exact: true });
+  const menu = page.locator(".chart-methodology");
+  if (!await target.isVisible()) await menu.locator("summary").click();
+  await target.click();
+  if (await menu.count() && await menu.evaluate((element) => (element as HTMLDetailsElement).open)) await menu.locator("summary").click();
+}
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
@@ -44,7 +56,8 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
     await expect(page.locator(".charts-grid")).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1, name: tab, exact: true })).toBeVisible();
     await expect(page.locator(".page-heading")).not.toContainText("A minha carteira");
-    await expect(page.getByRole("heading", {
+    await expect(page.locator(".summary-strip .metric")).toHaveCount(3);
+    if ((page.viewportSize()?.width ?? 1440) > 800) await expect(page.getByRole("heading", {
       name: tab === "Posições" ? "As tuas posições" : "Histórico de transações",
     })).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(tab === "Posições" ? 1 : 3);
@@ -70,7 +83,7 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
   });
   await confirmCsvReview(page);
   const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
-  await search.fill("Teste");
+  if (testInfo.project.name === "desktop") await search.fill("Teste");
   await navigateTo(page, /^Posições/);
   await expect(search).toHaveValue("");
   await search.fill("sem posição");
@@ -97,7 +110,7 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
   await expect(page.locator("tbody tr")).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath("transacoes.png"), fullPage: true });
   await navigateTo(page, "Visão geral");
-  await expect(search).toHaveValue("Teste");
+  if (testInfo.project.name === "desktop") await expect(search).toHaveValue("Teste");
 });
 test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await openLocal(page);
@@ -115,6 +128,7 @@ test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await navigateTo(page, /^Posições/);
   await expect(page.getByText("Não tens posições abertas.", { exact: false })).toBeVisible();
   await expect(page.locator("tbody tr")).toHaveCount(0);
+  await openListFilters(page, "posições");
   await page.getByRole("button", { name: "Fechadas 1", exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody")).toContainText("Fechada");
@@ -123,9 +137,10 @@ test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
 test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page }) => {
   await openLocal(page);
   await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Importar CSV" }).click();
+  await page.locator(".data-actions").getByRole("button", { name: "Importar CSV" }).click();
   const dialog = page.getByRole("dialog", { name: "Importar CSV", exact: true });
   await expect(dialog).toBeVisible();
+  await dialog.getByText("Consultar formato e exemplo CSV", { exact: false }).click();
   await expect(dialog.getByLabel("Exemplo de CSV")).toContainText("date,ticker,name,pricebuy,shares,type");
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   const downloadPromise = page.waitForEvent("download");
@@ -138,7 +153,7 @@ test("consultar e descarregar o exemplo antes de escolher o CSV", async ({ page 
   await expect(dialog).toBeHidden();
   await expect(page.locator(".metric").first()).toContainText("0,00");
   await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Importar CSV" }).click();
+  await page.locator(".data-actions").getByRole("button", { name: "Importar CSV" }).click();
   const chooserPromise = page.waitForEvent("filechooser");
   await dialog.getByRole("button", { name: "Escolher ficheiro CSV" }).click();
   const chooser = await chooserPromise;
@@ -170,17 +185,19 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await expect(page.locator(".metric").nth(1)).toContainText("550,00");
   await expect(page.locator(".metric").nth(1).locator(":scope > strong")).toHaveText("+25%");
   await expect(page.locator(".metric").nth(1).locator("small")).toContainText("550,00");
+  await navigateTo(page, "Posições");
   await page
     .getByRole("textbox", { name: "Pesquisar ativo" })
     .fill("inexistente");
   await expect(page.getByText("Nenhuma posição corresponde à pesquisa.", { exact: false })).toBeVisible();
   await page.getByRole("textbox", { name: "Pesquisar ativo" }).fill("");
   await page.reload();
+  await navigateTo(page, "Posições");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const position = page.locator("tbody tr").first();
-  await expect(position.locator(".position-gain")).toContainText("400,00");
+  await expect(position.locator(".position-profit")).toContainText("400,00");
   await expect(position.locator(".position-gain > strong")).toHaveText("+23,53%");
-  await expect(position.locator(".gain-amount")).toContainText("400,00");
+  await expect(position.locator(".position-profit strong")).toContainText("400,00");
   await position.getByLabel("Ver detalhes de TEST", { exact: true }).click();
   await expect(position.locator(".position-details")).toContainText("+30%");
   await page
@@ -310,7 +327,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   await page
     .getByRole("button", { name: "Nova transação", exact: false })
     .click();
-  await page.getByLabel("Operação").selectOption("sell");
+  await page.getByRole("radio", { name: "Venda", exact: true }).check();
   await page.getByLabel("Ticker Yahoo").fill("TEST");
   await page.getByLabel("Quantidade", { exact: true }).fill("3");
   await page.getByLabel("Preço por unidade").fill("120");
@@ -324,7 +341,7 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
     .getByRole("button", { name: "Criar carteira", exact: true })
     .click();
   await page.getByLabel("Nome da carteira").fill("Longo prazo");
-  await page.getByRole("combobox", { name: /^Moeda/ }).selectOption("USD");
+  await page.getByRole("radio", { name: "USD", exact: true }).check();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Criar carteira", exact: true })
@@ -484,8 +501,9 @@ test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
   await expect(
     selectedPortfolio(page).filter({ hasText: "Carteira recuperada" }),
   ).toBeVisible();
-  await expect(page.getByText("Cotação em USD; carteira em EUR").filter({ visible: true })).toBeVisible();
   await expect(page.locator(".metric").nth(0)).toContainText("—");
+  await navigateTo(page, "Posições");
+  await expect(page.getByText("Cotação em USD; carteira em EUR").filter({ visible: true })).toBeVisible();
   await page.reload();
   await expect(
     selectedPortfolio(page).filter({ hasText: "Carteira recuperada" }),
@@ -538,9 +556,9 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   });
   await confirmCsvReview(page);
   const current = page.locator(".performance-current");
-  await expect(page.getByRole("button", { name: "Posições abertas", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Posições abertas", exact: true, includeHidden: true })).toHaveAttribute("aria-pressed", "true");
   await expect(current).toContainText("+41,18%");
-  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await choosePerformanceMode(page, "Rentabilidade total");
   await expect(current).toContainText("+38,64%");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
@@ -599,13 +617,13 @@ test("distinguir preço histórico zero de retorno atual zero", async ({ page })
 test("alternar ROI total e posições abertas com FIFO no resumo, histórico e impressão", async ({ page }, testInfo) => {
   await openLocal(page);
   await expect(page.locator(".performance-current")).toContainText("Indisponível");
-  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await choosePerformanceMode(page, "Rentabilidade total");
   await expect(page.locator(".performance-current")).toContainText("+0%");
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fifo.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await confirmCsvReview(page);
   const current = page.locator(".performance-current");
   await expect(current).toContainText("+25%");
-  await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
+  await choosePerformanceMode(page, "Posições abertas");
   await expect(current).toContainText("+23,53%");
   await expect(current).toContainText("custo FIFO");
   await expect(page.locator(".metric").nth(2)).toContainText("150,00");
@@ -622,7 +640,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(current).toBeVisible();
   await expect(page.getByRole("group", { name: "Tipo de rentabilidade" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
-  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await choosePerformanceMode(page, "Rentabilidade total");
   await expect(page.locator(".chart-readout")).toContainText("Seleciona uma data");
   await chart.focus();
   await chart.press("Home");
@@ -630,7 +648,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(current).toContainText("+25%");
   await page.getByLabel("Importar ficheiro CSV", { exact: true }).setInputFiles({ name: "fecho.csv", mimeType: "text/csv", buffer: Buffer.from("date,ticker,pricebuy,shares,type\n2024-01-15,TEST,140,15,sell") });
   await confirmCsvReview(page);
-  await page.getByRole("button", { name: "Posições abertas", exact: true }).click();
+  await choosePerformanceMode(page, "Posições abertas");
   await expect(current).toContainText("Indisponível");
   // Existing historical points remain available after the current position closes.
   await chart.focus();
@@ -638,7 +656,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".chart-readout")).toContainText("Indisponível");
   await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText("+23,53%");
-  await page.getByRole("button", { name: "Rentabilidade total", exact: true }).click();
+  await choosePerformanceMode(page, "Rentabilidade total");
   await expect(current).toContainText("+25%");
 });
 
@@ -674,7 +692,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   await expect(current).toContainText("+50%");
   await expect(page.locator(".performance .segments button")).toHaveText(["1D", "5D", "1M", "6M", "YTD", "1A", "Máximo"]);
   for (const mode of ["Posições abertas", "Rentabilidade total"]) {
-    await page.getByRole("button", { name: mode, exact: true }).click();
+    await choosePerformanceMode(page, mode as "Posições abertas" | "Rentabilidade total");
     for (const [period, expected] of [["1D", "+1,35%"], ["5D", "+7,14%"], ["1M", "+15,38%"], ["6M", "+25%"], ["YTD", "+36,36%"], ["1A", "+42,86%"], ["Máximo", "+50%"]]) {
       await page.getByRole("button", { name: period, exact: true }).click();
       await expect(current).toContainText(expected);
@@ -682,7 +700,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
       const axisLabels = page.locator(".performance .chart-date");
       if (period === "1D") {
         await expect(axisLabels).toHaveText(["10:00", "10:10", "10:20"]);
-        const path = await chart.locator("svg path").getAttribute("d");
+        const path = await chart.locator('svg path[fill="none"]').getAttribute("d");
         const coordinates = [...path!.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map((match) => Number(match[2]));
         expect(coordinates).toHaveLength(5);
         expect(coordinates[1]).toBeLessThan(coordinates[0]);
@@ -708,7 +726,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
       await expect(readout).toContainText(expected);
       await expect(page.locator(".performance")).not.toContainText(/S&P 500|índice/);
       await expect(chart).not.toHaveAttribute("aria-valuetext", /S&P 500/);
-      await expect(chart.locator("svg path")).toHaveCount(1);
+      await expect(chart.locator('svg path[fill="none"]')).toHaveCount(1);
       await expect(readout).toContainText(period === "1D" ? "Última observação" : "Atual");
       if (period === "1D") {
         await expect(chart).toHaveAttribute("aria-valuetext", /10:20.*UTC/);
@@ -734,7 +752,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   await expect(current).toContainText("YTD");
   await expect(current).toContainText("+36,36%");
   await expect(page.locator(".performance")).not.toContainText(/S&P 500|índice/);
-  await expect(chart.locator("svg path")).toHaveCount(1);
+  await expect(chart.locator('svg path[fill="none"]')).toHaveCount(1);
   await expect(current).toBeVisible();
   await expect(page.locator(".performance .segments")).toBeHidden();
   await page.emulateMedia({ media: "screen" });
@@ -782,7 +800,7 @@ test("1D preenche falhas curtas, identifica estimativas e mantém interrupções
   await chart.press("ArrowLeft");
   await expect(readout).toContainText("10:30");
   await expect(readout).toContainText("Indisponível");
-  expect((await chart.locator("svg path").getAttribute("d"))!.match(/M/g)).toHaveLength(2);
+  expect((await chart.locator('svg path[fill="none"]').getAttribute("d"))!.match(/M/g)).toHaveLength(2);
   await chart.press("End");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.locator(".performance").screenshot({ path: testInfo.outputPath("rentabilidade-1d-estimada.png") });
@@ -811,11 +829,11 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
   const toggle = actions.locator("summary");
   await toggle.focus();
   await toggle.press("Enter");
-  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeVisible();
+  await expect(page.locator(".data-actions").getByRole("button", { name: "Importar CSV", exact: true })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Restaurar cópia de segurança", exact: true })).toBeVisible();
   await toggle.press("Escape");
   await expect(toggle).toBeFocused();
-  await expect(page.getByRole("button", { name: "Importar CSV", exact: true })).toBeHidden();
+  await expect(page.locator(".data-actions").getByRole("button", { name: "Importar CSV", exact: true })).toBeHidden();
   await toggle.press("Enter");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar transações CSV", exact: true }).click();
@@ -827,7 +845,7 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
   await confirmCsvReview(page);
   const methodology = page.locator(".chart-methodology");
   const explanation = methodology.locator(".fine-print");
-  await expect(page.locator(".chart-limitations")).toBeVisible();
+  await expect(page.locator(".chart-limitations")).toContainText("Sem dividendos, comissões ou câmbio");
   const labels = await page.locator(".chart-date").evaluateAll((elements) => elements.map((element) => {
     const bounds = element.getBoundingClientRect();
     return { left: bounds.left, right: bounds.right };
@@ -908,7 +926,8 @@ test("barra inferior permite navegar e mantém o conteúdo acessível no telemó
     await expect(page.locator("#workspace-drawer")).not.toHaveAttribute("open");
   }
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  const lastAction = page.getByRole("button", { name: "Eliminar carteira", exact: true });
+  const lastAction = page.locator(".data-actions summary");
+  await lastAction.scrollIntoViewIfNeeded();
   await expect(lastAction).toBeInViewport();
   expect((await lastAction.boundingBox())!.y + (await lastAction.boundingBox())!.height).toBeLessThanOrEqual((await navigation.boundingBox())!.y);
   await navigation.getByRole("button", { name: "Posições", exact: true }).click();
@@ -1158,7 +1177,8 @@ test("eliminar a última carteira local mantém uma carteira vazia no navegador"
   await expect(page.locator("tbody tr")).toHaveCount(1);
   const original = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios[0].id);
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Eliminar carteira", exact: true }).click();
+  await page.locator(".data-actions summary").click();
+  await page.locator(".data-actions").getByRole("button", { name: "Eliminar carteira", exact: true }).click();
   await expect(page.locator(".portfolio-row")).toHaveCount(1);
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!).portfolios[0].id)).not.toBe(original);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!));
@@ -1256,7 +1276,8 @@ test("exposição sem composição permanece sem classificação e moeda incompa
       },
     }),
   );
-  await page.getByRole("button", { name: "Atualizar preços" }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
+  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
   await expect(chart).toContainText(
     "São necessárias cotações na moeda da carteira",
   );
@@ -1508,11 +1529,12 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
   const missing = rows.filter({ has: page.locator(".position-identity a", { hasText: /^MISSING/ }) });
   const fx = rows.filter({ has: page.locator(".position-identity a", { hasText: /^FX/ }) });
   await expect(zero.locator(".position-value strong")).toHaveText(/0,00/);
-  await expect(zero.locator(".position-gain")).toContainText("-10,00");
+  await expect(zero.locator(".position-profit")).toContainText("-10,00");
   await expect(missing.locator(".position-value strong")).toHaveText("—");
   await expect(missing.locator(".position-gain strong")).toHaveText("—");
   await expect(fx.locator(".position-value strong")).toHaveText("—");
   await expect(fx.locator(".position-quote")).toContainText("Cotação em USD; carteira em EUR");
+  await openListFilters(page, "posições");
   await page.getByRole("button", { name: "Ordenação descendente. Inverter ordem" }).click();
   expect((await tickers()).map((ticker) => ticker.trim())).toEqual(["ZERO", "AAA", "TEST", "FX", "MISSING"]);
   await page.getByLabel("Ordenar posições por").selectOption("return");
@@ -1524,12 +1546,14 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
     await expect(page.locator("th").first()).toHaveAttribute("aria-sort", "descending");
     await expect(rows.first()).toContainText("ZERO");
   }
+  await openListFilters(page, "posições");
   await page.getByRole("button", { name: "Fechadas 1", exact: true }).click();
   await expect(rows).toHaveCount(1);
-  await expect(rows.first().locator(".position-gain")).toContainText("+10,00");
+  await expect(rows.first().locator(".position-profit")).toContainText("+10,00");
   await expect(rows.first().locator(".position-gain")).toContainText("+50%");
   await page.getByRole("button", { name: "Todas 6", exact: true }).click();
   await expect(rows).toHaveCount(6);
+  if ((page.viewportSize()?.width ?? 1440) <= 800) { const toggles = page.locator(".list-filter-menu[open] > summary"); if (await toggles.count()) await toggles.first().click(); }
   await page.screenshot({ path: testInfo.outputPath("positions-all.png"), fullPage: true });
   const originalViewport = page.viewportSize()!;
   for (const width of [360, 390, 768, 900, 1024, 1440]) {
@@ -1553,9 +1577,9 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
   await disclosure.click();
   await expect(page.locator(".position-details dd").last()).toContainText("29/10/2026");
   if (testInfo.project.name === "mobile") {
-    await expect(page.locator(".position-mobile-detail").first()).toBeVisible();
-    await expect(page.locator(".position-mobile-detail").nth(1)).toContainText("100,00");
-    await expect(page.locator(".position-mobile-detail").nth(2)).toContainText("140,00");
+    await expect(page.locator(".position-additional-detail").first()).toBeVisible();
+    await expect(page.locator(".position-additional-detail").nth(1)).toContainText("100,00");
+    await expect(page.locator(".position-additional-detail").nth(2)).toContainText("140,00");
   }
   await disclosure.click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -1565,6 +1589,7 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
   await page.setViewportSize({ width: 1016, height: 794 });
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".position-details dd").last()).toBeVisible();
+  expect((await page.locator(".position-actions").boundingBox())!.width).toBeGreaterThan((await page.locator("table").boundingBox())!.width * 0.25);
   await expect(page.locator(".position-details")).toContainText("Ganho realizado");
   await expect(page.locator(".position-context")).toContainText("Todas · Pesquisa: “Teste”");
   await expect(page.locator(".position-filters")).toBeHidden();
@@ -1605,6 +1630,7 @@ test("filtrar e ordenar transações, consultar detalhes e preservar a validaç�
   await expect(rows).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Vendas 2", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Todas 5", exact: true }).click();
+  await openListFilters(page, "transações");
   await page.getByLabel("Ordenar transações por").selectOption("total");
   await expect(rows.first().locator(".transaction-total")).toContainText("1200,00");
   await page.getByRole("button", { name: "Ordenação descendente. Inverter ordem" }).click();
@@ -1616,6 +1642,7 @@ test("filtrar e ordenar transações, consultar detalhes e preservar a validaç�
     await expect(page.locator("th").nth(1)).toHaveAttribute("aria-sort", "descending");
     await expect(rows.first()).toContainText("TEST");
   }
+  if ((page.viewportSize()?.width ?? 1440) <= 800) { const toggles = page.locator(".list-filter-menu[open] > summary"); if (await toggles.count()) await toggles.first().click(); }
   const viewport = page.viewportSize()!;
   for (const width of [360, 390, 768, 900, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -1647,6 +1674,7 @@ test("filtrar e ordenar transações, consultar detalhes e preservar a validaç�
   await page.setViewportSize({ width: 1016, height: 794 });
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".transaction-explanation")).toBeVisible();
+  expect((await page.locator(".transaction-actions").boundingBox())!.width).toBeGreaterThan((await page.locator("table").boundingBox())!.width * 0.25);
   await expect(page.locator(".transaction-context")).toContainText("Compras · Pesquisa: “Alpha”");
   await expect(page.locator(".transaction-filters")).toBeHidden();
   await expect(page.getByRole("button", { name: "Remover AAA de 2024-01-02" })).toBeHidden();
@@ -1684,6 +1712,9 @@ test("acomodar totais elevados nos cartões e recuperar de um filtro sem vendas"
   for (const width of [360, 390]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.locator(".transactions-view").evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true);
+    const units = await page.locator(".transaction-mobile-description").boundingBox();
+    const total = await page.locator(".transaction-total").boundingBox();
+    expect(units!.y + units!.height).toBeLessThanOrEqual(total!.y);
     expect(await page.locator(".transaction-total > strong, .transaction-gain strong").evaluateAll((amounts) => amounts.every((amount) => {
       const range = document.createRange();
       range.selectNodeContents(amount);

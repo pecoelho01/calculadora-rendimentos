@@ -196,13 +196,17 @@ async function accountAction(page: Page, name: string) {
   if (name !== "Sair da conta") {
     await page.getByRole("link", { name: "Voltar às carteiras", exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Visão Geral", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
+}
+function authSurface(page: Page, title?: string) {
+  const surface = page.locator(".entry-auth-card, dialog.auth-dialog");
+  return title ? surface.filter({ has: page.getByRole("heading", { name: title, exact: true }) }) : surface;
 }
 async function login(page: Page, email = "ana@example.test", waitForCompletion = true) {
   if (await page.locator(".app-shell").count()) await openSidebar(page);
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
+  const dialog = authSurface(page, "Iniciar sessão");
   await dialog.getByLabel("Email", { exact: true }).fill(email);
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await dialog.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
@@ -280,7 +284,7 @@ test("conflito entre dispositivos preserva dados e exige recarga explícita", as
   await expect(page.getByRole("dialog", { name: "Renomear carteira" })).toBeVisible();
   expect(state.accounts[userA].portfolios[0].portfolio.name).toBe("Alterada noutro dispositivo");
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
-  await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+  await accountAction(page, "Recarregar dados da conta");
   await expect(selectedPortfolio(page).getByText("Alterada noutro dispositivo", { exact: true })).toBeVisible();
   await rename(page, "Alterada noutro dispositivo", "Nova tentativa");
   await expect(selectedPortfolio(page).getByText("Nova tentativa", { exact: true })).toBeVisible();
@@ -306,16 +310,16 @@ test("migração local explícita é repetível e conserva dados dos dois modos"
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(0);
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true }).click();
+  await accountAction(page, "Copiar carteiras locais para a conta");
   expect(state.requests).toHaveLength(0);
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true }).click();
+  await accountAction(page, "Copiar carteiras locais para a conta");
   await expect(page.locator(".portfolio-row")).toHaveCount(2);
   expect(state.requests[0].changes).toEqual([]);
   expect(state.requests[0].migration?.key).toMatch(/^[a-f0-9]{64}$/);
   expect(state.requests[0].migration?.portfolios).toEqual([localPortfolio]);
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true }).click();
+  await accountAction(page, "Copiar carteiras locais para a conta");
   await expect.poll(() => state.requests.length).toBe(2);
   await expect(page.getByText(/Carteiras locais copiadas para a conta/)).toBeVisible();
   await expect(page.locator(".portfolio-row")).toHaveCount(2);
@@ -329,7 +333,7 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
   const state = await setup(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  let dialog = authSurface(page, "Criar conta");
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await dialog.getByRole("button", { name: "Criar conta", exact: true }).click();
@@ -337,8 +341,8 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await expect(page.locator(".metrics")).toHaveCount(0);
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Recuperar acesso", exact: true });
+  await authSurface(page).getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
+  dialog = authSurface(page, "Recuperar acesso");
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
   await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
@@ -358,7 +362,7 @@ test("o parâmetro recovery isolado não autoriza alteração de palavra-passe",
   await page.goto("/?recovery=1");
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+  await expect(authSurface(page, "Definir nova palavra-passe")).toHaveCount(0);
   expect(state.authRequests.some((request) => request.body.password)).toBe(false);
   expect(new URL(page.url()).searchParams.has("recovery")).toBe(false);
 });
@@ -383,8 +387,8 @@ test("resposta pendente da conta não volta a apresentar dados depois de sair", 
 
 async function requestRecovery(page: Page) {
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Recuperar acesso", exact: true });
+  await authSurface(page).getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
+  const dialog = authSurface(page, "Recuperar acesso");
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
   await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
@@ -395,7 +399,7 @@ test("recuperação PKCE valida o verifier antes de definir palavra-passe", asyn
   await page.goto("/");
   await requestRecovery(page);
   await page.goto("/?recovery=1&code=recovery-test-code");
-  const dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
+  const dialog = authSurface(page, "Definir nova palavra-passe");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("recovered-password-test");
   await dialog.getByRole("button", { name: "Guardar palavra-passe", exact: true }).click();
@@ -407,14 +411,14 @@ test("recuperação PKCE valida o verifier antes de definir palavra-passe", asyn
   expect(new URL(page.url()).search).toBe("");
   await page.goto("/?code=recovery-test-code&recovery=1");
   await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(authSurface(page)).toHaveCount(0);
 });
 
 test("confirmação PKCE abre a conta sem autorizar formulário de recuperação", async ({ page }) => {
   const state = await setup(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  const dialog = authSurface(page, "Criar conta");
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await dialog.getByRole("button", { name: "Criar conta", exact: true }).click();
@@ -422,7 +426,7 @@ test("confirmação PKCE abre a conta sem autorizar formulário de recuperação
   expect(state.authRequests.find((request) => request.path.endsWith("/signup"))?.body.code_challenge_method).toBe("s256");
   await page.goto("/?code=confirmation-test-code&recovery=1");
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(authSurface(page)).toHaveCount(0);
   expect(new URL(page.url()).search).toBe("");
 });
 
@@ -433,7 +437,7 @@ test("recuperação PKCE válida não é apagada pela sessão anterior expirada"
   await page.evaluate(({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)), { key: authKey, expired: session(userA, -3600) });
   state.failRefresh = true;
   await page.goto("/?code=recovery-test-code&recovery=1");
-  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toBeVisible();
+  await expect(authSurface(page, "Definir nova palavra-passe")).toBeVisible();
   expect(state.authRequests.some((request) => request.grant === "refresh_token")).toBe(false);
   expect(state.authRequests.filter((request) => request.grant === "pkce")).toHaveLength(1);
 });
@@ -469,14 +473,14 @@ test("uma sessão recebida após a troca PKCE não herda o formulário de recupe
   }, { authKey, otherSession: session(userB) });
   await page.goto("/?code=recovery-test-code&recovery=1");
   await expect(selectedPortfolio(page).getByText("Carteira do Bruno", { exact: true })).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+  await expect(authSurface(page, "Definir nova palavra-passe")).toHaveCount(0);
 });
 
 async function openRecovery(page: Page) {
   await page.goto("/");
   await requestRecovery(page);
   await page.goto("/?code=recovery-test-code&recovery=1");
-  const dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
+  const dialog = authSurface(page, "Definir nova palavra-passe");
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -546,7 +550,7 @@ for (const signedIn of [false, true]) {
       const hash = new URLSearchParams({ access_token: attackerSession.access_token, refresh_token: attackerSession.refresh_token, expires_in: "3600", token_type: "bearer", type: "recovery" });
       await page.goto(transport === "fragmento" ? `/?recovery=1#${hash}` : `/?recovery=1&code=discarded-code&${hash}#access_token=discarded-fragment`);
       await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(authSurface(page)).toHaveCount(0);
       if (signedIn) {
         await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
         expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).user.id, authKey)).toBe(userA);
@@ -566,7 +570,7 @@ for (const signedIn of [false, true]) {
     const state = await setup(page, signedIn);
     await page.goto("/?code=unsolicited-code&recovery=1");
     await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(authSurface(page)).toHaveCount(0);
     expect(state.authRequests).toHaveLength(0);
     expect(new URL(page.url()).search).toBe("");
     if (signedIn) await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
@@ -585,7 +589,7 @@ test("query contaminada rejeita código PKCE válido sem consumir o verifier nem
   const beforeAuth = state.authRequests.length;
   await page.goto("/?preservar=1&code=recovery-test-code&recovery=1&access_token=synthetic&refresh_token=synthetic");
   await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true })).toHaveCount(0);
+  await expect(authSurface(page, "Definir nova palavra-passe")).toHaveCount(0);
   expect(state.authRequests).toHaveLength(beforeAuth);
   expect(await page.evaluate((key) => localStorage.getItem(`${key}-code-verifier`), authKey)).toBe(verifier);
   expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).access_token, authKey)).toBe(prior.access_token);
@@ -600,7 +604,7 @@ test("código com verifier incorreto é rejeitado sem alterar carteiras", async 
   await page.evaluate((key) => localStorage.setItem(`${key}-code-verifier`, JSON.stringify("wrong-verifier/recovery")), authKey);
   await page.goto("/?code=recovery-test-code&recovery=1");
   await expect(page.getByText(/Não foi possível validar esta ligação/)).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(authSurface(page)).toHaveCount(0);
   expect(state.authRequests.filter((request) => request.grant === "pkce")).toHaveLength(1);
   expect(await page.evaluate((key) => localStorage.getItem(key), authKey)).toBeNull();
   expect(state.requests).toHaveLength(0);
@@ -612,8 +616,8 @@ test("login pendente bloqueia fecho, Escape e reentrada até concluir", async ({
   state.delayAuthPath = "/token";
   await login(page, "ana@example.test", false);
   await expect.poll(() => state.authRequests.length).toBe(1);
-  const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
-  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  const dialog = authSurface(page, "Iniciar sessão");
+  await expect(dialog.locator(".auth-inline-back, .dialog-heading button")).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Email", { exact: true })).toBeDisabled();
@@ -647,18 +651,18 @@ test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes prote
   await page.goto("/");
   state.delayAuthPath = "/recover";
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
-  let dialog = page.getByRole("dialog");
+  await authSurface(page).getByRole("button", { name: "Esqueci a palavra-passe", exact: true }).click();
+  let dialog = authSurface(page);
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByRole("button", { name: "Enviar ligação", exact: true }).click();
   await expect.poll(() => state.authRequests.length).toBe(1);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  await expect(dialog.locator(".auth-inline-back, .dialog-heading button")).toBeDisabled();
   state.releaseAuth();
   await expect(dialog.getByText(/Se existir uma conta com este email/)).toBeVisible();
   await page.goto("/?code=recovery-test-code&recovery=1");
-  dialog = page.getByRole("dialog", { name: "Definir nova palavra-passe", exact: true });
+  dialog = authSurface(page, "Definir nova palavra-passe");
   await expect(dialog).toBeVisible();
   state.delayAuthPath = "/user";
   await dialog.getByLabel("Nova palavra-passe", { exact: true }).fill("new-password-test");
@@ -666,7 +670,7 @@ test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes prote
   await expect.poll(() => state.authRequests.some((request) => request.body.password === "new-password-test")).toBe(true);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  await expect(dialog.locator(".auth-inline-back, .dialog-heading button")).toBeDisabled();
   state.releaseAuth();
   await expect(page.getByText("Palavra-passe atualizada.", { exact: true })).toBeVisible();
   state.delayAuthPath = "/logout";
@@ -686,7 +690,7 @@ for (const storedSession of [false, true, "expired"] as const) {
     await login(page, "ana@example.test", false);
     await expect(page.getByText(/Este navegador não permite proteger os pedidos da conta/)).toBeVisible();
     expect(state.authRequests).toHaveLength(0);
-    await page.getByRole("button", { name: "Fechar", exact: true }).click();
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
     await expect(selectedPortfolio(page).getByText(localPortfolio.name, { exact: true })).toBeVisible();
   });
@@ -808,7 +812,9 @@ test("conta vazia permite criar a primeira carteira sem copiar dados locais", as
   const state = await setup(page, true);
   state.accounts[userA] = { version: 1, portfolios: [] };
   await page.goto("/");
+  await openAccountSettings(page);
   await expect(page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true })).toBeEnabled();
+  await page.getByRole("link", { name: "Voltar às carteiras", exact: true }).click();
   await expect(page.locator(".portfolio-row")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Adicionar transação", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Nova transação", exact: true })).toBeDisabled();
@@ -848,7 +854,8 @@ test("eliminar a última carteira da conta mantém a conta vazia após confirma�
   await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
   state.delayNextWrite = true;
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Eliminar carteira", exact: true }).click();
+  await page.locator(".data-actions summary").click();
+  await page.locator(".data-actions").getByRole("button", { name: "Eliminar carteira", exact: true }).click();
   await expect.poll(() => state.requests.length).toBe(1);
   expect(state.requests[0].changes).toEqual([
     { id: "remote-a", portfolio: null, expectedRevision: 3 },
@@ -880,14 +887,14 @@ test("recarregar conta limpa as pesquisas de todos os separadores e preserva os 
   ];
   await page.goto("/");
   const search = page.getByRole("textbox", { name: "Pesquisar ativo" });
-  for (const tab of ["Visão geral", "Posições", "Transações"]) {
+  for (const tab of ((page.viewportSize()?.width ?? 1440) <= 800 ? ["Posições", "Transações"] : ["Visão geral", "Posições", "Transações"])) {
     await navigateTo(page, new RegExp(`^${tab}`));
     await expect(page.getByRole("heading", { level: 1, name: new RegExp(`^${tab}$`, "i") })).toBeVisible();
     await search.fill("sem resultado");
   }
-  await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+  await accountAction(page, "Recarregar dados da conta");
   await expect(search).toHaveValue("");
-  for (const tab of ["Visão geral", "Posições", "Transações"]) {
+  for (const tab of ((page.viewportSize()?.width ?? 1440) <= 800 ? ["Posições", "Transações"] : ["Visão geral", "Posições", "Transações"])) {
     await navigateTo(page, new RegExp(`^${tab}`));
     await expect(search).toHaveValue("");
     await expect(page.locator("tbody tr")).toHaveCount(1);
@@ -924,7 +931,7 @@ for (const conflict of [false, true]) {
       await expect(page.getByText(/Esta carteira foi alterada noutro dispositivo/)).toBeVisible();
       await expect(rows).toHaveCount(2);
       expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(2);
-      await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+      await accountAction(page, "Recarregar dados da conta");
       await expect(page.getByRole("textbox", { name: "Pesquisar ativo" })).toHaveValue("");
     } else {
       await expect(rows).toHaveCount(1);
@@ -1110,13 +1117,13 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({ page }
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   await page.getByRole("button", { name: "Ativar tema escuro", exact: true }).click();
-  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(28, 38, 43)");
+  await expect(page.locator(".entry-card .entry-option").first()).toHaveCSS("background-color", "rgb(19, 32, 45)");
   await assertNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("entrada-tema-escuro.png"), fullPage: true });
   await login(page);
   await expect(page.locator(".local-badge")).toContainText("Modo conta");
   await openAccountSettings(page);
-  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(17, 23, 25)");
+  await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(19, 32, 45)");
   await expect(page.getByRole("button", { name: "Ativar tema claro", exact: true })).toBeVisible();
   await assertNoOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("conta-tema-escuro.png"), fullPage: true });
@@ -1126,7 +1133,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({ page }
   await accountAction(page, "Sair da conta");
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Ativar tema claro", exact: true }).click();
-  await expect(page.locator(".entry-card")).toHaveCSS("background-color", "rgb(246, 249, 250)");
+  await expect(page.locator(".entry-card .entry-option").first()).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await login(page);
   await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS("background-color", "rgb(255, 255, 255)");
@@ -1146,7 +1153,7 @@ test("sidebar local permite registo e login sem duplicar controlos no dashboard"
   await expect(page.locator("main .account-controls")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("sidebar-conta-local.png"), fullPage: true });
   await sidebar.getByRole("button", { name: "Criar conta", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  const dialog = authSurface(page, "Criar conta");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
   await login(page);
@@ -1182,7 +1189,7 @@ test("acesso direto às definições sem sessão permite continuar local e volta
   await expect(page.getByRole("button", { name: "Iniciar sessão", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sair da conta", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();
-  const registration = page.getByRole("dialog", { name: "Criar conta", exact: true });
+  const registration = authSurface(page, "Criar conta");
   await registration.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await registration.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
   await registration.getByRole("button", { name: "Criar conta", exact: true }).click();
@@ -1287,7 +1294,7 @@ test("revisão CSV da conta aguarda confirmação e conserva edições perante c
   await dialog.getByRole("button", { name: "Confirmar importação", exact: true }).click();
   await expect.poll(() => state.requests.length).toBe(1);
   await expect(dialog.getByLabel("Quantidade da linha 2", { exact: true })).toBeDisabled();
-  await expect(dialog.getByRole("button", { name: "Fechar", exact: true })).toBeDisabled();
+  await expect(dialog.locator(".auth-inline-back, .dialog-heading button")).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
   expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(0);
@@ -1356,7 +1363,7 @@ test("CAPTCHA mantém o nonce do documento após navegar para as definições da
   await page.locator(".account-actions").getByRole("button", { name: "Sair da conta", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Bem-vindo ao Rendimentos", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Iniciar sessão", exact: true });
+  const dialog = authSurface(page, "Iniciar sessão");
   await expect(dialog.getByText("Verificação de segurança simulada")).toBeVisible();
   expect(await page.locator('script[src*="challenges.cloudflare.com/turnstile/"]').evaluate((script) => (script as HTMLScriptElement).nonce)).toBe(documentNonce);
   await assertNoOverflow(page);
@@ -1376,7 +1383,7 @@ test("CAPTCHA expira e cada tentativa Auth exige um token novo", async ({ page }
   const state = await setup(page, false, false);
   await page.goto("/");
   await page.getByRole("button", { name: "Iniciar sessão", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = authSurface(page);
   const submit = dialog.getByRole("button", { name: "Iniciar sessão", exact: true });
   await dialog.getByLabel("Email", { exact: true }).fill("ana@example.test");
   await dialog.getByLabel("Palavra-passe", { exact: true }).fill("password-test");
@@ -1412,7 +1419,7 @@ test("CAPTCHA bloqueado permite repetir a verificação sem enviar Auth", async 
   await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", (route) => blockScript ? route.abort() : route.fallback());
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = authSurface(page);
   await expect(dialog.getByText(/Não foi possível concluir a verificação/)).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Criar conta", exact: true })).toBeDisabled();
   expect(state.authRequests).toHaveLength(0);
@@ -1445,4 +1452,23 @@ test("mudar de sessão durante envio de reautenticação descarta a conclusão a
   await expect(page.getByText(/Enviámos um código de confirmação/)).toHaveCount(0);
   expect(state.authRequests.filter((request) => request.body.password === "discarded-reauth-password-test")).toHaveLength(1);
   expect(state.authRequests.some((request) => request.body.nonce)).toBe(false);
+});
+
+test("definições mostram falhas de recarga e confirmação de cópia local", async ({ page }) => {
+  await setup(page, true);
+  await page.goto("/");
+  await expect(selectedPortfolio(page).getByText("Carteira da Ana", { exact: true })).toBeVisible();
+  await openAccountSettings(page);
+  let failReload = true;
+  await page.route("**/api/account", (route) => failReload && route.request().method() === "GET"
+    ? route.fulfill({ status: 503, json: { error: "Indisponível" } }) : route.fallback());
+  await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+  await expect(page.locator(".notice[role='alert']")).toContainText("Não foi possível aceder às carteiras da conta");
+  failReload = false;
+  await page.getByRole("button", { name: "Recarregar dados da conta", exact: true }).click();
+  await expect(page.locator(".account-save-status")).toHaveText("Guardado na conta");
+  await expect(page.locator(".notice")).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Copiar carteiras locais para a conta", exact: true }).click();
+  await expect(page.locator(".notice[role='status']")).toContainText("Carteiras locais copiadas para a conta");
 });
