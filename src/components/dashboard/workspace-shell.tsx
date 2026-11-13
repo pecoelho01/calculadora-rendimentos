@@ -8,6 +8,9 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
+  type PointerEvent,
+  type KeyboardEvent,
+  type MouseEvent,
 } from "react";
 import { Icon } from "../shared/icon";
 
@@ -17,11 +20,11 @@ const clampWidth = (width: number) =>
   Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width));
 
 const mobileQuery = "(max-width: 800px)";
-const subscribeMobile = (onChange: () => void) => {
+function subscribeMobile(onChange: () => void) {
   const query = window.matchMedia(mobileQuery);
   query.addEventListener("change", onChange);
   return () => query.removeEventListener("change", onChange);
-};
+}
 const getMobile = () => window.matchMedia(mobileQuery).matches;
 
 export function WorkspaceShell({
@@ -43,24 +46,32 @@ export function WorkspaceShell({
   const menuRef = useRef<HTMLButtonElement>(null);
 
   // Native dialog supplies focus containment, Escape and an inert background on mobile.
-  useEffect(() => {
-    const drawer = drawerRef.current!;
-    // Opening the desktop navigation during a resize must not steal focus from a form.
-    const focused = document.activeElement;
-    const restoreModalFocus = focused instanceof HTMLElement && Boolean(focused.closest("dialog:modal"));
-    drawer.close();
-    if (!mobile) drawer.show();
-    if (restoreModalFocus && focused.isConnected) focused.focus({ preventScroll: true });
-    const beforePrint = () => drawer.close();
-    const afterPrint = () => { if (!mobile) drawer.show(); };
-    window.addEventListener("beforeprint", beforePrint);
-    window.addEventListener("afterprint", afterPrint);
-    return () => {
+  useEffect(
+    function synchronizeDrawerDisplay() {
+      const drawer = drawerRef.current!;
+      // Opening the desktop navigation during a resize must not steal focus from a form.
+      const focused = document.activeElement;
+      const restoreModalFocus =
+        focused instanceof HTMLElement &&
+        Boolean(focused.closest("dialog:modal"));
       drawer.close();
-      window.removeEventListener("beforeprint", beforePrint);
-      window.removeEventListener("afterprint", afterPrint);
-    };
-  }, [mobile]);
+      if (!mobile) drawer.show();
+      if (restoreModalFocus && focused.isConnected)
+        focused.focus({ preventScroll: true });
+      const beforePrint = () => drawer.close();
+      const afterPrint = () => {
+        if (!mobile) drawer.show();
+      };
+      window.addEventListener("beforeprint", beforePrint);
+      window.addEventListener("afterprint", afterPrint);
+      return () => {
+        drawer.close();
+        window.removeEventListener("beforeprint", beforePrint);
+        window.removeEventListener("afterprint", afterPrint);
+      };
+    },
+    [mobile],
+  );
 
   function closeDrawer() {
     drawerRef.current?.close();
@@ -69,6 +80,67 @@ export function WorkspaceShell({
   const [width, setWidth] = useState(248);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; width: number } | null>(null);
+
+  function handleDrawerBackdropClick(event: MouseEvent<HTMLDialogElement>) {
+    if (!mobile || event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickedOutside =
+      event.clientX > rect.right ||
+      event.clientY > rect.bottom ||
+      event.clientX < rect.left ||
+      event.clientY < rect.top;
+    if (clickedOutside) closeDrawer();
+  }
+
+  function toggleSidebar() {
+    if (mobile) closeDrawer();
+    else setOpen((current) => !current);
+  }
+
+  function closeDrawerBeforeRename(event: KeyboardEvent<HTMLDivElement>) {
+    if (!mobile) return;
+    const portfolioLink = (event.target as Element).closest(".portfolio-link");
+    const renameShortcut =
+      event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+    if (portfolioLink && renameShortcut) closeDrawer();
+  }
+
+  function startSidebarResize(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { x: event.clientX, width };
+    setDragging(true);
+  }
+
+  function resizeSidebar(event: PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    const nextWidth = drag.current.width + event.clientX - drag.current.x;
+    setWidth(clampWidth(nextWidth));
+  }
+
+  function clearSidebarDrag() {
+    drag.current = null;
+    setDragging(false);
+  }
+
+  function finishSidebarResize(event: PointerEvent<HTMLDivElement>) {
+    clearSidebarDrag();
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    setWidth(function widthForKey(current) {
+      if (event.key === "Home") return MIN_WIDTH;
+      if (event.key === "End") return MAX_WIDTH;
+      const step = event.key === "ArrowLeft" ? -16 : 16;
+      return clampWidth(current + step);
+    });
+  }
 
   return (
     <div
@@ -87,8 +159,13 @@ export function WorkspaceShell({
           <Icon name="panel" />
         </button>
         <div className="mobile-workspace-title">
-          <span>rendimentos<span className="brand-dot">.</span></span>
-          <strong><span>{portfolioName}</span> {currency ? <small>{currency}</small> : null}</strong>
+          <span>
+            rendimentos<span className="brand-dot">.</span>
+          </span>
+          <strong>
+            <span>{portfolioName}</span>{" "}
+            {currency ? <small>{currency}</small> : null}
+          </strong>
         </div>
       </header>
       <dialog
@@ -97,32 +174,48 @@ export function WorkspaceShell({
         className="workspace-drawer no-print"
         role={mobile ? "dialog" : "presentation"}
         aria-label={mobile ? "Navegação e carteiras" : undefined}
-        onCancel={(event) => { event.preventDefault(); closeDrawer(); }}
-        onClick={(event) => {
-          if (mobile && event.target === event.currentTarget) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            if (event.clientX > rect.right || event.clientY > rect.bottom || event.clientX < rect.left || event.clientY < rect.top) closeDrawer();
-          }
+        onCancel={(event) => {
+          event.preventDefault();
+          closeDrawer();
         }}
+        onClick={handleDrawerBackdropClick}
       >
-        <aside id="workspace-sidebar" className="sidebar">
+        <aside
+          id="workspace-sidebar"
+          className="sidebar"
+        >
           <div className="sidebar-header">
-            <Link className="brand" href="/" aria-label="Rendimentos, início">
+            <Link
+              className="brand"
+              href="/"
+              aria-label="Rendimentos, início"
+            >
               <span className="brand-mark">
                 <Icon name="trend" />
               </span>
-              <span className="brand-name">rendimentos<span className="brand-dot">.</span></span>
+              <span className="brand-name">
+                rendimentos<span className="brand-dot">.</span>
+              </span>
             </Link>
             <button
               className="sidebar-toggle icon-button"
-              aria-label={mobile ? "Fechar menu" : open ? "Fechar sidebar" : "Abrir sidebar"}
-              title={mobile ? "Fechar menu" : open ? "Recolher navegação" : "Expandir navegação"}
+              aria-label={
+                mobile
+                  ? "Fechar menu"
+                  : open
+                    ? "Fechar sidebar"
+                    : "Abrir sidebar"
+              }
+              title={
+                mobile
+                  ? "Fechar menu"
+                  : open
+                    ? "Recolher navegação"
+                    : "Expandir navegação"
+              }
               aria-expanded={mobile || open}
               aria-controls="workspace-sidebar"
-              onClick={() => {
-                if (mobile) closeDrawer();
-                else setOpen((current) => !current);
-              }}
+              onClick={toggleSidebar}
             >
               <Icon name={mobile ? "close" : "panel"} />
             </button>
@@ -130,15 +223,20 @@ export function WorkspaceShell({
           <div
             className="sidebar-content"
             onContextMenuCapture={(event) => {
-              if (mobile && (event.target as Element).closest(".portfolio-link")) closeDrawer();
+              if (
+                mobile &&
+                (event.target as Element).closest(".portfolio-link")
+              )
+                closeDrawer();
             }}
-            onKeyDownCapture={(event) => {
-              if (mobile && (event.target as Element).closest(".portfolio-link") && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) closeDrawer();
-            }}
+            onKeyDownCapture={closeDrawerBeforeRename}
             onClickCapture={(event) => {
-              if (mobile && (event.target as Element).closest("button, a")) closeDrawer();
+              if (mobile && (event.target as Element).closest("button, a"))
+                closeDrawer();
             }}
-          >{sidebar}</div>
+          >
+            {sidebar}
+          </div>
           <div
             className="sidebar-resizer"
             role="separator"
@@ -150,48 +248,12 @@ export function WorkspaceShell({
             aria-valuenow={width}
             aria-valuetext={`${width} píxeis`}
             aria-controls="workspace-sidebar"
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              event.preventDefault();
-              event.currentTarget.focus();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              drag.current = { x: event.clientX, width };
-              setDragging(true);
-            }}
-            onPointerMove={(event) => {
-              if (drag.current)
-                setWidth(
-                  clampWidth(drag.current.width + event.clientX - drag.current.x),
-                );
-            }}
-            onPointerUp={(event) => {
-              drag.current = null;
-              setDragging(false);
-              if (event.currentTarget.hasPointerCapture(event.pointerId))
-                event.currentTarget.releasePointerCapture(event.pointerId);
-            }}
-            onLostPointerCapture={() => {
-              drag.current = null;
-              setDragging(false);
-            }}
-            onPointerCancel={() => {
-              drag.current = null;
-              setDragging(false);
-            }}
-            onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
-                return;
-              event.preventDefault();
-              setWidth((current) =>
-                event.key === "Home"
-                  ? MIN_WIDTH
-                  : event.key === "End"
-                    ? MAX_WIDTH
-                    : clampWidth(
-                        current + (event.key === "ArrowLeft" ? -16 : 16),
-                      ),
-              );
-            }}
+            onPointerDown={startSidebarResize}
+            onPointerMove={resizeSidebar}
+            onPointerUp={finishSidebarResize}
+            onLostPointerCapture={clearSidebarDrag}
+            onPointerCancel={clearSidebarDrag}
+            onKeyDown={resizeSidebarWithKeyboard}
           />
         </aside>
       </dialog>
