@@ -52,6 +52,185 @@ function closeDetailsOnEscape(event: KeyboardEvent<HTMLDetailsElement>) {
   event.currentTarget.querySelector("summary")?.focus();
 }
 
+function money(currency: Currency, value: number | null, signed = false) {
+  return value === null
+    ? "—"
+    : value.toLocaleString("pt-PT", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+        signDisplay: signed ? "exceptZero" : "auto",
+      });
+}
+const percent = (value: number | null) =>
+  value === null
+    ? "—"
+    : `${value.toLocaleString("pt-PT", { maximumFractionDigits: 2, signDisplay: "exceptZero" })}%`;
+const quantity = (value: number) =>
+  value.toLocaleString("pt-PT", { maximumFractionDigits: 8 });
+
+function PositionDetails({
+  position,
+  currency,
+  quoteStatus,
+  fullDate,
+}: {
+  position: Position;
+  currency: Currency;
+  quoteStatus: string;
+  fullDate?: string;
+}) {
+  const closed = position.shares === 0;
+  return (
+    <details
+      className="position-details"
+      onKeyDown={closeDetailsOnEscape}
+    >
+      <summary aria-label={`Ver detalhes de ${position.ticker}`}>
+        <span
+          className="list-more"
+          aria-hidden="true"
+        >
+          ···
+        </span>
+        <Icon name="chevron" />
+      </summary>
+      <dl className="list-detail-panel">
+        <div className="position-additional-detail">
+          <dt>Quantidade</dt>
+          <dd>
+            {quantity(position.shares)}{" "}
+            {position.shares === 1 ? "unidade" : "unidades"}
+          </dd>
+        </div>
+        <div className="position-additional-detail">
+          <dt>Custo médio FIFO</dt>
+          <dd>{closed ? "—" : money(currency, position.average)}</dd>
+        </div>
+        <div className="position-additional-detail">
+          <dt>Cotação</dt>
+          <dd>
+            {money(currency, position.price)}
+            <small>{quoteStatus}</small>
+          </dd>
+        </div>
+        <div>
+          <dt>Ganho realizado</dt>
+          <dd className={gainClass(position.realized)}>
+            {money(currency, position.realized, true)}{" "}
+            <span>{percent(position.realizedPercent)}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Data da cotação</dt>
+          <dd>{fullDate ? `${fullDate} (Lisboa)` : "Indisponível"}</dd>
+        </div>
+      </dl>
+    </details>
+  );
+}
+
+function validQuoteDate(asOf: string | null | undefined) {
+  const date = asOf ? new Date(asOf) : null;
+  return date && Number.isFinite(date.getTime()) ? date : null;
+}
+
+function PositionRow({
+  position,
+  market,
+  currency,
+  loading,
+}: {
+  position: Position;
+  market: MarketData;
+  currency: Currency;
+  loading: boolean;
+}) {
+  const closed = position.shares === 0;
+  const gain = closed ? position.realized : position.unrealized;
+  const gainPercent = positionReturn(position);
+  const asOf = market[position.ticker]?.asOf;
+  const validDate = validQuoteDate(asOf);
+  const fullDate = validDate?.toLocaleString("pt-PT", {
+    timeZone: "Europe/Lisbon",
+  });
+  const quoteStatus = positionQuoteStatus(position, loading, validDate);
+  const hasWideValues =
+    Math.max(
+      money(currency, position.value).length,
+      money(currency, gain, true).length,
+    ) > 18 || quantity(position.shares).length > 12;
+
+  return (
+    <tr
+      className={`${closed ? "position-closed" : ""} ${hasWideValues ? "position-wide-values" : ""}`}
+    >
+      <td className="position-asset">
+        <div className="asset-cell">
+          <span
+            className="asset-monogram"
+            aria-hidden="true"
+          >
+            {position.ticker.charAt(0)}
+          </span>
+          <div className="position-identity">
+            <a
+              href={`https://finance.yahoo.com/quote/${encodeURIComponent(position.ticker)}`}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${position.ticker} no Yahoo Finance (abre num novo separador)`}
+            >
+              {position.ticker} <Icon name="external" />
+            </a>
+            <small>{position.name}</small>
+            <small className="position-mobile-units">
+              {quantity(position.shares)}{" "}
+              {position.shares === 1 ? "unidade" : "unidades"}
+            </small>
+          </div>
+          {closed ? <span className="position-badge">Fechada</span> : null}
+        </div>
+      </td>
+      <td className="position-holding">
+        <span className="position-mobile-label">Unidades</span>
+        <strong>{quantity(position.shares)}</strong>
+      </td>
+      <td className="position-quote">
+        <span title={quoteStatus}>{money(currency, position.price)}</span>
+        {position.issue ? (
+          <small className="quote-issue">{position.issue}</small>
+        ) : null}
+      </td>
+      <td className="position-value">
+        <span className="position-mobile-label">Valor atual</span>
+        <strong>{money(currency, position.value)}</strong>
+        {position.issue && !closed ? (
+          <small className="position-mobile-label">{position.issue}</small>
+        ) : null}
+      </td>
+      <td className={`position-gain ${gainClass(gain)}`}>
+        <span className="position-mobile-label">
+          {closed ? "Rentabilidade realizada" : "Rentabilidade"}
+        </span>
+        <strong className="gain-percent">{percent(gainPercent)}</strong>
+      </td>
+      <td className={`position-profit ${gainClass(gain)}`}>
+        <span className="position-mobile-label">Ganho</span>
+        <strong>{money(currency, gain, true)}</strong>
+      </td>
+      <td className="position-actions">
+        {" "}
+        <PositionDetails
+          position={position}
+          currency={currency}
+          quoteStatus={quoteStatus}
+          fullDate={fullDate}
+        />
+      </td>
+    </tr>
+  );
+}
+
 export function PositionsTable({
   positions,
   market,
@@ -81,21 +260,6 @@ export function PositionsTable({
     closed: positions.filter((position) => position.shares === 0).length,
     all: positions.length,
   };
-  const money = (value: number | null, signed = false) =>
-    value === null
-      ? "—"
-      : value.toLocaleString("pt-PT", {
-          style: "currency",
-          currency,
-          maximumFractionDigits: 2,
-          signDisplay: signed ? "exceptZero" : "auto",
-        });
-  const percent = (value: number | null) =>
-    value === null
-      ? "—"
-      : `${value.toLocaleString("pt-PT", { maximumFractionDigits: 2, signDisplay: "exceptZero" })}%`;
-  const quantity = (value: number) =>
-    value.toLocaleString("pt-PT", { maximumFractionDigits: 8 });
   const normalizedSearch = search.toLowerCase();
   const filteredPositions = positions.filter((position) => {
     const matchesState =
@@ -107,40 +271,38 @@ export function PositionsTable({
 
     return matchesState && matchesSearch;
   });
-  const visiblePositions = filteredPositions.sort(
-    (leftPosition, rightPosition) => {
-      let comparison: number;
-      if (sort === "asset") {
-        comparison = leftPosition.ticker.localeCompare(
-          rightPosition.ticker,
-          "pt-PT",
-        );
-      } else {
-        const leftValue =
-          sort === "value" ? leftPosition.value : positionReturn(leftPosition);
-        const rightValue =
-          sort === "value"
-            ? rightPosition.value
-            : positionReturn(rightPosition);
 
-        // Missing observations always follow known values, including a valid zero.
-        if (leftValue === null) {
-          return rightValue === null
-            ? leftPosition.ticker.localeCompare(rightPosition.ticker)
-            : 1;
-        }
-        if (rightValue === null) return -1;
-
-        comparison = leftValue - rightValue;
-      }
-
-      const directedComparison = direction === "asc" ? comparison : -comparison;
-      return (
-        directedComparison ||
-        leftPosition.ticker.localeCompare(rightPosition.ticker)
+  function comparePositions(leftPosition: Position, rightPosition: Position) {
+    let comparison: number;
+    if (sort === "asset") {
+      comparison = leftPosition.ticker.localeCompare(
+        rightPosition.ticker,
+        "pt-PT",
       );
-    },
-  );
+    } else {
+      const leftValue =
+        sort === "value" ? leftPosition.value : positionReturn(leftPosition);
+      const rightValue =
+        sort === "value" ? rightPosition.value : positionReturn(rightPosition);
+
+      // Missing observations always follow known values, including a valid zero.
+      if (leftValue === null) {
+        return rightValue === null
+          ? leftPosition.ticker.localeCompare(rightPosition.ticker)
+          : 1;
+      }
+      if (rightValue === null) return -1;
+
+      comparison = leftValue - rightValue;
+    }
+
+    const directedComparison = direction === "asc" ? comparison : -comparison;
+    return (
+      directedComparison ||
+      leftPosition.ticker.localeCompare(rightPosition.ticker)
+    );
+  }
+  const visiblePositions = filteredPositions.sort(comparePositions);
   const gainHeading = {
     closed: "Ganho realizado",
     all: "Ganho",
@@ -270,147 +432,15 @@ export function PositionsTable({
             </tr>
           </thead>
           <tbody>
-            {visiblePositions.map((position) => {
-              const closed = position.shares === 0;
-              const gain = closed ? position.realized : position.unrealized;
-              const gainPercent = positionReturn(position);
-              const asOf = market[position.ticker]?.asOf;
-              const date = asOf ? new Date(asOf) : null;
-              const validDate =
-                date && Number.isFinite(date.getTime()) ? date : null;
-              const fullDate = validDate?.toLocaleString("pt-PT", {
-                timeZone: "Europe/Lisbon",
-              });
-              const quoteStatus = positionQuoteStatus(
-                position,
-                loading,
-                validDate,
-              );
-              const hasWideValues =
-                Math.max(
-                  money(position.value).length,
-                  money(gain, true).length,
-                ) > 18 || quantity(position.shares).length > 12;
-
-              return (
-                <tr
-                  key={position.ticker}
-                  className={`${closed ? "position-closed" : ""} ${hasWideValues ? "position-wide-values" : ""}`}
-                >
-                  <td className="position-asset">
-                    <div className="asset-cell">
-                      <span
-                        className="asset-monogram"
-                        aria-hidden="true"
-                      >
-                        {position.ticker.charAt(0)}
-                      </span>
-                      <div className="position-identity">
-                        <a
-                          href={`https://finance.yahoo.com/quote/${encodeURIComponent(position.ticker)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`${position.ticker} no Yahoo Finance (abre num novo separador)`}
-                        >
-                          {position.ticker} <Icon name="external" />
-                        </a>
-                        <small>{position.name}</small>
-                        <small className="position-mobile-units">
-                          {quantity(position.shares)}{" "}
-                          {position.shares === 1 ? "unidade" : "unidades"}
-                        </small>
-                      </div>
-                      {closed ? (
-                        <span className="position-badge">Fechada</span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="position-holding">
-                    <span className="position-mobile-label">Unidades</span>
-                    <strong>{quantity(position.shares)}</strong>
-                  </td>
-                  <td className="position-quote">
-                    <span title={quoteStatus}>{money(position.price)}</span>
-                    {position.issue ? (
-                      <small className="quote-issue">{position.issue}</small>
-                    ) : null}
-                  </td>
-                  <td className="position-value">
-                    <span className="position-mobile-label">Valor atual</span>
-                    <strong>{money(position.value)}</strong>
-                    {position.issue && !closed ? (
-                      <small className="position-mobile-label">
-                        {position.issue}
-                      </small>
-                    ) : null}
-                  </td>
-                  <td className={`position-gain ${gainClass(gain)}`}>
-                    <span className="position-mobile-label">
-                      {closed ? "Rentabilidade realizada" : "Rentabilidade"}
-                    </span>
-                    <strong className="gain-percent">
-                      {percent(gainPercent)}
-                    </strong>
-                  </td>
-                  <td className={`position-profit ${gainClass(gain)}`}>
-                    <span className="position-mobile-label">Ganho</span>
-                    <strong>{money(gain, true)}</strong>
-                  </td>
-                  <td className="position-actions">
-                    {" "}
-                    <details
-                      className="position-details"
-                      onKeyDown={closeDetailsOnEscape}
-                    >
-                      <summary
-                        aria-label={`Ver detalhes de ${position.ticker}`}
-                      >
-                        <span
-                          className="list-more"
-                          aria-hidden="true"
-                        >
-                          ···
-                        </span>
-                        <Icon name="chevron" />
-                      </summary>
-                      <dl className="list-detail-panel">
-                        <div className="position-additional-detail">
-                          <dt>Quantidade</dt>
-                          <dd>
-                            {quantity(position.shares)}{" "}
-                            {position.shares === 1 ? "unidade" : "unidades"}
-                          </dd>
-                        </div>
-                        <div className="position-additional-detail">
-                          <dt>Custo médio FIFO</dt>
-                          <dd>{closed ? "—" : money(position.average)}</dd>
-                        </div>
-                        <div className="position-additional-detail">
-                          <dt>Cotação</dt>
-                          <dd>
-                            {money(position.price)}
-                            <small>{quoteStatus}</small>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Ganho realizado</dt>
-                          <dd className={gainClass(position.realized)}>
-                            {money(position.realized, true)}{" "}
-                            <span>{percent(position.realizedPercent)}</span>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Data da cotação</dt>
-                          <dd>
-                            {fullDate ? `${fullDate} (Lisboa)` : "Indisponível"}
-                          </dd>
-                        </div>
-                      </dl>
-                    </details>
-                  </td>
-                </tr>
-              );
-            })}
+            {visiblePositions.map((position) => (
+              <PositionRow
+                key={position.ticker}
+                position={position}
+                market={market}
+                currency={currency}
+                loading={loading}
+              />
+            ))}
           </tbody>
         </table>
       ) : (

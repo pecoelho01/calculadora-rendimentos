@@ -7,6 +7,7 @@ import { SortableHeading } from "./sortable-heading";
 
 type Filter = "all" | "buy" | "sell";
 type Sort = "date" | "asset" | "total";
+type OrderRow = { order: Order; registrationIndex: number; total: number };
 const filterNames = { all: "Todas", buy: "Compras", sell: "Vendas" };
 const sortNames = { date: "Data", asset: "Ativo", total: "Total" };
 const monthFormat = new Intl.DateTimeFormat("pt-PT", {
@@ -22,6 +23,190 @@ function closeDetailsOnEscape(event: KeyboardEvent<HTMLDetailsElement>) {
   event.preventDefault();
   event.currentTarget.open = false;
   event.currentTarget.querySelector("summary")?.focus();
+}
+
+function money(currency: Currency, value: number | null, signed = false) {
+  return value === null
+    ? "—"
+    : value.toLocaleString("pt-PT", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+        signDisplay: signed ? "exceptZero" : "auto",
+      });
+}
+const percent = (value: number | null) =>
+  value === null
+    ? "—"
+    : `${value.toLocaleString("pt-PT", { maximumFractionDigits: 2, signDisplay: "exceptZero" })}%`;
+
+function TransactionDetails({
+  order,
+  result,
+  currency,
+  onDelete,
+}: {
+  order: Order;
+  result: OrderGain;
+  currency: Currency;
+  onDelete: (id: string) => void;
+}) {
+  const formattedGain = money(currency, result.gain, true);
+  const remaining =
+    result.shares === 0
+      ? "Lote fechado"
+      : `${quantity(result.shares)} em carteira`;
+  return (
+    <details
+      className="transaction-details"
+      onKeyDown={closeDetailsOnEscape}
+    >
+      <summary aria-label={`Ver detalhes de ${order.ticker} de ${order.date}`}>
+        <span
+          className="list-more"
+          aria-hidden="true"
+        >
+          ···
+        </span>
+        <Icon name="chevron" />
+      </summary>
+      <div className="list-detail-panel">
+        <dl className="transaction-mobile-detail">
+          <div>
+            <dt>Quantidade</dt>
+            <dd>
+              {quantity(order.shares)}{" "}
+              {order.shares === 1 ? "unidade" : "unidades"}
+            </dd>
+          </div>
+          <div>
+            <dt>Preço por unidade</dt>
+            <dd>{money(currency, order.pricebuy)}</dd>
+          </div>
+        </dl>
+        <p className="transaction-detail-result">
+          <strong>{formattedGain}</strong> · {percent(result.percent)}
+          <br />
+          {order.type === "sell"
+            ? "Ganho realizado"
+            : `Ganho total da compra · ${remaining}`}
+        </p>
+        <p className="transaction-explanation">
+          {order.type === "buy"
+            ? "Ganho total do lote: inclui o ganho realizado e o não realizado, em percentagem do custo original da compra."
+            : "Ganho realizado nesta venda, em percentagem do custo das unidades vendidas."}
+        </p>
+        <button
+          className="delete-button no-print"
+          aria-label={`Remover ${order.ticker} de ${order.date}`}
+          onClick={() => onDelete(order.id)}
+        >
+          Remover transação
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function TransactionRow({
+  order,
+  total,
+  result,
+  currency,
+  onDelete,
+}: {
+  order: Order;
+  total: number;
+  result: OrderGain;
+  currency: Currency;
+  onDelete: (id: string) => void;
+}) {
+  const formattedTotal = money(currency, total);
+  const formattedGain = money(currency, result.gain, true);
+  let gainClass = "";
+  if (result.gain !== null && result.gain !== 0) {
+    gainClass = result.gain > 0 ? "positive" : "negative";
+  }
+  const remaining =
+    result.shares === 0
+      ? "Lote fechado"
+      : `${quantity(result.shares)} em carteira`;
+  const date = new Date(`${order.date}T00:00:00Z`);
+  const formattedDate = `${date.getUTCDate()} ${monthFormat.format(date)} ${date.getUTCFullYear()}`;
+  return (
+    <tr
+      className={
+        formattedTotal.length > 14 ? "transaction-wide-total" : undefined
+      }
+    >
+      <td className="transaction-date">
+        <time dateTime={order.date}>{formattedDate}</time>
+      </td>
+      <td className="transaction-asset">
+        <div className="transaction-identity">
+          <span
+            className="asset-monogram"
+            aria-hidden="true"
+          >
+            {order.ticker.charAt(0)}
+          </span>
+          <div>
+            <strong>{order.ticker}</strong>
+            <small className="transaction-name">{order.name}</small>
+            <small className="transaction-mobile-description">
+              {quantity(order.shares)} un. × {money(currency, order.pricebuy)}
+            </small>
+          </div>
+        </div>
+      </td>
+      <td className="transaction-operation">
+        <span className={`order-badge ${order.type}`}>
+          {order.type === "buy" ? "Compra" : "Venda"}
+        </span>
+      </td>
+      <td className="transaction-units">
+        <span>{quantity(order.shares)}</span>
+      </td>
+      <td className="transaction-price">{money(currency, order.pricebuy)}</td>
+      <td className="transaction-total">
+        <span className="transaction-mobile-label">Total</span>
+        <strong
+          className={
+            formattedTotal.length > 24 ? "transaction-long-amount" : undefined
+          }
+        >
+          {formattedTotal}
+        </strong>
+      </td>
+      <td className="transaction-gain">
+        <span className="transaction-mobile-label">Ganho</span>
+        <span className={gainClass}>
+          <strong
+            className={
+              formattedGain.length > 24 ? "transaction-long-amount" : undefined
+            }
+          >
+            {formattedGain}
+          </strong>
+          <span className="gain-percent">{percent(result.percent)}</span>
+        </span>
+        <small className="transaction-result-kind">
+          {order.type === "sell"
+            ? "Realizado"
+            : `Total da compra · ${remaining}`}
+        </small>
+      </td>
+      <td className="transaction-actions">
+        {" "}
+        <TransactionDetails
+          order={order}
+          result={result}
+          currency={currency}
+          onDelete={onDelete}
+        />
+      </td>
+    </tr>
+  );
 }
 
 export function TransactionsTable({
@@ -53,19 +238,6 @@ export function TransactionsTable({
     buy: orders.filter((order) => order.type === "buy").length,
     sell: orders.filter((order) => order.type === "sell").length,
   };
-  const money = (value: number | null, signed = false) =>
-    value === null
-      ? "—"
-      : value.toLocaleString("pt-PT", {
-          style: "currency",
-          currency,
-          maximumFractionDigits: 2,
-          signDisplay: signed ? "exceptZero" : "auto",
-        });
-  const percent = (value: number | null) =>
-    value === null
-      ? "—"
-      : `${value.toLocaleString("pt-PT", { maximumFractionDigits: 2, signDisplay: "exceptZero" })}%`;
   const normalizedSearch = search.toLowerCase();
   const orderRows = orders.map((order, registrationIndex) => ({
     order,
@@ -80,7 +252,8 @@ export function TransactionsTable({
 
     return matchesType && matchesSearch;
   });
-  const visibleOrders = filteredOrders.sort((left, right) => {
+
+  function compareOrders(left: OrderRow, right: OrderRow) {
     let comparison: number;
     if (sort === "date") {
       comparison = left.order.date.localeCompare(right.order.date);
@@ -98,7 +271,8 @@ export function TransactionsTable({
       newestFirst ||
       left.registrationIndex - right.registrationIndex
     );
-  });
+  }
+  const visibleOrders = filteredOrders.sort(compareOrders);
   const emptyFilterMessage =
     filter === "buy"
       ? "Não tens compras registadas."
@@ -225,149 +399,16 @@ export function TransactionsTable({
             </tr>
           </thead>
           <tbody>
-            {visibleOrders.map(({ order, total }) => {
-              const result = orderGains.get(order.id)!;
-              const formattedTotal = money(total);
-              const formattedGain = money(result.gain, true);
-              let gainClass = "";
-              if (result.gain !== null && result.gain !== 0) {
-                gainClass = result.gain > 0 ? "positive" : "negative";
-              }
-              const remaining =
-                result.shares === 0
-                  ? "Lote fechado"
-                  : `${quantity(result.shares)} em carteira`;
-              const date = new Date(`${order.date}T00:00:00Z`);
-              const formattedDate = `${date.getUTCDate()} ${monthFormat.format(date)} ${date.getUTCFullYear()}`;
-              return (
-                <tr
-                  key={order.id}
-                  className={
-                    formattedTotal.length > 14
-                      ? "transaction-wide-total"
-                      : undefined
-                  }
-                >
-                  <td className="transaction-date">
-                    <time dateTime={order.date}>{formattedDate}</time>
-                  </td>
-                  <td className="transaction-asset">
-                    <div className="transaction-identity">
-                      <span
-                        className="asset-monogram"
-                        aria-hidden="true"
-                      >
-                        {order.ticker.charAt(0)}
-                      </span>
-                      <div>
-                        <strong>{order.ticker}</strong>
-                        <small className="transaction-name">{order.name}</small>
-                        <small className="transaction-mobile-description">
-                          {quantity(order.shares)} un. × {money(order.pricebuy)}
-                        </small>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="transaction-operation">
-                    <span className={`order-badge ${order.type}`}>
-                      {order.type === "buy" ? "Compra" : "Venda"}
-                    </span>
-                  </td>
-                  <td className="transaction-units">
-                    <span>{quantity(order.shares)}</span>
-                  </td>
-                  <td className="transaction-price">{money(order.pricebuy)}</td>
-                  <td className="transaction-total">
-                    <span className="transaction-mobile-label">Total</span>
-                    <strong
-                      className={
-                        formattedTotal.length > 24
-                          ? "transaction-long-amount"
-                          : undefined
-                      }
-                    >
-                      {formattedTotal}
-                    </strong>
-                  </td>
-                  <td className="transaction-gain">
-                    <span className="transaction-mobile-label">Ganho</span>
-                    <span className={gainClass}>
-                      <strong
-                        className={
-                          formattedGain.length > 24
-                            ? "transaction-long-amount"
-                            : undefined
-                        }
-                      >
-                        {formattedGain}
-                      </strong>
-                      <span className="gain-percent">
-                        {percent(result.percent)}
-                      </span>
-                    </span>
-                    <small className="transaction-result-kind">
-                      {order.type === "sell"
-                        ? "Realizado"
-                        : `Total da compra · ${remaining}`}
-                    </small>
-                  </td>
-                  <td className="transaction-actions">
-                    {" "}
-                    <details
-                      className="transaction-details"
-                      onKeyDown={closeDetailsOnEscape}
-                    >
-                      <summary
-                        aria-label={`Ver detalhes de ${order.ticker} de ${order.date}`}
-                      >
-                        <span
-                          className="list-more"
-                          aria-hidden="true"
-                        >
-                          ···
-                        </span>
-                        <Icon name="chevron" />
-                      </summary>
-                      <div className="list-detail-panel">
-                        <dl className="transaction-mobile-detail">
-                          <div>
-                            <dt>Quantidade</dt>
-                            <dd>
-                              {quantity(order.shares)}{" "}
-                              {order.shares === 1 ? "unidade" : "unidades"}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Preço por unidade</dt>
-                            <dd>{money(order.pricebuy)}</dd>
-                          </div>
-                        </dl>
-                        <p className="transaction-detail-result">
-                          <strong>{formattedGain}</strong> ·{" "}
-                          {percent(result.percent)}
-                          <br />
-                          {order.type === "sell"
-                            ? "Ganho realizado"
-                            : `Ganho total da compra · ${remaining}`}
-                        </p>
-                        <p className="transaction-explanation">
-                          {order.type === "buy"
-                            ? "Ganho total do lote: inclui o ganho realizado e o não realizado, em percentagem do custo original da compra."
-                            : "Ganho realizado nesta venda, em percentagem do custo das unidades vendidas."}
-                        </p>
-                        <button
-                          className="delete-button no-print"
-                          aria-label={`Remover ${order.ticker} de ${order.date}`}
-                          onClick={() => onDelete(order.id)}
-                        >
-                          Remover transação
-                        </button>
-                      </div>
-                    </details>
-                  </td>
-                </tr>
-              );
-            })}
+            {visibleOrders.map(({ order, total }) => (
+              <TransactionRow
+                key={order.id}
+                order={order}
+                total={total}
+                result={orderGains.get(order.id)!}
+                currency={currency}
+                onDelete={onDelete}
+              />
+            ))}
           </tbody>
         </table>
       ) : (
