@@ -46,6 +46,9 @@ Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito 
 - Preferir condições explícitas e retornos antecipados quando reduzirem a profundidade de indentação.
 - Evitar ternários aninhados, encadeamentos difíceis de acompanhar e várias operações independentes na mesma expressão.
 - Manter o JSX centrado na apresentação. Colocar cálculos de domínio nos módulos existentes e extrair lógica interativa quando necessário.
+- Reservar arrow functions para callbacks curtos e simples. Preferir funções nomeadas com `function` para lógica extensa, handlers com várias etapas e operações autónomas.
+- Extrair callbacks extensos do JSX e corpos grandes de `map` para funções ou componentes com responsabilidade clara. Dar nomes às operações e reduzir o aninhamento; trocar apenas a sintaxe de uma arrow extensa não resolve a legibilidade.
+- Nos hooks, preservar closures, dependências, ordem de execução e limpeza ao extrair callbacks. Não adicionar `useCallback` apenas por estilo nem impor conversões mecânicas ou limites arbitrários de linhas.
 - Extrair funções, hooks ou componentes quando tiverem um propósito identificável. Evitar fragmentar o código em pequenas abstrações que obriguem a saltar entre ficheiros sem benefício.
 - Usar comentários para explicar motivos, restrições e decisões. Melhorar nomes e estrutura antes de comentar código confuso.
 - Preservar comportamento, contratos e precisão dos cálculos durante refatorações de legibilidade.
