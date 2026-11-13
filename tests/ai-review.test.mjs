@@ -18,6 +18,10 @@ const event = {
 };
 const patch = { filename: "src/example.ts", patch: "@@ -1 +1 @@\n-old\n+new" };
 const result = {
+  changeSummary: "Simplificar a implementação observada.",
+  affectedAreas: "Módulo src/example.ts.",
+  expectedImpact:
+    "O contexto não permite confirmar alterações de comportamento.",
   summary: "Clareza adequada.",
   findings: [
     {
@@ -177,4 +181,51 @@ test("invalid locations are discarded and model HTML/mentions are neutralized", 
       !body.includes("https://example.com"),
   );
   assert.ok(!body.includes(":999"));
+});
+
+test("change summary precedes quality and shares the single model request/comment", async () => {
+  const { calls, summaries } = await scenario({ existing: true });
+  const body = JSON.parse(calls.at(-1).body).body;
+  assert.ok(
+    body.indexOf("### Resumo das alterações") <
+      body.indexOf("### Qualidade geral"),
+  );
+  assert.ok(body.includes(result.changeSummary));
+  assert.ok(body.includes(`**Áreas afetadas:** ${result.affectedAreas}`));
+  assert.ok(body.includes(`**Impacto esperado:** ${result.expectedImpact}`));
+  assert.match(body, /pode cobrir apenas parte do PR/);
+  assert.ok(summaries[0].includes(result.changeSummary));
+  assert.equal(calls.filter((call) => call.url === ENDPOINT).length, 1);
+  assert.equal(calls.filter((call) => call.method === "PATCH").length, 1);
+});
+
+test("summary fields are sanitized and missing/invalid fields fail without retry", async () => {
+  const content = JSON.stringify({
+    ...result,
+    changeSummary: "<img> @user [external](https://example.com)",
+    affectedAreas: 'api_key = "super-secret-value"',
+    expectedImpact: "x".repeat(2000),
+  });
+  const { calls } = await scenario({ content });
+  const body = JSON.parse(calls.at(-1).body).body;
+  assert.ok(
+    !body.includes("<img>") &&
+      !body.includes("@user") &&
+      !body.includes("https://example.com"),
+  );
+  assert.ok(!body.includes("super-secret-value"));
+  assert.ok(body.includes("Texto omitido por segurança."));
+  assert.ok(!body.includes("x".repeat(1201)));
+  for (const field of ["changeSummary", "affectedAreas", "expectedImpact"]) {
+    for (const value of [undefined, []]) {
+      const invalid = await scenario({
+        content: JSON.stringify({ ...result, [field]: value }),
+      });
+      assert.match(invalid.summaries[0], /indisponível/);
+      assert.equal(
+        invalid.calls.filter((call) => call.url === ENDPOINT).length,
+        1,
+      );
+    }
+  }
 });

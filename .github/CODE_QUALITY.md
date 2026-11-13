@@ -50,6 +50,14 @@ refatoração global imediata. Não foram adicionadas dependências.
 5. Abrir ou atualizar um PR interno para `main`. O comentário identificado por
    marcador é atualizado em cada execução; os restantes workflows mantêm-se.
 
+O mesmo comentário começa com um **Resumo das alterações**, seguido das **Áreas
+afetadas** e do **Impacto esperado**, antes da avaliação de qualidade. O resumo
+usa a mesma chamada ao modelo e é atualizado com os novos commits. Baseia-se
+apenas nos patches elegíveis enviados; um aviso identifica sempre a cobertura
+potencialmente parcial. Quando os patches não permitem inferir a finalidade ou
+o impacto, o modelo deve indicar essa limitação. Os novos campos são validados,
+limitados e neutralizados como o restante texto da resposta.
+
 O único endpoint de inferência é
 `https://openrouter.ai/api/v1/chat/completions`, com modelo fixo
 `openrouter/free`, preços máximos de entrada e saída zero e fallback de providers

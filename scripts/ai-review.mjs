@@ -54,7 +54,12 @@ abstrações desnecessárias, complexidade, convenções e overengineering.
 Reporta apenas problemas concretos introduzidos pelas alterações, com alta confiança.
 Evita estética, suposições sem contexto e elogios genéricos. Não inventes problemas.
 Usa linhas do lado novo do diff. Admite contexto insuficiente. Máximo 8 problemas.
-Devolve apenas JSON: {"summary":"...","findings":[{"severity":"alta|média|baixa",
+Antes da qualidade, resume as alterações observadas, as áreas afetadas e o impacto
+esperado. Não inventes intenções, comportamentos ou validações: indica quando não
+é possível inferir a finalidade ou o impacto apenas dos patches fornecidos.
+Mantém cada campo do resumo em uma ou duas frases; a cobertura pode ser parcial.
+Devolve apenas JSON: {"changeSummary":"...","affectedAreas":"...","expectedImpact":"...",
+"summary":"...","findings":[{"severity":"alta|média|baixa",
 "path":"...","line":1,"explanation":"...","suggestion":"..."}],"positives":["..."]}.
 Uma lista vazia é válida. Não incluas HTML, links, menções ou credenciais.`;
 
@@ -83,6 +88,9 @@ function changedLine(patch, target) {
 export function renderReview(result, context) {
   if (
     !result ||
+    typeof result.changeSummary !== "string" ||
+    typeof result.affectedAreas !== "string" ||
+    typeof result.expectedImpact !== "string" ||
     typeof result.summary !== "string" ||
     !Array.isArray(result.findings) ||
     !Array.isArray(result.positives)
@@ -105,7 +113,8 @@ export function renderReview(result, context) {
   const positives = result.positives
     .slice(0, 4)
     .map((item) => `- ${safeText(item)}`);
-  return `### Qualidade geral\n\n${safeText(result.summary)}\n\n### Problemas\n\n${findings.join("\n") || "Sem problemas concretos reportados nas linhas analisadas."}\n\n### Pontos positivos\n\n${positives.join("\n") || "Sem observações adicionais."}`;
+  const changeSummary = `### Resumo das alterações\n\n_Resumo baseado apenas nos patches elegíveis enviados ao modelo; pode cobrir apenas parte do PR._\n\n${safeText(result.changeSummary)}\n\n**Áreas afetadas:** ${safeText(result.affectedAreas)}\n\n**Impacto esperado:** ${safeText(result.expectedImpact)}`;
+  return `${changeSummary}\n\n### Qualidade geral\n\n${safeText(result.summary)}\n\n### Problemas\n\n${findings.join("\n") || "Sem problemas concretos reportados nas linhas analisadas."}\n\n### Pontos positivos\n\n${positives.join("\n") || "Sem observações adicionais."}`;
 }
 
 function createGithubClient(repo, token, request) {
