@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { isAbsolute } from "node:path";
 import { getFileInfo } from "prettier";
 
 // Git emits NUL-separated names; never interpret filenames as shell commands.
@@ -15,7 +16,7 @@ if (/^0{40}$/.test(base)) {
   process.exit(0);
 }
 const names = execFileSync(
-  "git",
+  "/usr/bin/git",
   ["diff", "--name-only", "--diff-filter=ACMR", "-z", base, head, "--"],
   { encoding: "utf8" },
 )
@@ -27,10 +28,17 @@ for (const name of names) {
   if (!info.ignored && info.inferredParser) files.push(`./${name}`);
 }
 if (files.length) {
-  const result = spawnSync("npm", ["run", "format:check", "--", ...files], {
-    stdio: "inherit",
-    shell: false,
-  });
+  // npm supplies its absolute CLI path when invoked through the package script.
+  // Reuse the running Node executable rather than searching PATH for npm/node.
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli || !isAbsolute(npmCli)) {
+    throw new Error("Executar através de npm run format:check:changed.");
+  }
+  const result = spawnSync(
+    process.execPath,
+    [npmCli, "run", "format:check", "--", ...files],
+    { stdio: "inherit", shell: false },
+  );
   process.exitCode = result.status ?? 1;
 } else {
   console.log("Sem ficheiros alterados suportados pelo Prettier.");

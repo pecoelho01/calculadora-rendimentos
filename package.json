@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "format": "prettier --write",
     "format:check": "prettier --check",
+    "format:check:changed": "node scripts/check-format.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
     "test:e2e": "playwright test",

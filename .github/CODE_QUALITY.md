@@ -5,7 +5,10 @@
 O job existente `Quality, tests and build` verifica a formatação com a versão
 local de Prettier, `.prettierrc.json` e `.prettierignore`. O script
 `scripts/check-format.mjs` passa caminhos explícitos a `npm run format:check`,
-sem escrever ficheiros. Em PRs usa a diferença entre os SHAs base e head; em
+sem escrever ficheiros, através de `npm run format:check:changed`. O Git é
+invocado por `/usr/bin/git` (runners Ubuntu e desenvolvimento macOS/Linux), e o
+npm pelo seu CLI absoluto com o Node em execução, sem procurar executáveis em
+`PATH`. Em PRs usa a diferença entre os SHAs base e head; em
 pushes usa before/head. O primeiro push de uma branch (before nulo) é
 ignorado por não ter uma revisão anterior. A execução manual mantém os restantes checks e omite
 este passo por não existir um intervalo de alterações no evento.
@@ -78,8 +81,10 @@ custos próprios de GitHub Actions continuam sujeitos ao plano GitHub.
 
 ## Segurança e alcance
 
-O workflow separado usa `pull_request_target`, checkout do SHA da base `main` e
-Actions fixadas por SHA. Não instala dependências, não usa caches/artefactos do PR,
+O workflow separado usa `pull_request_target` e Actions fixadas por SHA. O checkout
+usa `${{ github.sha }}`, que identifica a revisão confiável da base `main`
+[neste evento](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
+Não instala dependências, não usa caches/artefactos do PR,
 não faz checkout do head e não executa código do PR. As únicas permissões são
 `contents: read` e `pull-requests: write`, necessárias para ler alterações e
 atualizar o comentário. A chave só chega ao processo de revisão. Forks e
@@ -126,5 +131,5 @@ resposta e commits ultrapassados. Não consomem quota nem usam credenciais reais
 Para verificar o script incremental, usar SHAs completos existentes no clone:
 
 ```bash
-FORMAT_BASE=<sha-base> FORMAT_HEAD=<sha-head> node scripts/check-format.mjs
+FORMAT_BASE=<sha-base> FORMAT_HEAD=<sha-head> npm run format:check:changed
 ```

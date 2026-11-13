@@ -40,7 +40,7 @@ jobs:
 
       - name: Check formatting of changed files
         if: github.event_name != 'workflow_dispatch'
-        run: node scripts/check-format.mjs
+        run: npm run format:check:changed
         env:
           FORMAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
