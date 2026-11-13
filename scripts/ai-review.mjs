@@ -7,11 +7,47 @@ const MAX_CONTEXT = 24000;
 const MAX_PATCH = 6000;
 const MAX_FILES = 12;
 
+function hasJwtToken(text) {
+  // Scan each token once instead of retrying a long JWT pattern at every prefix.
+  const tokens = [...text.matchAll(/[\w-]+/g)];
+  return tokens.some((header, index) => {
+    const payload = tokens[index + 1];
+    const signature = tokens[index + 2];
+    if (!payload || !signature || !/\beyJ[\w-]+/i.test(header[0])) return false;
+
+    const headerEnd = header.index + header[0].length;
+    const payloadEnd = payload.index + payload[0].length;
+    return (
+      text.slice(headerEnd, payload.index) === "." &&
+      text.slice(payloadEnd, signature.index) === "."
+    );
+  });
+}
+
 // Conservative defence in depth, not a replacement for secret scanning.
 export function hasSensitiveContent(text) {
-  return /-----BEGIN .*PRIVATE KEY-----|\b(?:gh[pousr]_[\w]+|github_pat_[\w]+|sk-[\w-]{12,}|AKIA[A-Z0-9]{16})|\b(?:api[_-]?key|secret|password|passwd|access[_-]?token|refresh[_-]?token|authorization|credential)\b\s*["']?\s*[:=]\s*["'`][^"'`\n]{4,}["'`]|\beyJ[\w-]+\.[\w-]+\.[\w-]+/i.test(
-    text,
-  );
+  if (text.toUpperCase().includes("PRIVATE KEY-----")) return true;
+
+  const hasKnownApiKey =
+    /\b(?:gh[pousr]_[\w]+|github_pat_[\w]+|sk-[\w-]{12,}|AKIA[A-Z0-9]{16})/i.test(
+      text,
+    );
+  // Whitespace groups are separated by mandatory quote/operator characters.
+  const hasCredentialAssignment =
+    /\b(?:api[_-]?key|secret|password|passwd|access[_-]?token|refresh[_-]?token|authorization|credential)\b\s*(?:["']\s*)?[:=]\s*["'`][^"'`\n]{4,}["'`]/i.test(
+      text,
+    );
+  return hasKnownApiKey || hasCredentialAssignment || hasJwtToken(text);
+}
+
+function parseModelResponse(content) {
+  let json = content.trim();
+  if (json.startsWith("```")) {
+    const prefixLength = json.startsWith("```json") ? 7 : 3;
+    json = json.slice(prefixLength).trimStart();
+  }
+  if (json.endsWith("```")) json = json.slice(0, -3).trimEnd();
+  return JSON.parse(json);
 }
 
 function allowedPath(path) {
@@ -179,7 +215,7 @@ async function generateReport(pr, github, request, key) {
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
   // No retry/repair request: malformed answers consume no further quota.
-  const result = JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+  const result = parseModelResponse(content);
   return `${renderReview(result, context)}\n\nContexto parcial: ${context.length} ficheiro(s), até ${MAX_CONTEXT} caracteres; ficheiros sensíveis, grandes ou não suportados omitidos.`;
 }
 

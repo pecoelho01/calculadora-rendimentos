@@ -229,3 +229,47 @@ test("summary fields are sanitized and missing/invalid fields fail without retry
     }
   }
 });
+
+test("secret detection retains keys, credential assignments, PEM markers and JWTs", () => {
+  const sensitive = [
+    "-----BEGIN RSA PRIVATE KEY-----",
+    "-----BEGIN EC PRIVATE KEY-----",
+    "ghp_" + "a".repeat(36),
+    "github_pat_" + "a".repeat(36),
+    "sk-" + "a".repeat(24),
+    "AKIA" + "A".repeat(16),
+    'api_key = "example-value"',
+    '"password" : "example-value"',
+    "secret = `example-value`",
+    "refresh_token" + " ".repeat(50000) + '= "example-value"',
+    "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+  ];
+  for (const value of sensitive) assert.equal(hasSensitiveContent(value), true);
+  for (const value of [
+    "const amount = 42;",
+    "eyJheader.payload",
+    "eyJheader payload.signature",
+    "eyJheader.payload signature",
+    "secret" + " ".repeat(50000) + "without an assignment",
+    ("-----BEGIN PUBLIC KEY----- " + "-eyJ".repeat(1000)).repeat(10),
+  ])
+    assert.equal(hasSensitiveContent(value), false);
+});
+
+test("model JSON supports plain content and Markdown fences with long whitespace", async () => {
+  const json = JSON.stringify(result);
+  for (const content of [
+    json,
+    `\n\t${json}  \n`,
+    `\n\`\`\`json\n${json}\n\`\`\`\n`,
+    `\`\`\`\n${json}${" ".repeat(50000)}\`\`\``,
+  ]) {
+    const { calls, summaries } = await scenario({ content });
+    assert.ok(summaries[0].includes(result.changeSummary));
+    assert.equal(calls.filter((call) => call.url === ENDPOINT).length, 1);
+  }
+  const invalid = await scenario({
+    content: `\`\`\`json\ninvalid${" ".repeat(50000)}\`\`\``,
+  });
+  assert.match(invalid.summaries[0], /indisponível/);
+});
