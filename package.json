@@ -10,7 +10,7 @@
     "format": "prettier --write",
     "format:check": "prettier --check",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
     "test:e2e": "playwright test",
     "test:sql": "node --import tsx supabase/tests/check-migration.mjs"
   },
