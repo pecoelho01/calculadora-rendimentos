@@ -175,11 +175,10 @@ test("invalid locations are discarded and model HTML/mentions are neutralized", 
   });
   const { calls } = await scenario({ content });
   const body = JSON.parse(calls.at(-1).body).body;
-  assert.ok(
-    !body.includes("<img>") &&
-      !body.includes("@user") &&
-      !body.includes("https://example.com"),
-  );
+  assert.doesNotMatch(body, /<img>/i);
+  assert.doesNotMatch(body, /@user/);
+  assert.doesNotMatch(body, /https?:\/\//i);
+  assert.match(body, /\[link omitido\]/);
   assert.ok(!body.includes(":999"));
 });
 
@@ -208,11 +207,10 @@ test("summary fields are sanitized and missing/invalid fields fail without retry
   });
   const { calls } = await scenario({ content });
   const body = JSON.parse(calls.at(-1).body).body;
-  assert.ok(
-    !body.includes("<img>") &&
-      !body.includes("@user") &&
-      !body.includes("https://example.com"),
-  );
+  assert.doesNotMatch(body, /<img>/i);
+  assert.doesNotMatch(body, /@user/);
+  assert.doesNotMatch(body, /https?:\/\//i);
+  assert.match(body, /\[link omitido\]/);
   assert.ok(!body.includes("super-secret-value"));
   assert.ok(body.includes("Texto omitido por segurança."));
   assert.ok(!body.includes("x".repeat(1201)));
