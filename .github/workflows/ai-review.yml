@@ -1,0 +1,44 @@
+name: AI Code Review (gratuito)
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Revisão IA informativa
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+      # Fetch only the standalone script from the trusted base/main event SHA.
+      # Never checkout a repository or download a script from the PR head.
+      - name: Load trusted review script
+        run: |
+          gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/contents/scripts/ai-review.mjs?ref=$TRUSTED_SHA" \
+            -H "Accept: application/vnd.github.raw+json" \
+            > "$RUNNER_TEMP/ai-review.mjs"
+          node --check "$RUNNER_TEMP/ai-review.mjs"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_SHA: ${{ github.sha }}
+      # No dependency installation, caches, PR scripts or artifacts in this job.
+      - name: Review changes or report skip
+        run: node "$RUNNER_TEMP/ai-review.mjs"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

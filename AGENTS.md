@@ -116,6 +116,32 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 - O Prettier trata a apresentação do código; nomes, responsabilidades e clareza do fluxo continuam sujeitos a revisão.
 - A reorganização do código existente será feita apenas quando o utilizador a pedir explicitamente.
 
+### ESLint e revisão automática de qualidade
+
+- O job `Quality, tests and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks existentes. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
+- Os limites de manutenção em `eslint.config.mjs` são avisos para permitir adoção gradual, sem bloquear PRs pela dívida existente. Não usar `--max-warnings 0` nesta fase.
+
+| Regra                               | Critério                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`                        | Complexidade ciclomática máxima de 15.                                                                                                  |
+| `max-lines-per-function`            | Até 100 linhas por função, excluindo linhas vazias e comentários.                                                                       |
+| `max-depth`                         | Até 4 níveis de aninhamento de blocos.                                                                                                  |
+| `max-params`                        | Até 4 parâmetros por função.                                                                                                            |
+| `max-nested-callbacks`              | Até 3 callbacks aninhados.                                                                                                              |
+| `no-unreachable`                    | Detetar código inalcançável.                                                                                                            |
+| `no-useless-return`                 | Detetar retornos desnecessários.                                                                                                        |
+| `no-constant-binary-expression`     | Detetar expressões binárias com resultado constante.                                                                                    |
+| `@typescript-eslint/no-unused-vars` | Detetar imports e variáveis TypeScript não utilizados; parâmetros e erros capturados intencionalmente não usados podem começar por `_`. |
+
+- Manter as configurações existentes de Next.js Core Web Vitals, React, React Hooks e TypeScript. Os erros dessas configurações continuam a bloquear o CI, incluindo `@typescript-eslint/no-explicit-any`.
+- Ao alterar código, rever os avisos introduzidos e procurar respeitar os limites com nomes claros e responsabilidades coesas. Não fragmentar funções nem criar abstrações apenas para satisfazer métricas. Não desativar regras nem aumentar limites apenas para ocultar avisos; justificar exceções necessárias.
+- Não corrigir dívida não relacionada nem reorganizar o repositório fora do âmbito do pedido. Os avisos existentes não justificam uma refatoração global.
+- O comentário da revisão IA deve começar por um resumo das alterações, áreas afetadas e impacto esperado, antes da avaliação de qualidade, usando a mesma chamada gratuita. Identificar a cobertura potencialmente parcial e não inventar intenções ou impactos que os patches não permitam inferir.
+- A revisão por IA é um workflow separado, `.github/workflows/ai-review.yml`, informativo e sem bloqueio automático do merge. Avaliar as sugestões com evidência antes de as aplicar; a IA não substitui os testes nem a revisão humana.
+- Ao manter essa integração, preservar o endpoint `https://openrouter.ai/api/v1/chat/completions`, o modelo exclusivo `openrouter/free`, os preços máximos de entrada/saída zero e a ausência de retries ou fallback pago. Usar apenas o secret `OPENROUTER_API_KEY`, sem o expor em código, logs ou comentários.
+- Preservar o isolamento do job de IA: obter apenas o script da revisão confiável da base `main` pela API GitHub, sem checkout de repositórios nesse job; nunca executar código do PR com acesso à chave, tratar o diff como dados não confiáveis e manter os filtros de ficheiros sensíveis e os limites de contexto. Forks, Dependabot, chave ausente e indisponibilidade devem continuar a produzir indicação informativa sem falhar os restantes checks.
+- Consultar [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md) para configuração do secret, detalhes dos checks, limites gratuitos e validação da integração. Manter esse documento, estas instruções e as configurações coerentes quando as regras mudarem.
+
 ## Papel do agente principal
 
 O agente principal é responsável por compreender o pedido, classificar a complexidade e o risco, escolher o routing, fornecer contexto aos agentes, consolidar resultados e validar a solução antes de concluir.
@@ -138,16 +164,16 @@ Pode usar-se `luna_coder` para uma alteração focada, com contexto suficiente e
 
 Começar por `sol_planner` para analisar o pedido e produzir um plano. Selecionar os restantes agentes conforme a necessidade:
 
-| Agente | Responsabilidade |
-| --- | --- |
-| `sol_planner` | Definir abordagem, dependências, riscos e critérios de aceitação. |
-| `luna_scout` | Mapear código e recolher evidência sem editar ficheiros. |
-| `luna_coder` | Implementar alterações delimitadas pelo plano. |
-| `luna_tester` | Preparar ou executar validações e reportar falhas. |
-| `sol_reviewer` | Rever correção, segurança, manutenção e regressões sem editar. |
-| `regression_reviewer` | Rever impacto em cálculos existentes, CSV, gráficos e PDF. |
+| Agente                 | Responsabilidade                                                                |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `sol_planner`          | Definir abordagem, dependências, riscos e critérios de aceitação.               |
+| `luna_scout`           | Mapear código e recolher evidência sem editar ficheiros.                        |
+| `luna_coder`           | Implementar alterações delimitadas pelo plano.                                  |
+| `luna_tester`          | Preparar ou executar validações e reportar falhas.                              |
+| `sol_reviewer`         | Rever correção, segurança, manutenção e regressões sem editar.                  |
+| `regression_reviewer`  | Rever impacto em cálculos existentes, CSV, gráficos e PDF.                      |
 | `integration_guardian` | Rever contratos entre UI, lógica, adaptador Yahoo, persistência e dependências. |
-| `test_auditor` | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos. |
+| `test_auditor`         | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos.         |
 
 Os três últimos papéis são opcionais, conforme o risco. Não é obrigatório usar agentes de implementação em análises ou reviews, nem agentes de testes ou revisão quando não acrescentarem valor.
 
@@ -209,19 +235,19 @@ Seguir a convenção do MetroLiveTime: **Conventional Commits**, com o tipo em i
 
 O `scope` é opcional e identifica a área afetada, por exemplo `portfolio`, `csv`, `ui`, `pdf` ou `docs`.
 
-| Tipo | Utilização |
-| --- | --- |
-| `feat` | Nova funcionalidade. |
-| `fix` | Correção de erro ou comportamento incorreto. |
-| `docs` | Alterações exclusivamente de documentação. |
-| `style` | Formatação sem impacto no comportamento. |
+| Tipo       | Utilização                                                      |
+| ---------- | --------------------------------------------------------------- |
+| `feat`     | Nova funcionalidade.                                            |
+| `fix`      | Correção de erro ou comportamento incorreto.                    |
+| `docs`     | Alterações exclusivamente de documentação.                      |
+| `style`    | Formatação sem impacto no comportamento.                        |
 | `refactor` | Alteração interna sem nova funcionalidade nem correção de erro. |
-| `perf` | Melhoria de desempenho. |
-| `test` | Adição ou alteração de testes. |
-| `build` | Alterações no build ou em dependências externas. |
-| `ci` | Alterações na integração contínua. |
-| `chore` | Manutenção sem alteração do código funcional. |
-| `revert` | Reversão de uma alteração anterior. |
+| `perf`     | Melhoria de desempenho.                                         |
+| `test`     | Adição ou alteração de testes.                                  |
+| `build`    | Alterações no build ou em dependências externas.                |
+| `ci`       | Alterações na integração contínua.                              |
+| `chore`    | Manutenção sem alteração do código funcional.                   |
+| `revert`   | Reversão de uma alteração anterior.                             |
 
 Regras para o título do commit:
 
