@@ -12,6 +12,134 @@ const fieldMaxLengths: Partial<Record<keyof CsvReviewRow, number>> = {
   name: 100,
 };
 
+type ReviewField = {
+  key: "date" | "ticker" | "name" | "shares" | "pricebuy";
+  label: string;
+  type: "date" | "text";
+};
+type EditReviewRow = (
+  id: string,
+  field: keyof CsvReviewRow,
+  value: string | boolean,
+) => void;
+
+function CsvReviewField({
+  row,
+  field,
+  line,
+  noteId,
+  showNote,
+  edit,
+}: {
+  row: CsvReviewRow;
+  field: ReviewField;
+  line: number;
+  noteId: string;
+  showNote: boolean;
+  edit: EditReviewRow;
+}) {
+  return (
+    <td>
+      <input
+        aria-label={`${field.label} da linha ${line}`}
+        aria-describedby={showNote ? noteId : undefined}
+        type={field.type}
+        inputMode={
+          field.key === "shares" || field.key === "pricebuy"
+            ? "decimal"
+            : undefined
+        }
+        min={field.key === "date" ? "2000-01-01" : undefined}
+        max={
+          field.key === "date"
+            ? new Date().toISOString().slice(0, 10)
+            : undefined
+        }
+        maxLength={fieldMaxLengths[field.key]}
+        value={row[field.key]}
+        disabled={!row.include}
+        onChange={(event) => edit(row.id, field.key, event.target.value)}
+      />
+    </td>
+  );
+}
+
+function CsvImportRow({
+  row,
+  line,
+  error,
+  duplicate,
+  fields,
+  edit,
+}: {
+  row: CsvReviewRow;
+  line: number;
+  error?: string;
+  duplicate?: string;
+  fields: readonly ReviewField[];
+  edit: EditReviewRow;
+}) {
+  const noteId = `csv-review-note-${row.id}`;
+  let statusClass = "csv-review-row-status";
+  if (error) statusClass = "csv-review-row-error";
+  else if (duplicate) statusClass = "csv-review-row-warning";
+
+  let statusText = "Válida";
+  if (!row.include) statusText = "Não importar";
+  else if (error) statusText = error;
+  else if (duplicate) statusText = `Possível duplicado: ${duplicate}`;
+
+  return (
+    <tr
+      className={row.include ? undefined : "csv-review-excluded"}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={error ? noteId : undefined}
+    >
+      <td>
+        <input
+          type="checkbox"
+          checked={row.include}
+          aria-label={`Incluir linha ${line}`}
+          onChange={(event) => edit(row.id, "include", event.target.checked)}
+        />
+      </td>
+      <th scope="row">{line}</th>
+      <td>
+        <select
+          aria-label={`Operação da linha ${line}`}
+          value={row.type}
+          disabled={!row.include}
+          aria-describedby={error ? noteId : undefined}
+          onChange={(event) => edit(row.id, "type", event.target.value)}
+        >
+          {!["buy", "sell"].includes(row.type) ? (
+            <option value={row.type}>{row.type || "Escolher"}</option>
+          ) : null}
+          <option value="buy">Compra</option>
+          <option value="sell">Venda</option>
+        </select>
+      </td>
+      {fields.map((field) => (
+        <CsvReviewField
+          key={field.key}
+          row={row}
+          field={field}
+          line={line}
+          noteId={noteId}
+          showNote={Boolean(error || duplicate)}
+          edit={edit}
+        />
+      ))}
+      <td
+        id={noteId}
+        className={statusClass}
+      >
+        {statusText}
+      </td>
+    </tr>
+  );
+}
+
 export function CsvImportReview({
   portfolio,
   filename,
@@ -197,99 +325,17 @@ export function CsvImportReview({
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row, offset) => {
-                  const line = first + offset + 2;
-                  const error = review.errors.get(row.id);
-                  const duplicate = review.duplicates.get(row.id);
-                  const noteId = `csv-review-note-${row.id}`;
-                  let statusClass = "csv-review-row-status";
-                  if (error) statusClass = "csv-review-row-error";
-                  else if (duplicate) statusClass = "csv-review-row-warning";
-
-                  let statusText = "Válida";
-                  if (!row.include) statusText = "Não importar";
-                  else if (error) statusText = error;
-                  else if (duplicate)
-                    statusText = `Possível duplicado: ${duplicate}`;
-
-                  return (
-                    <tr
-                      key={row.id}
-                      className={
-                        row.include ? undefined : "csv-review-excluded"
-                      }
-                      aria-invalid={error ? true : undefined}
-                      aria-describedby={error ? noteId : undefined}
-                    >
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={row.include}
-                          aria-label={`Incluir linha ${line}`}
-                          onChange={(event) =>
-                            edit(row.id, "include", event.target.checked)
-                          }
-                        />
-                      </td>
-                      <th scope="row">{line}</th>
-                      <td>
-                        <select
-                          aria-label={`Operação da linha ${line}`}
-                          value={row.type}
-                          disabled={!row.include}
-                          aria-describedby={error ? noteId : undefined}
-                          onChange={(event) =>
-                            edit(row.id, "type", event.target.value)
-                          }
-                        >
-                          {!["buy", "sell"].includes(row.type) ? (
-                            <option value={row.type}>
-                              {row.type || "Escolher"}
-                            </option>
-                          ) : null}
-                          <option value="buy">Compra</option>
-                          <option value="sell">Venda</option>
-                        </select>
-                      </td>
-                      {fields.map((field) => (
-                        <td key={field.key}>
-                          <input
-                            aria-label={`${field.label} da linha ${line}`}
-                            aria-describedby={
-                              error || duplicate ? noteId : undefined
-                            }
-                            type={field.type}
-                            inputMode={
-                              field.key === "shares" || field.key === "pricebuy"
-                                ? "decimal"
-                                : undefined
-                            }
-                            min={
-                              field.key === "date" ? "2000-01-01" : undefined
-                            }
-                            max={
-                              field.key === "date"
-                                ? new Date().toISOString().slice(0, 10)
-                                : undefined
-                            }
-                            maxLength={fieldMaxLengths[field.key]}
-                            value={row[field.key]}
-                            disabled={!row.include}
-                            onChange={(event) =>
-                              edit(row.id, field.key, event.target.value)
-                            }
-                          />
-                        </td>
-                      ))}
-                      <td
-                        id={noteId}
-                        className={statusClass}
-                      >
-                        {statusText}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {visibleRows.map((row, offset) => (
+                  <CsvImportRow
+                    key={row.id}
+                    row={row}
+                    line={first + offset + 2}
+                    error={review.errors.get(row.id)}
+                    duplicate={review.duplicates.get(row.id)}
+                    fields={fields}
+                    edit={edit}
+                  />
+                ))}
               </tbody>
             </table>
           </div>

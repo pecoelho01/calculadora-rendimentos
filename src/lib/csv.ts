@@ -57,14 +57,18 @@ export function parseCsvDraft(text: string): CsvDraftOrder[] {
     throw new Error("Cabeçalhos duplicados.");
   if (data.length > MAX_ORDERS)
     throw new Error(`Máximo de ${MAX_ORDERS} transações por ficheiro.`);
-  const orders = data.map((row, i) => {
+  const columns = header;
+
+  function parseOrderRow(row: string[], index: number): CsvDraftOrder {
     try {
-      if (row.length > header.length)
+      if (row.length > columns.length)
         throw new Error(
           "Número de colunas inválido; coloca decimais com vírgula entre aspas.",
         );
       const raw = Object.fromEntries(
-        header.map((h, j) => [h, row[j] ?? ""]).filter(([h]) => h),
+        columns
+          .map((column, columnIndex) => [column, row[columnIndex] ?? ""])
+          .filter(([column]) => column),
       );
       return {
         id: crypto.randomUUID(),
@@ -76,9 +80,11 @@ export function parseCsvDraft(text: string): CsvDraftOrder[] {
         type: raw.type || "buy",
       };
     } catch (e) {
-      throw new Error(`Linha ${i + 2}: ${(e as Error).message}`);
+      throw new Error(`Linha ${index + 2}: ${(e as Error).message}`);
     }
-  });
+  }
+
+  const orders = data.map(parseOrderRow);
   if (!orders.length) throw new Error("O CSV não contém transações.");
   return orders;
 }
@@ -94,7 +100,13 @@ export function parseCsv(text: string): Order[] {
 
 // Names and generated IDs do not distinguish otherwise identical transactions.
 export function csvDuplicateKey(order: Order): string {
-  return JSON.stringify([order.date, order.ticker, order.type, order.pricebuy, order.shares]);
+  return JSON.stringify([
+    order.date,
+    order.ticker,
+    order.type,
+    order.pricebuy,
+    order.shares,
+  ]);
 }
 export function exportCsv(orders: Order[]): string {
   const escape = (value: unknown) => `"${String(value).replaceAll('"', '""')}"`;
