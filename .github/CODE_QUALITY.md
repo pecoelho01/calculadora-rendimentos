@@ -47,8 +47,8 @@ refatoração global imediata. Não foram adicionadas dependências.
    New repository secret**.
 3. Guardar a chave com o nome exato `OPENROUTER_API_KEY`. Nunca a colocar num
    ficheiro, comentário ou variável pública.
-4. Integrar o workflow e o script na `main`. O workflow só executa o script da
-   revisão confiável da base `main`; a primeira versão deste PR não consegue
+4. Integrar o workflow e o script na `main`. O workflow obtém apenas o script da
+   revisão confiável da base `main` através da API GitHub; a primeira versão deste PR não consegue
    rever-se automaticamente antes dessa integração.
 5. Abrir ou atualizar um PR interno para `main`. O comentário identificado por
    marcador é atualizado em cada execução; os restantes workflows mantêm-se.
@@ -81,11 +81,14 @@ custos próprios de GitHub Actions continuam sujeitos ao plano GitHub.
 
 ## Segurança e alcance
 
-O workflow separado usa `pull_request_target` e Actions fixadas por SHA. O checkout
-usa `${{ github.sha }}`, que identifica a revisão confiável da base `main`
+O workflow separado usa `pull_request_target` e Actions fixadas por SHA, sem
+checkout de qualquer repositório. Obtém apenas `scripts/ai-review.mjs` pela API
+GitHub do próprio repositório, no `${{ github.sha }}`, que identifica a revisão
+confiável da base `main`
 [neste evento](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
-Não instala dependências, não usa caches/artefactos do PR,
-não faz checkout do head e não executa código do PR. As únicas permissões são
+A API key OpenRouter só está disponível no passo que executa esse script; o passo
+de leitura usa apenas o token GitHub. Não instala dependências, não usa
+caches/artefactos do PR e não descarrega nem executa código do head do PR. As únicas permissões são
 `contents: read` e `pull-requests: write`, necessárias para ler alterações e
 atualizar o comentário. A chave só chega ao processo de revisão. Forks e
 Dependabot são sempre ignorados, mesmo que exista uma chave; o comentário e o
