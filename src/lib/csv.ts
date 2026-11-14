@@ -84,7 +84,7 @@ export function parseCsvDraft(text: string): CsvDraftOrder[] {
     }
   }
 
-  const orders = data.map(parseOrderRow);
+  const orders = data.map((row, index) => parseOrderRow(row, index));
   if (!orders.length) throw new Error("O CSV não contém transações.");
   return orders;
 }
