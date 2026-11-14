@@ -5,9 +5,13 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type KeyboardEvent,
 } from "react";
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { getBrowserSupabase } from "@/lib/supabase-browser";
+import {
+  getBrowserAuthClient,
+  type AuthEvent,
+  type BrowserSession,
+} from "@/lib/browser-auth-client";
 import {
   AUTH_BROWSER_MESSAGE,
   AUTH_BUSY_MESSAGE,
@@ -30,7 +34,7 @@ import "./account.css";
 export type AccountIdentity = {
   userId: string;
   email: string;
-  accessToken: string;
+  sessionKey: string;
 };
 const LOCAL_ENTRY_KEY = "rendimentos.entry.local.v1";
 const CAPTCHA_SITE_KEY =
@@ -54,7 +58,7 @@ export function AccountGateway({
     feedback: ReactNode,
   ) => ReactNode;
 }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<BrowserSession | null>(null);
   const [accountMode, setAccountMode] = useState(false);
   const [localChosen, setLocalChosen] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -98,9 +102,9 @@ export function AccountGateway({
 
   useEffect(function observeAuthentication() {
     const actions = action;
-    const supabase = getBrowserSupabase();
+    const auth = getBrowserAuthClient();
     // This synchronously strips Auth parameters, even with absent/rejected config.
-    const callbackResult = completeBrowserAuthCallback(supabase);
+    const callbackResult = completeBrowserAuthCallback(auth);
     try {
       // Only the entry preference is remembered here; portfolios keep their existing storage.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -109,8 +113,8 @@ export function AccountGateway({
       // Continue with an explicit choice when sessionStorage is unavailable.
     }
     // Read browser-only Auth configuration after hydration.
-    setConfigured(!!supabase);
-    if (!supabase) {
+    setConfigured(!!auth);
+    if (!auth) {
       let live = true;
       void callbackResult.then((callback) => {
         if (!live) return;
@@ -121,13 +125,13 @@ export function AccountGateway({
         live = false;
       };
     }
-    const authClient = supabase;
+    const authClient = auth;
     let live = true;
     let events = 0;
-    let currentUser = "";
+    let currentSessionKey = "";
     let initializing = true;
-    let latestSession: Session | null = null;
-    function applySession(next: Session | null, openAccount: boolean) {
+    let latestSession: BrowserSession | null = null;
+    function applySession(next: BrowserSession | null, openAccount: boolean) {
       if (!live) return;
       setSession(next);
       if (!next) {
@@ -137,29 +141,31 @@ export function AccountGateway({
         rememberLocal(false);
         setAccountMode(true);
       }
-      currentUser = next?.user.id ?? "";
+      currentSessionKey = next?.sessionKey ?? "";
       setChecking(false);
     }
 
     function handleAuthStateChange(
-      event: AuthChangeEvent,
-      next: Session | null,
+      event: AuthEvent,
+      next: BrowserSession | null,
     ) {
       if (!live) return;
       events++;
       latestSession = next;
       if (initializing) return;
-      // Keep this callback synchronous: awaiting Auth methods here can deadlock the SDK.
-      const changedUser = currentUser !== (next?.user.id ?? "");
+      // Apply session changes synchronously before a pending form action completes.
+      const changedSession = currentSessionKey !== (next?.sessionKey ?? "");
       const changedRecovery =
         recoverySession.current !== null &&
         !matchesRecoverySession(next, recoverySession.current);
-      if (changedUser) {
+      if (changedSession) {
         // Discard UI completions belonging to another session, including an in-flight form.
         actions.current++;
         rememberLocal(false);
         setForm(null);
-        setError("");
+        setError((current) =>
+          current === AUTH_RECOVERY_CHANGED ? current : "",
+        );
         setMessage("");
       }
       if (changedRecovery) {
@@ -168,7 +174,7 @@ export function AccountGateway({
         setForm(null);
         setError(AUTH_RECOVERY_CHANGED);
       }
-      applySession(next, changedUser || event === "INITIAL_SESSION");
+      applySession(next, changedSession || event === "INITIAL_SESSION");
       if (event === "PASSWORD_RECOVERY") {
         recoverySession.current = getRecoverySession(next);
         setNeedsReauthentication(false);
@@ -180,20 +186,27 @@ export function AccountGateway({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-    const stopSessionErrors = supabase.onSessionError((message) => {
+    } = auth.onAuthStateChange(handleAuthStateChange);
+    function handleSessionError(message: string) {
       if (!live) return;
       actions.current++;
       recoverySession.current = null;
       applySession(null, false);
       setError(message);
-    });
+    }
+
+    const stopSessionErrors = auth.onSessionError(handleSessionError);
     async function restoreSessionAfterCallback(
       callback: Awaited<typeof callbackResult>,
     ) {
       const beforeRead = events;
-      const { data, error: sessionError } = await authClient.restoreSession();
+      const {
+        data,
+        error: sessionError,
+        configured: serverConfigured,
+      } = await authClient.restoreSession();
       if (!live) return;
+      if (serverConfigured === false) setConfigured(false);
       initializing = false;
       if (sessionError) {
         applySession(null, false);
@@ -211,19 +224,21 @@ export function AccountGateway({
       }
     }
 
+    function handleSessionRestoreFailure(error: unknown) {
+      if (!live) return;
+      initializing = false;
+      applySession(null, false);
+      setError(
+        error instanceof Error &&
+          [AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE].includes(error.message)
+          ? error.message
+          : AUTH_SESSION_MESSAGE,
+      );
+    }
+
     void callbackResult
       .then(restoreSessionAfterCallback)
-      .catch((error: unknown) => {
-        if (!live) return;
-        initializing = false;
-        applySession(null, false);
-        setError(
-          error instanceof Error &&
-            [AUTH_BROWSER_MESSAGE, AUTH_BUSY_MESSAGE].includes(error.message)
-            ? error.message
-            : AUTH_SESSION_MESSAGE,
-        );
-      });
+      .catch(handleSessionRestoreFailure);
     return () => {
       live = false;
       actions.current++;
@@ -245,9 +260,9 @@ export function AccountGateway({
   }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const supabase = getBrowserSupabase();
-    if (!supabase || authPending.current || !form) return;
-    const authClient = supabase.auth;
+    const auth = getBrowserAuthClient();
+    if (!auth || authPending.current || !form) return;
+    const authClient = auth;
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "").trim();
     const password = String(data.get("password") ?? "");
@@ -269,7 +284,7 @@ export function AccountGateway({
     const redirectTo = `${window.location.origin}/?recovery=1`;
 
     async function requestPasswordRecovery() {
-      const result = await authClient.resetPasswordForEmail(email, {
+      const result = await authClient.recover(email, {
         redirectTo,
         ...(captcha ? { captchaToken: captcha } : {}),
       });
@@ -295,7 +310,7 @@ export function AccountGateway({
         setForm(null);
         throw new Error(AUTH_RECOVERY_CHANGED);
       }
-      const result = await authClient.updateUser({
+      const result = await authClient.updatePassword({
         password,
         ...(nonce ? { nonce } : {}),
       });
@@ -348,7 +363,7 @@ export function AccountGateway({
     }
 
     async function registerAccount() {
-      const result = await authClient.signUp({
+      const result = await authClient.register({
         email,
         password,
         options: {
@@ -368,7 +383,7 @@ export function AccountGateway({
     }
 
     async function signIn() {
-      const result = await authClient.signInWithPassword({
+      const result = await authClient.login({
         email,
         password,
         ...(captcha ? { options: { captchaToken: captcha } } : {}),
@@ -426,33 +441,35 @@ export function AccountGateway({
   }
 
   async function resendReauthentication() {
-    const supabase = getBrowserSupabase();
+    const auth = getBrowserAuthClient();
     const expected = recoverySession.current;
-    if (!supabase || !expected || authPending.current) return;
+    if (!auth || !expected || authPending.current) return;
     const task = ++action.current;
     authPending.current = true;
     setBusy(true);
     setError("");
     setMessage("");
+    const authClient = auth;
+
+    async function requestReauthenticationCode() {
+      const { data, error } = await authClient.getSession();
+      if (
+        error ||
+        recoverySession.current !== expected ||
+        !matchesRecoverySession(data.session, expected)
+      ) {
+        recoverySession.current = null;
+        setForm(null);
+        throw new Error(AUTH_RECOVERY_CHANGED);
+      }
+      const result = await authClient.reauthenticate();
+      if (result.error) throw result.error;
+      if (task === action.current)
+        setMessage("Enviámos um novo código de confirmação para o teu email.");
+    }
+
     try {
-      await runBrowserAuthMutation(async () => {
-        const { data, error } = await supabase.auth.getSession();
-        if (
-          error ||
-          recoverySession.current !== expected ||
-          !matchesRecoverySession(data.session, expected)
-        ) {
-          recoverySession.current = null;
-          setForm(null);
-          throw new Error(AUTH_RECOVERY_CHANGED);
-        }
-        const result = await supabase.auth.reauthenticate();
-        if (result.error) throw result.error;
-        if (task === action.current)
-          setMessage(
-            "Enviámos um novo código de confirmação para o teu email.",
-          );
-      });
+      await runBrowserAuthMutation(requestReauthenticationCode);
     } catch (failure) {
       if (task === action.current)
         setError(
@@ -467,8 +484,8 @@ export function AccountGateway({
   }
 
   async function logout() {
-    const supabase = getBrowserSupabase();
-    if (!supabase || authPending.current) return;
+    const auth = getBrowserAuthClient();
+    if (!auth || authPending.current) return;
     recoverySession.current = null;
     authPending.current = true;
     // Hide and unmount account data before waiting for a network response.
@@ -480,15 +497,21 @@ export function AccountGateway({
     setBusy(true);
     const task = ++action.current;
     try {
-      const { error: logoutError } = await runBrowserAuthMutation(() =>
-        supabase.auth.signOut({ scope: "local" }),
-      );
-      if (logoutError) throw logoutError;
+      const result = await runBrowserAuthMutation(() => auth.logout());
+      const logoutError = result.error;
+      if (logoutError && !result.sessionCleared)
+        throw new Error(logoutError.message);
       if (task === action.current) {
         setSession(null);
-        setMessage(
-          "Sessão terminada neste navegador. As carteiras da conta ficam guardadas no servidor.",
-        );
+        if (logoutError) {
+          setError(
+            "A sessão foi fechada neste navegador, mas não foi possível confirmar a saída no servidor. Outras cópias da sessão podem continuar válidas.",
+          );
+        } else {
+          setMessage(
+            "Sessão terminada neste navegador. As carteiras da conta ficam guardadas no servidor.",
+          );
+        }
       }
     } catch {
       if (task === action.current)
@@ -506,7 +529,7 @@ export function AccountGateway({
       ? {
           userId: session.user.id,
           email: session.user.email ?? "",
-          accessToken: session.access_token,
+          sessionKey: session.sessionKey,
         }
       : null;
   const entered = !checking && (!!identity || localChosen);
@@ -708,6 +731,13 @@ export function AccountGateway({
     </section>
   );
   const inlineAuth = !entered && form !== null && form !== "password";
+
+  function handleInlineAuthKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (!inlineAuth || event.key !== "Escape") return;
+    event.preventDefault();
+    closeAuth();
+  }
+
   function closeAuth() {
     if (authPending.current) return;
     recoverySession.current = null;
@@ -1086,12 +1116,7 @@ export function AccountGateway({
               aria-labelledby={
                 inlineAuth ? "auth-inline-title" : "entry-choice-title"
               }
-              onKeyDown={(event) => {
-                if (inlineAuth && event.key === "Escape") {
-                  event.preventDefault();
-                  closeAuth();
-                }
-              }}
+              onKeyDown={handleInlineAuthKeyDown}
             >
               {inlineAuth ? (
                 <>

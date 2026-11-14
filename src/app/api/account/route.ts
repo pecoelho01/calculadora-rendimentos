@@ -7,6 +7,7 @@ import { createAccountRepository } from "@/server/account/account.repository";
 import { createAccountService } from "@/server/account/account.service";
 import { authenticate } from "@/server/shared/auth/authenticate";
 import { createSupabaseClient } from "@/server/shared/supabase/create-client";
+import { createCookieAccountHandler } from "@/server/auth/account-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,5 +25,7 @@ function createRequestSession(token: string): AccountSession | null {
 }
 
 const handle = createAccountHandler(createRequestSession);
-export const GET = handle;
-export const POST = handle;
+const handleCookieAccount = createCookieAccountHandler(handle);
+
+export const GET = handleCookieAccount;
+export const POST = handleCookieAccount;

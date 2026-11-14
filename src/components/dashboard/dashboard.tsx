@@ -25,6 +25,8 @@ import { OrderEntryForm } from "../orders/order-entry-form";
 import { Icon } from "../shared/icon";
 import { ThemeControl } from "../shared/theme-control";
 import { WorkspaceShell } from "./workspace-shell";
+import { getBrowserAuthClient } from "@/lib/browser-auth-client";
+import { runBrowserAuthMutation } from "@/lib/browser-auth";
 import type { AccountIdentity } from "../account/account-gateway";
 import {
   buildAccountChanges,
@@ -149,16 +151,37 @@ export function Dashboard({
     };
   }, []);
   async function accountRequest(body?: unknown) {
-    const response = await fetch("/api/account", {
-      method: body === undefined ? "GET" : "POST",
-      headers: {
-        Authorization: `Bearer ${identity?.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-      signal: requests.current?.signal,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    function sendAccountRequest() {
+      return fetch("/api/account", {
+        method: body === undefined ? "GET" : "POST",
+        credentials: "same-origin",
+        headers: {
+          "X-Account-Session": identity?.sessionKey ?? "",
+          "X-Requested-With": "rendimentos",
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        signal: requests.current?.signal,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    }
+    async function retryAccountRequestAfterSessionRestore() {
+      const auth = getBrowserAuthClient();
+      const result = await auth?.getSession();
+      const sameSession =
+        !result?.error &&
+        result?.data.session?.sessionKey === identity?.sessionKey;
+      if (!sameSession || !mounted.current) return response;
+      return sendAccountRequest();
+    }
+
+    let response = await sendAccountRequest();
+    if (response.status === 401 && mounted.current) {
+      // Refresh runs under the same browser lock as login/logout, never in account responses.
+      response = await runBrowserAuthMutation(
+        retryAccountRequestAfterSessionRestore,
+      );
+    }
     if (!response.ok) {
       if (response.status === 409) {
         throw new Error(

@@ -6,10 +6,20 @@ import { Dashboard } from "../dashboard/dashboard";
 
 export function AccountDashboard({ children }: { children: ReactNode }) {
   const accountPage = usePathname() === "/conta";
-  return <AccountGateway>{(identity, controls, sidebarControls, feedback) => (
-    <Dashboard key={identity?.userId ?? "local"} identity={identity} accountControls={controls}
-      sidebarAccountControls={sidebarControls} accountFeedback={feedback} accountPage={accountPage}>
-      {children}
-    </Dashboard>
-  )}</AccountGateway>;
+  return (
+    <AccountGateway>
+      {(identity, controls, sidebarControls, feedback) => (
+        <Dashboard
+          key={identity?.sessionKey ?? "local"}
+          identity={identity}
+          accountControls={controls}
+          sidebarAccountControls={sidebarControls}
+          accountFeedback={feedback}
+          accountPage={accountPage}
+        >
+          {children}
+        </Dashboard>
+      )}
+    </AccountGateway>
+  );
 }
