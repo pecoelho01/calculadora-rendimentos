@@ -10,17 +10,24 @@ export async function publicText(
     redirect: "error",
     cache: "no-store",
   });
+
+  return readPublicText(response, maxBytes);
+}
+
+/** Read provider text with a byte limit, preserving the caller's request options. */
+export async function readPublicText(response: Response, maxBytes: number) {
   if (!response.ok || !response.body) throw new Error("Fonte indisponível");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let text = "",
-    bytes = 0;
+  let text = "";
+  let totalBytes = 0;
+
   try {
     for (;;) {
       const chunk = await reader.read();
       if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > maxBytes) throw new Error("Resposta demasiado grande");
+      totalBytes += chunk.value.byteLength;
+      if (totalBytes > maxBytes) throw new Error("Resposta demasiado grande");
       text += decoder.decode(chunk.value, { stream: true });
     }
     return text + decoder.decode();
