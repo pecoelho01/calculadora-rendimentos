@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   checkDeployment,
   waitForPublishedRevision,
-} from "../scripts/deployment-smoke.mjs";
+} from "../../scripts/deployment-smoke.mjs";
 
 const revision = "a".repeat(40);
 

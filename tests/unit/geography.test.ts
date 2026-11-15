@@ -1,8 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadGeography, parseGeography } from "../src/lib/geography-source";
-import { calculatePortfolio, geographicAllocation } from "../src/lib/portfolio";
-import type { Geography, MarketData, Order } from "../src/lib/types";
+import {
+  loadGeography,
+  parseGeography,
+} from "../../src/lib/geography/geography-source";
+import {
+  calculatePortfolio,
+  geographicAllocation,
+} from "../../src/lib/portfolio/portfolio";
+import type { Geography, MarketData, Order } from "../../src/lib/types";
 
 const isin = "IE00B4L5Y983";
 const source = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;

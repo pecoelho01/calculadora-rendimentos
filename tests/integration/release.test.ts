@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkAccountSchema } from "../src/server/release/schema-contract";
-import configureNext from "../next.config";
+import { checkAccountSchema } from "../../src/server/release/schema-contract";
+import configureNext from "../../next.config";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 const environment = {

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { reviewCsvOrders, type CsvReviewRow } from "../src/lib/csv-review";
-import { validateOrder } from "../src/lib/validation";
+import {
+  reviewCsvOrders,
+  type CsvReviewRow,
+} from "../../src/lib/csv/csv-review";
+import { validateOrder } from "../../src/lib/validation";
 
 function draft(overrides: Partial<CsvReviewRow> = {}): CsvReviewRow {
   return {

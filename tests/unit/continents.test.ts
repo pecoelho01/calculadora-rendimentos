@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { continentForCountry } from "../src/lib/continents";
+import { continentForCountry } from "../../src/lib/geography/continents";
 
 test("classificar continentes, territórios e casos transcontinentais pela convenção local", () => {
   for (const [country, expected] of Object.entries({

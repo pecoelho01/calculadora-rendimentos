@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateSupabaseUrl } from "../src/lib/supabase-url";
-import { createAccountHandler } from "./helpers/account-handler";
-import { createSupabaseClient } from "../src/server/shared/supabase/create-client";
+import { validateSupabaseUrl } from "../../src/lib/auth/supabase-url";
+import { createAccountHandler } from "../helpers/account-handler";
+import { createSupabaseClient } from "../../src/server/shared/supabase/create-client";
 
 test("Supabase exige HTTPS remoto e permite HTTP apenas em loopback", () => {
   for (const url of [

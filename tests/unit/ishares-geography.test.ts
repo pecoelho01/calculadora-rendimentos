@@ -5,8 +5,8 @@ import {
   compactIsharesCatalog,
   loadIsharesGeography,
   parseIsharesHoldings,
-} from "../src/lib/ishares-geography";
-import { publicText } from "../src/lib/public-data";
+} from "../../src/lib/geography/ishares-geography";
+import { publicText } from "../../src/lib/public-data";
 const url =
   "https://www.ishares.com/us/products/123/example/latest-holdings.csv";
 const header =

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readPublicText } from "../src/lib/public-data";
+import { readPublicText } from "../../src/lib/public-data";
 
 test("ler UTF-8 repartido entre chunks e aceitar exatamente o limite em bytes", async () => {
   const encoded = new TextEncoder().encode("A€😀");

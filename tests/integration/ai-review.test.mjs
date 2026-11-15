@@ -6,7 +6,7 @@ import {
   hasSensitiveContent,
   runReview,
   selectContext,
-} from "../scripts/ai-review.mjs";
+} from "../../scripts/ai-review.mjs";
 
 const event = {
   repository: { full_name: "owner/repo" },

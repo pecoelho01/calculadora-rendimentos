@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appendLocalPortfolios, validateSnapshot } from "../src/lib/workspace";
-import type { Portfolio } from "../src/lib/types";
+import {
+  appendLocalPortfolios,
+  validateSnapshot,
+} from "../../src/lib/account/workspace";
+import type { Portfolio } from "../../src/lib/types";
 const portfolio: Portfolio = {
   id: "p1",
   name: "Local",

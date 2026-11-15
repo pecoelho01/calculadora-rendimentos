@@ -1,4 +1,8 @@
-import { openSidebar, navigateTo, selectedPortfolio } from "./sidebar-helpers";
+import {
+  openSidebar,
+  navigateTo,
+  selectedPortfolio,
+} from "../helpers/sidebar-helpers";
 import { test, expect } from "@playwright/test";
 const asset = (price: number) => ({
   price,
@@ -75,7 +79,9 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
     await route.fulfill({ json: { geographies: { TEST: composition("US") } } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
@@ -87,8 +93,11 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   expect(requests).toHaveLength(1);
   expect([...requests[0].searchParams.keys()]).toEqual(["tickers"]);
   expect(requests[0].searchParams.get("tickers")).toBe("TEST");
-  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await page.locator(".data-actions summary").click();
+  await page
+    .getByRole("button", { name: "Atualizar preços", exact: true })
+    .click();
   await navigateTo(page, /^Posições/);
   await navigateTo(page, "Visão geral");
   await expect(chart).toContainText("A obter a distribuição por continente");
@@ -99,12 +108,13 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   );
   await openSidebar(page);
   await page.locator(".portfolio-link").filter({ hasText: "Segunda" }).click();
-  await expect(selectedPortfolio(page)).toContainText(
-    "Segunda",
-  );
+  await expect(selectedPortfolio(page)).toContainText("Segunda");
   await expect(chart.locator(".donut")).toContainText("100%");
-  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await page.locator(".data-actions summary").click();
+  await page
+    .getByRole("button", { name: "Atualizar preços", exact: true })
+    .click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toHaveLength(1);
 });
@@ -128,7 +138,9 @@ test("resposta antiga não altera a geografia da carteira selecionada", async ({
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
     name: "Distribuição por continente",
@@ -157,7 +169,9 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
     return route.fulfill({ status: 503, json: { error: "indisponível" } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Continuar sem sessão", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   await page.getByRole("button", { name: "Geografia", exact: true }).click();
   const chart = page.getByRole("region", {
@@ -167,8 +181,11 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
   await expect(chart.locator(".allocation-list")).toContainText(
     "Sem classificação",
   );
-  if ((page.viewportSize()?.width ?? 1440) <= 800) await page.locator(".data-actions summary").click();
-  await page.getByRole("button", { name: "Atualizar preços", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await page.locator(".data-actions summary").click();
+  await page
+    .getByRole("button", { name: "Atualizar preços", exact: true })
+    .click();
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toBe(1);
 });
