@@ -2,7 +2,7 @@
 
 ## Prettier e ESLint
 
-O job existente `Quality, tests and build` verifica a formatação com a versão
+O job `Quality checks and build` verifica a formatação com a versão
 local de Prettier, `.prettierrc.json` e `.prettierignore`. O script
 `scripts/check-format.mjs` passa caminhos explícitos a `npm run format:check`,
 sem escrever ficheiros, através de `npm run format:check:changed`. O Git é
@@ -136,3 +136,66 @@ Para verificar o script incremental, usar SHAs completos existentes no clone:
 ```bash
 FORMAT_BASE=<sha-base> FORMAT_HEAD=<sha-head> npm run format:check:changed
 ```
+
+## Publicação e rollback
+
+A CI tem três jobs independentes: `Quality checks and build` (formatação, lint,
+tipos, unitários e build), `E2E local` (build sem conta) e `E2E account` (build com
+configuração fictícia e mocks HTTP). Ambos os E2E cobrem desktop/mobile, instalam
+Chromium e guardam diagnósticos distintos em caso de falha durante sete dias.
+O agregador `Quality, tests and build` corre mesmo quando uma dependência falha:
+só passa se os três resultados forem `success`. Mantém o nome já obrigatório no
+GitHub e na Vercel; não exige adicionar checks ainda inexistentes às proteções.
+`forbidOnly` impede suites focadas acidentais no CI. SQL e auditoria conservam os
+checks próprios. A revisão IA continua informativa e não é uma condição de release.
+
+A auditoria corre às segundas-feiras às 07:23 UTC e CodeQL às 07:41 UTC, além dos
+triggers de PR/push. A auditoria agendada tem workflow e nome de check próprios, sem gerar estados skipped para os checks obrigatórios da CI. O schedule não corre builds, SQL ou E2E. Os agendamentos só
+ficam ativos depois de estes workflows entrarem na branch predefinida.
+
+Em 14 de novembro de 2026 foram adicionados e confirmados no painel da Vercel os
+Deployment Checks GitHub de produção: `Quality, tests and build`,
+`SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript`
+e `SonarCloud Code Analysis`. O comportamento do agregador foi confirmado como
+`Blocking`; o painel indicou que entram em vigor no próximo deployment de produção.
+Manter a atribuição automática de domínios de produção ligada. Não usar Force
+Promote para contornar falhas. O check adicional `CodeQL`, da app GitHub Advanced
+Security, foi confirmado com sucesso no PR #38 e mantém-se na proteção do GitHub;
+não foi adicionado à Vercel, pois não aparece no commit de push da `main`.
+Não foram removidas ou reduzidas proteções existentes.
+
+Procedimento de release com conta:
+
+1. Preparar e rever as migrations e testar SQL/E2E com dados sintéticos.
+2. Na primeira transição, usar janela controlada e aplicar 006, 007 e 008 pela ordem,
+   apenas as ainda pendentes. 007 e 008 têm commits distintos; não prometer zero downtime.
+3. Confirmar metadados e permissões da 008. Publicar apenas depois disso. O
+   `next.config.ts` executa o preflight na fase de build quando `VERCEL_ENV=production`;
+   o Next já carregou as variáveis. Conta configurada exige versão 8, RPC v1 e aliases.
+   Configuração parcial, chave administrativa, falha de rede ou contrato incompatível
+   bloqueiam o build. Sem URL nem chave, o modo local continua permitido.
+4. Os checks obrigatórios bloqueiam a promoção/atribuição do domínio pela Vercel.
+5. O workflow `Production deployment smoke` corre após um deployment de produção
+   bem-sucedido e também pode ser iniciado manualmente. Usa apenas o domínio público
+   fixo, sem tokens, contas reais ou bypass. Verifica HTML da página inicial, HTTP 401
+   e `no-store` em `/api/account`, saúde do contrato em `/api/health` e SHA publicado.
+   O script aguarda a atribuição do domínio à revisão esperada (até 40 consultas,
+   intervalos de 15 segundos, timeout de 10 segundos por pedido), pois o evento pode
+   chegar enquanto os Deployment Checks ainda bloqueiam a promoção. Uma versão antiga
+   nunca passa como se fosse a nova; esgotar a espera faz falhar o smoke. Este smoke é deteção após publicação, não uma
+   condição anterior à promoção; os checks da CI e o preflight são os bloqueios.
+6. Promoção de previews e rollback de deployments já construídos podem não voltar
+   a executar o build. Antes dessas operações, executar obrigatoriamente o preflight
+   com a configuração pública do destino: `node --env-file=.env.production.local --import tsx scripts/check-release.ts`.
+   O ficheiro local não deve ser versionado. Confirmar que o modo devolvido é o
+   pretendido e rever SHA/destino; não confiar apenas no preflight do build antigo.
+   No rollback da aplicação, manter 008 e os aliases na BD.
+   Rollback da aplicação não faz rollback de dados nem de migrations.
+
+`GET /api/health` devolve apenas estado, modo de conta e SHA, sem carteiras ou
+credenciais, e usa `no-store`. Em falha devolve 503 genérico. A consulta à RPC só lê
+metadados constantes. Para executar o smoke localmente após `npm run build` e
+`npm start`, usar `SMOKE_URL=http://127.0.0.1:3000 node scripts/deployment-smoke.mjs`.
+Para testar a validação de revisão, definir também `SMOKE_REVISION` com o SHA completo.
+Os testes HTTP simulados não comprovam um deployment real nem Auth/SMTP/RLS reais.
+Esta alteração não aplicou migrations reais nem publicou uma nova versão.
