@@ -21,13 +21,19 @@ export default async function RootLayout({
   // Request-time headers opt the document into dynamic rendering for its nonce.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="pt-PT" suppressHydrationWarning>
+    <html
+      lang="pt-PT"
+      suppressHydrationWarning
+    >
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
       </head>
       <body>
         {children}
-        <SpeedInsights />
+        {process.env.VERCEL === "1" ? <SpeedInsights /> : null}
       </body>
     </html>
   );
