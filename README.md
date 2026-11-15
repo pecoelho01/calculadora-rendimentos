@@ -6,6 +6,15 @@ Gestão de carteiras em **Next.js + React + TypeScript**, preparada para **Verce
 
 Usar **Node.js 24 LTS** e npm. O ficheiro `.nvmrc` seleciona essa versão.
 
+O comando `npm run typecheck` usa o compilador TypeScript 7.0.2 (`tsc`),
+instalado pelo alias `@typescript/native`. O alias `typescript` fornece
+`@typescript/typescript6` 6.0.2 para as ferramentas que precisam da API
+JavaScript, incluindo o ESLint. Nesta configuração, o Next.js também resolve
+esse pacote de compatibilidade durante o build e usa TypeScript 6.0.3 (`tsc6`).
+A verificação separada com TypeScript 7 continua obrigatória na CI.
+Esta [instalação lado a lado](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0)
+evita conflitos entre os executáveis e mantém todas as regras do ESLint.
+
 ```bash
 npm ci
 npm run dev
