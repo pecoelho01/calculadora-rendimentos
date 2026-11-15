@@ -1,6 +1,6 @@
 import { csvDuplicateKey, type CsvDraftOrder } from "./csv";
-import type { Order } from "./types";
-import { validateOrder, validateOrders } from "./validation";
+import type { Order } from "../types";
+import { validateOrder, validateOrders } from "../validation";
 
 export type CsvReviewRow = CsvDraftOrder & { include: boolean };
 

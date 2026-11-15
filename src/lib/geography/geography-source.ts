@@ -1,5 +1,5 @@
-import { readPublicText } from "./public-data";
-import type { Geography } from "./types";
+import { readPublicText } from "../public-data";
+import type { Geography } from "../types";
 import { countryCode } from "./geography-countries";
 
 const origin = "https://www.justetf.com";

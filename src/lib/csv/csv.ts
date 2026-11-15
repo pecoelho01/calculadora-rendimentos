@@ -1,5 +1,5 @@
-import type { Order } from "./types";
-import { MAX_ORDERS, validateOrder } from "./validation";
+import type { Order } from "../types";
+import { MAX_ORDERS, validateOrder } from "../validation";
 export type CsvDraftOrder = {
   id: string;
   date: string;

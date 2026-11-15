@@ -1,5 +1,5 @@
-import type { Portfolio } from "./types";
-import { validatePortfolio } from "./validation";
+import type { Portfolio } from "../types";
+import { validatePortfolio } from "../validation";
 
 export const MAX_PORTFOLIOS = 30;
 export const MAX_WORKSPACE_BYTES = 3_000_000;
@@ -45,13 +45,11 @@ export function appendLocalPortfolios(
   newId = () => crypto.randomUUID(),
 ): WorkspaceSnapshot {
   const source = validateSnapshot(remote);
-  const imported = local
-    .map(validatePortfolio)
-    .map((p) => ({
-      ...p,
-      id: newId(),
-      orders: p.orders.map((o) => ({ ...o, id: newId() })),
-    }));
+  const imported = local.map(validatePortfolio).map((p) => ({
+    ...p,
+    id: newId(),
+    orders: p.orders.map((o) => ({ ...o, id: newId() })),
+  }));
   return validateSnapshot({
     ...source,
     portfolios: [...source.portfolios, ...imported],

@@ -1,6 +1,6 @@
-import type { Geography } from "./types";
+import type { Geography } from "../types";
 import { countryCode } from "./geography-countries";
-import { publicText } from "./public-data";
+import { publicText } from "../public-data";
 
 export const ukCatalogUrl =
   "https://www.ishares.com/varnish-api/blk-product-screener-server/api/v1/product-screener/product-data?country=gb&language=en&siteName=ishares-uk&userType=individual";

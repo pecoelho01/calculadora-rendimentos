@@ -1,4 +1,4 @@
-import { validateSupabaseUrl } from "../../lib/supabase-url";
+import { validateSupabaseUrl } from "../../lib/auth/supabase-url";
 
 export async function checkAccountSchema(
   environment: Record<string, string | undefined>,

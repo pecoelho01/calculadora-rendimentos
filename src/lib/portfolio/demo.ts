@@ -1,4 +1,4 @@
-import type { Order } from "./types";
+import type { Order } from "../types";
 export function demoOrders(): Order[] {
   return [
     {

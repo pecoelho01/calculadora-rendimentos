@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
-import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { getBrowserSupabase } from "@/lib/auth/supabase-browser";
 import {
   AUTH_BROWSER_MESSAGE,
   AUTH_BUSY_MESSAGE,
   AUTH_RECOVERY_CHANGED,
   runBrowserAuthMutation,
-} from "@/lib/browser-auth";
-import { matchesRecoverySession } from "@/lib/recovery-session";
+} from "@/lib/auth/browser-auth";
+import { matchesRecoverySession } from "@/lib/auth/recovery-session";
 import type { AuthFormKind } from "./account-types";
 import type { AccountSessionController } from "./use-account-session";
 

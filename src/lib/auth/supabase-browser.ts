@@ -1,5 +1,8 @@
 "use client";
-import { createBrowserAuthClient, type BrowserSupabase } from "./browser-auth-client";
+import {
+  createBrowserAuthClient,
+  type BrowserSupabase,
+} from "./browser-auth-client";
 import { validateSupabaseUrl } from "./supabase-url";
 
 let client: BrowserSupabase | null | undefined;

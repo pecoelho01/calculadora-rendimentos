@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
-import type { OrderGain } from "@/lib/portfolio";
+import type { OrderGain } from "@/lib/portfolio/portfolio";
 import type { Currency, Order } from "@/lib/types";
 import { Icon } from "../shared/icon";
 import { useTableSort } from "./use-table-sort";
