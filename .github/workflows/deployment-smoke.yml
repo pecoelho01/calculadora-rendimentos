@@ -1,0 +1,36 @@
+name: Production deployment smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Production smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+      contains(fromJSON('["Production", "production"]'), github.event.deployment.environment))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: production-smoke-${{ github.event.deployment.sha || github.sha }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      # The public production domain needs no tokens or protection bypass.
+      # Checking its SHA prevents a previous deployment from passing this test.
+      - name: Verify published revision, page, API and schema contract
+        run: node scripts/deployment-smoke.mjs
+        env:
+          SMOKE_URL: https://calculadora-rendimentos.vercel.app
+          SMOKE_REVISION: ${{ github.event.deployment.sha || github.sha }}
