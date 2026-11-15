@@ -4,7 +4,16 @@ Gestão de carteiras em **Next.js + React + TypeScript**, preparada para **Verce
 
 ## Executar
 
-Usar **Node.js 24 LTS** e npm. O ficheiro `.nvmrc` seleciona essa versão.
+Usar **Node.js 26 LTS** e npm. O ficheiro `.nvmrc` seleciona essa versão.
+
+O comando `npm run typecheck` usa o compilador TypeScript 7.0.2 (`tsc`),
+instalado pelo alias `@typescript/native`. O alias `typescript` fornece
+`@typescript/typescript6` 6.0.2 para as ferramentas que precisam da API
+JavaScript, incluindo o ESLint. Nesta configuração, o Next.js também resolve
+esse pacote de compatibilidade durante o build e usa TypeScript 6.0.3 (`tsc6`).
+A verificação separada com TypeScript 7 continua obrigatória na CI.
+Esta [instalação lado a lado](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0)
+evita conflitos entre os executáveis e mantém todas as regras do ESLint.
 
 ```bash
 npm ci
@@ -69,14 +78,14 @@ Os tickers e a primeira data da carteira são enviados ao endpoint de mercado e 
 
 ## CSV
 
-| Coluna | Obrigatória | Descrição |
-|---|---|---|
-| `date` | Sim | Data ISO `YYYY-MM-DD`, entre 2000-01-01 e hoje |
-| `ticker` | Sim | Símbolo Yahoo Finance, por exemplo `SXR8.DE` ou `AAPL` |
-| `name` | Não | Nome do ativo |
-| `pricebuy` | Sim | Preço por unidade estritamente positivo (por exemplo, `0,00001`) na moeda da carteira; nas vendas, preço de venda |
-| `shares` | Sim | Quantidade positiva, até 8 casas decimais |
-| `type` | Não | `buy` ou `sell`; vazio/omitido assume `buy` |
+| Coluna     | Obrigatória | Descrição                                                                                                         |
+| ---------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `date`     | Sim         | Data ISO `YYYY-MM-DD`, entre 2000-01-01 e hoje                                                                    |
+| `ticker`   | Sim         | Símbolo Yahoo Finance, por exemplo `SXR8.DE` ou `AAPL`                                                            |
+| `name`     | Não         | Nome do ativo                                                                                                     |
+| `pricebuy` | Sim         | Preço por unidade estritamente positivo (por exemplo, `0,00001`) na moeda da carteira; nas vendas, preço de venda |
+| `shares`   | Sim         | Quantidade positiva, até 8 casas decimais                                                                         |
+| `type`     | Não         | `buy` ou `sell`; vazio/omitido assume `buy`                                                                       |
 
 ```csv
 date,ticker,name,pricebuy,shares,type
@@ -151,11 +160,11 @@ Estas integrações públicas não oficiais não precisam de chave de API. Os ca
 
 1. Publicar a branch no fornecedor Git e importar o repositório em **Vercel → Add New → Project**.
 2. Selecionar a conta/equipa e o projeto pretendidos. Framework: **Next.js**; Root Directory: raiz do repositório.
-3. Usar **Node.js 24.x**, Install Command `npm ci` e Build Command `npm run build`. Manter Output Directory automático.
+3. Usar **Node.js 26.x**, Install Command `npm ci` e Build Command `npm run build`. Manter Output Directory automático.
 4. Para modo local não são necessárias variáveis nem base de dados. Para ativar contas, seguir a configuração Supabase abaixo e definir as duas variáveis públicas em cada ambiente Vercel antes do build. O endpoint `/api/market` usa Node.js no servidor; não configurar como exportação estática.
-5. Publicar primeiro um preview, verificar transações, importação e cotações reais nesse ambiente; depois promover para produção e associar o domínio em **Settings → Domains**.
+5. Publicar primeiro um preview e verificar os fluxos nesse ambiente. Para produção, preferir o build de produção pela integração Git, sujeito a preflight e Deployment Checks. Antes de promover um deployment já construído ou fazer rollback, executar o preflight com configuração do destino, conforme [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md#publicação-e-rollback).
 
-O Next.js tem suporte nativo na [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). Não é preciso `vercel.json` para os defaults desta aplicação. Os testes devem passar antes de publicar; a integração Git faz deploy em cada push, pelo que convém configurar checks obrigatórios.
+O Next.js tem suporte nativo na [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). Não é preciso `vercel.json` para os defaults desta aplicação. A integração Git constrói cada push; os Deployment Checks da Vercel devem bloquear a atribuição dos domínios de produção até passarem `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript` e `SonarCloud Code Analysis`. O primeiro agrega qualidade e as duas suites E2E. Não usar Force Promote para contornar falhas. O registo da configuração e o procedimento de release estão em [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md#publicação-e-rollback).
 
 O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. Os ficheiros Streamlit passam da raiz para `legacy/streamlit/`. Antes do merge para `main`, confirmar a branch e o entrypoint do serviço Streamlit existente: se acompanhar `main` e procurar `app.py` na raiz, a atualização automática pode falhar. A continuidade desse serviço exige configuração externa própria; este PR não a altera. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
 
@@ -190,7 +199,7 @@ A sessão Auth é persistida pelo SDK Supabase no navegador; terminar sessão fe
 
 Aplicar também `202611030006_account_active_sessions.sql`, depois da 005, antes de aceitar dados reais. Exige que o `session_id` do JWT pertença ao utilizador e ainda exista em `auth.sessions`, tanto nas duas políticas de leitura como nas RPCs `account_snapshot` e `account_apply`. Após o logout confirmado no Auth, novas chamadas com o JWT antigo deixam de ler ou escrever dados da aplicação, mesmo antes de expirar. A implementação de escrita passa para o schema privado, sem execução pelos clientes, mantendo o contrato da RPC pública. Não altera carteiras, revisões, recibos ou sessões. Pedidos já iniciados podem concluir; esta verificação não cancela operações retroativamente nem protege outros serviços/tabelas sem políticas equivalentes.
 
-Aplicar `202611100007_readable_account_function_names.sql` depois da 006 em conjunto com esta versão da API. Renomeia as RPCs para `get_account_portfolios` e `apply_account_changes`, e os helpers para `private.apply_account_changes` e `private.is_account_session_active`. Os nomes anteriores são removidos: coordenar a atualização da base de dados e do servidor, incluindo consumidores RPC diretos; um rollback apenas da aplicação fica incompatível. Dados, permissões, RLS e contratos HTTP são preservados. A migration está pendente no Supabase real; consultar o [contrato da 007](supabase/CONTRACT.md#nomes-legíveis-das-funções-migration-007).
+Aplicar `202611100007_readable_account_function_names.sql` depois da 006 e, antes de publicar, `202611150008_account_release_compatibility.sql`. A 007 renomeia as RPCs para `get_account_portfolios` e `apply_account_changes`; a 008 repõe os nomes públicos anteriores como aliases autenticados, sem duplicar regras de escrita, permitindo rollback da aplicação. As duas migrations têm transações separadas: usar uma janela controlada na primeira aplicação; não há garantia de ausência de interrupção entre 007 e 008. A 008 publica apenas metadados constantes em `get_account_schema_contract()`. Builds Vercel de produção com conta configurada exigem esse contrato; uma BD incompatível ou indisponível faz falhar o build. Sem ambas as variáveis a aplicação mantém o modo local; configuração parcial falha o preflight. As migrations continuam pendentes de aplicação/validação real nesta alteração. Consultar o [contrato](supabase/CONTRACT.md#compatibilidade-de-release-migration-008).
 
 Access/refresh tokens continuam acessíveis a JavaScript da mesma origem. A CSP restringe scripts através de um nonce aleatório por pedido e limita ligações ao próprio site, ao Supabase configurado e, quando necessário, ao Turnstile. O script de tema recebe o mesmo nonce. Os documentos passam a renderização dinâmica, sem cache de HTML, para não reutilizar nonces. Mantém-se `unsafe-inline` apenas para estilos devido aos gráficos e indicadores existentes, além das origens Google Fonts; em desenvolvimento permite-se `unsafe-eval` e WebSocket local. A CSP reduz exposição mas não elimina XSS nem torna os tokens HttpOnly; tal exigiria migrar o fluxo de autenticação para o servidor.
 
@@ -283,3 +292,5 @@ O Dependabot está configurado para atualizações semanais de npm e GitHub Acti
 O GitHub só ativa esta configuração quando `.github/dependabot.yml` existe na branch predefinida (`main`). O PR de migração inclui este ficheiro; o serviço só fica ativo depois do merge. A presença apenas na branch T3 não ativa o serviço. O PR draft #25 (`ci/activate-dependabot`) fica redundante após esta migração e deve ser tratado separadamente, sem merge. As atualizações de segurança do Dependabot continuam associadas à branch predefinida.
 
 Os workflows de CI e CodeQL cobrem PRs e pushes para `main` e `t3/migrar-nextjs-vercel-portfolio`. Na proteção de ambas as branches, exigir `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript`, `CodeQL` e `SonarCloud Code Analysis`, associados às Apps que os publicam, com a branch atualizada antes do merge. Ativar também a exigência de atualização da branch e aplicar as regras aos administradores. Preservar quaisquer proteções adicionais existentes. A publicação deste PR em draft não autoriza merge, passagem a pronto ou deploy manual.
+
+O check `Quality, tests and build` agrega `Quality checks and build`, `E2E local` e `E2E account`; falhas, cancelamentos e skips de qualquer um impedem o sucesso. Os E2E são jobs independentes, com builds e diagnósticos separados. O Playwright rejeita `test.only` no CI. Auditoria e CodeQL correm também semanalmente; o evento agendado não executa os builds/E2E. O check adicional `CodeQL` foi confirmado num PR recente e mantém-se obrigatório no GitHub; não é exigido na Vercel porque não aparece nos checks de push da `main`.
