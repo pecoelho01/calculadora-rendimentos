@@ -29,7 +29,7 @@ const cachedCatalog = unstable_cache(
 );
 // Only public lookup work is shared, never portfolios or quantities.
 const pendingCatalogs = new Map<"uk" | "us", Promise<string>>();
-function catalog(region: "uk" | "us") {
+function loadCatalog(region: "uk" | "us") {
   const existing = pendingCatalogs.get(region);
   if (existing) return existing;
   const task = cachedCatalog(region).finally(() =>
@@ -39,7 +39,7 @@ function catalog(region: "uk" | "us") {
   return task;
 }
 function loadIsharesByIsin(isin: string) {
-  return loadIsharesGeography({ isin }, fetch, catalog);
+  return loadIsharesGeography({ isin }, fetch, loadCatalog);
 }
 
 async function fetchGeography(ticker: string) {
@@ -47,7 +47,7 @@ async function fetchGeography(ticker: string) {
   if (ticker.includes(".")) {
     geography = await loadGeography(ticker, fetch, loadIsharesByIsin);
   } else {
-    geography = await loadIsharesGeography({ ticker }, fetch, catalog);
+    geography = await loadIsharesGeography({ ticker }, fetch, loadCatalog);
   }
   if (!geography) throw new Error("Composição geográfica indisponível");
   return geography;

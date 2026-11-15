@@ -9,10 +9,12 @@ const yahoo = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
   queue: { concurrency: 4 },
 });
-const positive = (value: unknown): number | null =>
+
+const nonNegativePrice = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value
     : null;
+
 async function fetchMarketAsset(
   ticker: string,
   start: string,
@@ -24,30 +26,35 @@ async function fetchMarketAsset(
   // Include earlier trading observations for weekends and exchanges ahead of UTC.
   const historyStart = new Date(start + "T00:00:00Z");
   historyStart.setUTCDate(historyStart.getUTCDate() - 7);
-  const [quote, history, intraday] = await Promise.allSettled([
-    yahoo.quote(ticker, {}, { fetchOptions: { signal } }),
-    yahoo.chart(
-      ticker,
-      { period1: historyStart, interval: "1d" },
-      { fetchOptions: { signal } },
-    ),
-    yahoo.chart(
-      ticker,
-      {
-        period1: intradayStart,
-        period2: now,
-        interval: "5m",
-        includePrePost: false,
-      },
-      { fetchOptions: { signal } },
-    ),
-  ]);
-  const quoteData = quote.status === "fulfilled" ? quote.value : null;
-  const historyData = history.status === "fulfilled" ? history.value : null;
-  const intradayData = intraday.status === "fulfilled" ? intraday.value : null;
+  const [quoteResult, historyResult, intradayResult] = await Promise.allSettled(
+    [
+      yahoo.quote(ticker, {}, { fetchOptions: { signal } }),
+      yahoo.chart(
+        ticker,
+        { period1: historyStart, interval: "1d" },
+        { fetchOptions: { signal } },
+      ),
+      yahoo.chart(
+        ticker,
+        {
+          period1: intradayStart,
+          period2: now,
+          interval: "5m",
+          includePrePost: false,
+        },
+        { fetchOptions: { signal } },
+      ),
+    ],
+  );
+  const quoteData =
+    quoteResult.status === "fulfilled" ? quoteResult.value : null;
+  const historyData =
+    historyResult.status === "fulfilled" ? historyResult.value : null;
+  const intradayData =
+    intradayResult.status === "fulfilled" ? intradayResult.value : null;
   return {
-    price: positive(quoteData?.regularMarketPrice),
-    previousClose: positive(quoteData?.regularMarketPreviousClose),
+    price: nonNegativePrice(quoteData?.regularMarketPrice),
+    previousClose: nonNegativePrice(quoteData?.regularMarketPreviousClose),
     currency:
       quoteData?.currency ??
       historyData?.meta.currency ??
@@ -59,20 +66,20 @@ async function fetchMarketAsset(
         ? quoteData.regularMarketTime.toISOString()
         : null,
     history: (historyData?.quotes ?? [])
-      .flatMap((p) => {
+      .flatMap((observation) => {
         const date = tradingDate(
-          p.date,
+          observation.date,
           historyData!.meta.exchangeTimezoneName,
         );
-        return date && positive(p.close) !== null
-          ? [{ date, close: p.close! }]
-          : [];
+        const close = nonNegativePrice(observation.close);
+        if (!date || close === null) return [];
+        return [{ date, close }];
       })
       .sort((a, b) => a.date.localeCompare(b.date)),
     intraday: intradayData
       ? normalizeIntraday(intradayData.quotes, intradayStart, now)
       : [],
-    ...(intraday.status === "rejected"
+    ...(intradayResult.status === "rejected"
       ? {
           intradayError:
             "Cotações intradiárias indisponíveis. Tenta atualizar os preços.",
