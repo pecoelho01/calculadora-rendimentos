@@ -293,3 +293,45 @@ test("país sem mapeamento e grupo residual não inventam exposição continenta
   ]);
   assert.equal(data.coverage, 0);
 });
+
+test("interromper respostas justETF excessivas em cada etapa sem continuar pedidos", async () => {
+  for (const oversizedStep of [1, 2, 3]) {
+    let requests = 0;
+    let downloadedChunks = 0;
+    let cancelled = false;
+    const fake: typeof fetch = async () => {
+      requests++;
+      if (requests === oversizedStep) {
+        return new Response(
+          new ReadableStream(
+            {
+              pull(controller) {
+                if (downloadedChunks === 5) {
+                  controller.close();
+                  return;
+                }
+                downloadedChunks++;
+                controller.enqueue(new Uint8Array(1_000_000).fill(65));
+              },
+              cancel() {
+                cancelled = true;
+              },
+            },
+            { highWaterMark: 0 },
+          ),
+        );
+      }
+      if (requests === 1) {
+        return new Response(
+          '{"fetchCallbackUrl":"/en/search.html?callback=1","etfsParams":"query=EUNL"}',
+        );
+      }
+      return Response.json({ recordsFiltered: 1, data: [{ isin }] });
+    };
+
+    assert.equal(await loadGeography("EUNL.DE", fake), null);
+    assert.equal(requests, oversizedStep);
+    assert.equal(downloadedChunks, 3);
+    assert.equal(cancelled, true);
+  }
+});

@@ -1,5 +1,7 @@
 export type AuthBackend = {
-  getUser(token: string): Promise<{ data: { user: { id: string } | null }; error: unknown }>;
+  getUser(
+    token: string,
+  ): Promise<{ data: { user: { id: string } | null }; error: unknown }>;
 };
 
 /** Verify with Auth, using the same JWT forwarded by the request-scoped client. */

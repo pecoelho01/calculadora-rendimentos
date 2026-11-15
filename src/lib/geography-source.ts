@@ -1,3 +1,4 @@
+import { readPublicText } from "./public-data";
 import type { Geography } from "./types";
 import { countryCode } from "./geography-countries";
 
@@ -111,9 +112,7 @@ export async function loadGeography(
       redirect: "error",
       cache: "no-store",
     });
-    if (!response.ok) throw new Error("Fonte indisponível");
-    const body = await response.text();
-    if (body.length > 2_000_000) throw new Error("Resposta demasiado grande");
+    const body = await readPublicText(response, 2_000_000);
     return {
       body,
       cookies: response.headers

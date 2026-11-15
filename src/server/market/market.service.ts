@@ -7,14 +7,14 @@ export type MarketAdapter = (
 ) => Promise<MarketAsset>;
 
 export function createMarketService(getAsset: MarketAdapter) {
-  return async function loadMarket(raw: string, start: string) {
-    const tickers = [...new Set(raw.split(",").filter(Boolean))];
-    if (
-      !tickers.length ||
-      tickers.length > MAX_TICKERS ||
-      !tickers.every((ticker) => tickerPattern.test(ticker)) ||
-      !validDate(start)
-    ) {
+  return async function loadMarket(rawTickers: string, start: string) {
+    const tickers = [...new Set(rawTickers.split(",").filter(Boolean))];
+    const hasValidTickers =
+      tickers.length > 0 &&
+      tickers.length <= MAX_TICKERS &&
+      tickers.every((ticker) => tickerPattern.test(ticker));
+
+    if (!hasValidTickers || !validDate(start)) {
       return null;
     }
     async function loadAssetEntry(ticker: string) {

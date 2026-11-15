@@ -30,6 +30,7 @@ export function createSupabaseClient(token: string): SupabaseBackend | null {
   const url = validateSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
+
   // Request-scoped client; the user JWT is checked by Auth and forwarded to RLS/RPC.
   const client = createClient(url, key, {
     auth: {
@@ -42,6 +43,7 @@ export function createSupabaseClient(token: string): SupabaseBackend | null {
       fetch: fetchWithoutCache,
     },
   });
+
   return {
     async getUser(accessToken) {
       return client.auth.getUser(accessToken);

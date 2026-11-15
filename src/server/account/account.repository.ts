@@ -7,6 +7,16 @@ export type AccountRepository = {
   apply(write: AccountWrite): Promise<unknown>;
 };
 
+function databaseError(code: string | undefined): AccountError {
+  if (code === "PT429") return new AccountError("rate-limit");
+  if (code === "PT409" || code === "40001") return new AccountError("conflict");
+  if (code?.startsWith("22") || code === "23514") {
+    return new AccountError("invalid-data");
+  }
+  if (code === "42501") return new AccountError("session-expired");
+  return new AccountError("unavailable");
+}
+
 export function createAccountRepository(
   backend: Pick<SupabaseBackend, "rpc">,
 ): AccountRepository {
@@ -16,14 +26,7 @@ export function createAccountRepository(
   ) {
     const result = await backend.rpc(name, args);
     if (result.error) {
-      const code = result.error.code;
-      if (code === "PT429") throw new AccountError("rate-limit");
-      if (code === "PT409" || code === "40001")
-        throw new AccountError("conflict");
-      if (code?.startsWith("22") || code === "23514")
-        throw new AccountError("invalid-data");
-      if (code === "42501") throw new AccountError("session-expired");
-      throw new AccountError("unavailable");
+      throw databaseError(result.error.code);
     }
     return result.data;
   }
