@@ -74,15 +74,47 @@ O harness local simula `auth.sessions` e claims verificadas; remove apenas uma s
 
 Aplicar `202611100007_readable_account_function_names.sql` depois da 006, de forma coordenada com a atualização da API. As secções anteriores e as migrations 001–006 conservam os nomes históricos.
 
-| Nome anterior | Nome após a 007 |
-| --- | --- |
-| `public.account_snapshot()` | `public.get_account_portfolios()` |
-| `public.account_apply(jsonb,jsonb)` | `public.apply_account_changes(jsonb,jsonb)` |
+| Nome anterior                        | Nome após a 007                              |
+| ------------------------------------ | -------------------------------------------- |
+| `public.account_snapshot()`          | `public.get_account_portfolios()`            |
+| `public.account_apply(jsonb,jsonb)`  | `public.apply_account_changes(jsonb,jsonb)`  |
 | `private.account_apply(jsonb,jsonb)` | `private.apply_account_changes(jsonb,jsonb)` |
-| `private.account_session_active()` | `private.is_account_session_active()` |
+| `private.account_session_active()`   | `private.is_account_session_active()`        |
 
 A migration renomeia as funções existentes, preservando OIDs, proprietários, permissões e referências das políticas RLS. Atualiza também as chamadas textuais nos corpos PL/pgSQL; não duplica nem altera a implementação transacional. Mantém parâmetros, valor predefinido de `p_migration`, respostas, códigos SQLSTATE, `SECURITY DEFINER`, `search_path` vazio e volatilidade do helper. Carteiras, revisões, tombstones, recibos, contadores e sessões não são reescritos. O commit notifica o PostgREST para atualizar a cache do esquema.
 
 Os nomes antigos deixam de existir, sem aliases. Consumidores RPC diretos e versões anteriores do servidor precisam de atualização: coordenar a aplicação da 007 e a entrada da API nova, evitando pedidos durante a transição. A aplicação nova requer a 007; a versão antiga requer o esquema anterior. Um rollback só da aplicação é incompatível com a base de dados já renomeada. Os endpoints HTTP `/api/account` e os respetivos contratos mantêm-se.
 
 A verificação local compara dados, snapshots, OIDs, ACLs, proprietários, argumentos, atributos e políticas antes/depois do upgrade; toda a suite SQL passa a usar os novos nomes. A 007 está preparada no repositório, sem aplicação ou validação no Supabase real.
+
+## Compatibilidade de release (migration 008)
+
+Aplicar `202611150008_account_release_compatibility.sql` depois da 007 e antes da
+publicação. A 007 permanece imutável; a ausência de aliases descrita acima é o
+estado intermédio entre as duas migrations. A 008 restaura apenas as RPCs públicas
+`account_snapshot()` e `account_apply(p_changes jsonb, p_migration jsonb default null)`.
+São wrappers `SECURITY INVOKER`, com `search_path` vazio, que delegam nas RPCs atuais;
+apenas `authenticated` pode executá-los. Não restauram helpers privados nem alteram
+RLS, dados, revisões, recibos, quotas ou sessões. As validações e a exigência de
+sessão ativa continuam na implementação existente.
+
+Depois da 008, versões da aplicação que usam os nomes antigos e novos funcionam
+com a mesma BD. O rollback da aplicação mantém a 008 instalada. Remover os aliases
+exige uma release futura, depois de confirmar que nenhum consumidor ou versão de
+rollback depende deles. Na primeira aplicação, 007 e 008 fazem commits separados:
+usar uma janela de manutenção, aplicar por ordem e verificar o contrato antes de
+voltar a aceitar pedidos. A 008 não elimina a janela intermédia da 007.
+
+`get_account_schema_contract()` é uma RPC `SECURITY INVOKER` imutável que devolve
+apenas `{"version":8,"accountRpcVersion":1,"legacyRpcAliases":true}`. A execução é
+permitida a `anon` e `authenticated`, com `PUBLIC` revogado. Não consulta dados ou
+sessões. O preflight usa só URL e publishable key (ou chave anon antiga), sem JWT
+de utilizador ou credenciais administrativas, com timeout de 10 segundos e sem
+redirecionamentos. Falhas de rede, resposta inválida ou contrato diferente impedem
+o build de produção. É uma verificação de compatibilidade declarada; não substitui
+os testes reais de Auth, RLS, logout ou SMTP. Nunca editar este contrato constante
+para esconder uma migration não aplicada.
+
+O harness verifica upgrade sem alteração do estado, permissões dos aliases,
+leitura/escrita por ambas as versões, CAS, atomicidade, idempotência, isolamento e
+sessão revogada. A aplicação da 008 no Supabase real não foi feita nesta alteração.
