@@ -4,7 +4,7 @@ Gestão de carteiras em **Next.js + React + TypeScript**, preparada para **Verce
 
 ## Executar
 
-Usar **Node.js 24 LTS** e npm. O ficheiro `.nvmrc` seleciona essa versão.
+Usar **Node.js 26 LTS** e npm. O ficheiro `.nvmrc` seleciona essa versão.
 
 O comando `npm run typecheck` usa o compilador TypeScript 7.0.2 (`tsc`),
 instalado pelo alias `@typescript/native`. O alias `typescript` fornece
@@ -160,7 +160,7 @@ Estas integrações públicas não oficiais não precisam de chave de API. Os ca
 
 1. Publicar a branch no fornecedor Git e importar o repositório em **Vercel → Add New → Project**.
 2. Selecionar a conta/equipa e o projeto pretendidos. Framework: **Next.js**; Root Directory: raiz do repositório.
-3. Usar **Node.js 24.x**, Install Command `npm ci` e Build Command `npm run build`. Manter Output Directory automático.
+3. Usar **Node.js 26.x**, Install Command `npm ci` e Build Command `npm run build`. Manter Output Directory automático.
 4. Para modo local não são necessárias variáveis nem base de dados. Para ativar contas, seguir a configuração Supabase abaixo e definir as duas variáveis públicas em cada ambiente Vercel antes do build. O endpoint `/api/market` usa Node.js no servidor; não configurar como exportação estática.
 5. Publicar primeiro um preview e verificar os fluxos nesse ambiente. Para produção, preferir o build de produção pela integração Git, sujeito a preflight e Deployment Checks. Antes de promover um deployment já construído ou fazer rollback, executar o preflight com configuração do destino, conforme [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md#publicação-e-rollback).
 

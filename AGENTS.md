@@ -16,7 +16,7 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 - `public/`: modelos CSV para download; manter sincronizados com os exemplos na raiz.
 - `tests/`: cálculos determinísticos e fluxos Playwright.
 - `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.
-- `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 24 LTS e npm.
+- `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 26 LTS e npm.
 
 Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito e respeitar a separação entre interface, cálculos, armazenamento e integração externa.
 
