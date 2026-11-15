@@ -4,7 +4,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535)
   throw new Error("PLAYWRIGHT_PORT inválido.");
 const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
-  testDir: "./tests",
+  testDir: "../tests/e2e",
   testMatch: "**/*.spec.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

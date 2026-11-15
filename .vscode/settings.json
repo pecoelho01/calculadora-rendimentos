@@ -1,0 +1,6 @@
+{
+  "prettier.configPath": "config/prettier.config.json",
+  "eslint.options": {
+    "overrideConfigFile": "config/eslint.config.mjs"
+  }
+}
