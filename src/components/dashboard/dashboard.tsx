@@ -26,7 +26,11 @@ import { Icon } from "../shared/icon";
 import { ThemeControl } from "../shared/theme-control";
 import { WorkspaceShell } from "./workspace-shell";
 import type { AccountIdentity } from "../account/account-gateway";
-import { buildAccountChanges, validateAccountSnapshot, type AccountSnapshot } from "@/lib/account";
+import {
+  buildAccountChanges,
+  validateAccountSnapshot,
+  type AccountSnapshot,
+} from "@/lib/account";
 
 function download(text: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -56,7 +60,68 @@ type Modal = "order" | "portfolio" | "import" | "rename" | null;
 const EMPTY_ORDERS: Order[] = [];
 const EMPTY_MARKET: MarketData = {};
 
-export function Dashboard({ identity = null, accountControls, sidebarAccountControls, accountFeedback, accountPage = false, children }: {
+function PortfolioNavigationRow({
+  portfolio,
+  selected,
+  disabled,
+  onSelect,
+  onRename,
+}: {
+  portfolio: Portfolio;
+  selected: boolean;
+  disabled: boolean;
+  onSelect: (id: string) => void;
+  onRename: (id: string) => void;
+}) {
+  function handleContextMenu(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    onRename(portfolio.id);
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const requestsRename =
+      event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
+    if (!requestsRename) return;
+    event.preventDefault();
+    onRename(portfolio.id);
+  }
+
+  return (
+    <div className={`portfolio-row ${selected ? "selected" : ""}`}>
+      <button
+        onClick={() => onSelect(portfolio.id)}
+        onContextMenu={handleContextMenu}
+        onKeyDown={handleKeyDown}
+        className={`portfolio-link ${selected ? "selected" : ""}`}
+        aria-current={selected ? "true" : undefined}
+        title="Botão direito para renomear"
+      >
+        <i className="portfolio-dot" />
+        <span className="portfolio-identity">
+          <span className="portfolio-name">{portfolio.name}</span>
+          <small>{portfolio.currency}</small>
+        </span>
+      </button>
+      <button
+        className="portfolio-rename icon-button"
+        aria-label={`Renomear carteira ${portfolio.name}`}
+        disabled={disabled}
+        onClick={() => onRename(portfolio.id)}
+      >
+        <Icon name="edit" />
+      </button>
+    </div>
+  );
+}
+
+export function Dashboard({
+  identity = null,
+  accountControls,
+  sidebarAccountControls,
+  accountFeedback,
+  accountPage = false,
+  children,
+}: {
   identity?: AccountIdentity | null;
   accountControls?: React.ReactNode;
   sidebarAccountControls?: React.ReactNode;
@@ -65,34 +130,56 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   children?: React.ReactNode;
 }) {
   const router = useRouter();
-  const [accountSnapshot, setAccountSnapshot] = useState<AccountSnapshot | null>(null);
-  const [saveState, setSaveState] = useState<"saving" | "saved" | "error">("saved");
+  const [accountSnapshot, setAccountSnapshot] =
+    useState<AccountSnapshot | null>(null);
+  const [saveState, setSaveState] = useState<"saving" | "saved" | "error">(
+    "saved",
+  );
   const [accountConflict, setAccountConflict] = useState(false);
   const writing = useRef(false);
   const mounted = useRef(true);
   const requests = useRef<AbortController | null>(null);
-  useEffect(() => {
+  useEffect(function trackWorkspaceLifetime() {
     mounted.current = true;
     const controller = new AbortController();
     requests.current = controller;
-    return () => { mounted.current = false; controller.abort(); };
+    return () => {
+      mounted.current = false;
+      controller.abort();
+    };
   }, []);
   async function accountRequest(body?: unknown) {
     const response = await fetch("/api/account", {
       method: body === undefined ? "GET" : "POST",
-      headers: { Authorization: `Bearer ${identity?.accessToken}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${identity?.accessToken}`,
+        "Content-Type": "application/json",
+      },
       cache: "no-store",
       signal: requests.current?.signal,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
       if (response.status === 409) {
-        throw new Error("Esta carteira foi alterada noutro dispositivo. Exporta uma cópia se necessário e recarrega os dados da conta antes de repetir a operação.");
+        throw new Error(
+          "Esta carteira foi alterada noutro dispositivo. Exporta uma cópia se necessário e recarrega os dados da conta antes de repetir a operação.",
+        );
       }
-      if (response.status === 401) throw new Error("A sessão expirou. Inicia sessão novamente para guardar na conta.");
-      if (response.status === 429) throw new Error("Demasiadas gravações. Aguarda um minuto e recarrega os dados da conta antes de tentar novamente.");
-      if (response.status === 400) throw new Error("Dados inválidos ou limites da conta excedidos. Nenhuma alteração foi guardada. Verifica os dados e os limites documentados antes de repetir.");
-      throw new Error("Não foi possível aceder às carteiras da conta. Tenta novamente. Os dados locais continuam disponíveis.");
+      if (response.status === 401)
+        throw new Error(
+          "A sessão expirou. Inicia sessão novamente para guardar na conta.",
+        );
+      if (response.status === 429)
+        throw new Error(
+          "Demasiadas gravações. Aguarda um minuto e recarrega os dados da conta antes de tentar novamente.",
+        );
+      if (response.status === 400)
+        throw new Error(
+          "Dados inválidos ou limites da conta excedidos. Nenhuma alteração foi guardada. Verifica os dados e os limites documentados antes de repetir.",
+        );
+      throw new Error(
+        "Não foi possível aceder às carteiras da conta. Tenta novamente. Os dados locais continuam disponíveis.",
+      );
     }
     return validateAccountSnapshot(await response.json());
   }
@@ -100,7 +187,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     setAccountSnapshot(snapshot);
     const loaded = snapshot.portfolios.map((p) => p.portfolio);
     setPortfolios(loaded);
-    setSelected(loaded.some((p) => p.id === id) ? id! : loaded[0]?.id ?? "");
+    setSelected(loaded.some((p) => p.id === id) ? id! : (loaded[0]?.id ?? ""));
     setAccountConflict(false);
     setSaveState("saved");
   }
@@ -116,28 +203,54 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
       setSearches({ overview: "", positions: "", transactions: "", notes: "" });
       setMessage("");
     } catch (error) {
-      if (mounted.current) { setMessage((error as Error).message); setSaveState("error"); }
-    } finally { writing.current = false; }
+      if (mounted.current) {
+        setMessage((error as Error).message);
+        setSaveState("error");
+      }
+    } finally {
+      writing.current = false;
+    }
   }
   async function migrateLocal() {
     if (writing.current || !accountSnapshot) return;
-    if (!window.confirm("Copiar as carteiras deste navegador para a conta? Serão acrescentadas sem substituir carteiras existentes. Os dados locais serão mantidos. Uma cópia idêntica já importada não será duplicada.")) return;
+    if (
+      !window.confirm(
+        "Copiar as carteiras deste navegador para a conta? Serão acrescentadas sem substituir carteiras existentes. Os dados locais serão mantidos. Uma cópia idêntica já importada não será duplicada.",
+      )
+    )
+      return;
     writing.current = true;
     setSaveState("saving");
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) throw new Error("Não existem carteiras guardadas neste navegador.");
+      if (!raw)
+        throw new Error("Não existem carteiras guardadas neste navegador.");
       const local = decodeStorage(raw);
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(encodeStorage(local)));
-      const key = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(encodeStorage(local)),
+      );
+      const key = Array.from(new Uint8Array(digest), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join("");
       if (!mounted.current) return;
-      const snapshot = await accountRequest({ changes: [], migration: { key, portfolios: local } });
+      const snapshot = await accountRequest({
+        changes: [],
+        migration: { key, portfolios: local },
+      });
       if (!mounted.current) return;
       acceptAccount(snapshot, selected);
-      setMessage("Carteiras locais copiadas para a conta. Uma cópia idêntica já importada não foi duplicada; os dados do navegador foram mantidos.");
+      setMessage(
+        "Carteiras locais copiadas para a conta. Uma cópia idêntica já importada não foi duplicada; os dados do navegador foram mantidos.",
+      );
     } catch (error) {
-      if (mounted.current) { setMessage((error as Error).message); setSaveState("error"); }
-    } finally { writing.current = false; }
+      if (mounted.current) {
+        setMessage((error as Error).message);
+        setSaveState("error");
+      }
+    } finally {
+      writing.current = false;
+    }
   }
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selected, setSelected] = useState("");
@@ -150,7 +263,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     window.scrollTo({ top: 0, behavior: "instant" });
     if (accountPage) router.push("/");
   }
-  const [allocationView, setAllocationView] = useState<"assets" | "geography">("assets");
+  const [allocationView, setAllocationView] = useState<"assets" | "geography">(
+    "assets",
+  );
   const [modal, setModal] = useState<Modal>(null);
   const [csvReview, setCsvReview] = useState<{
     portfolio: Portfolio;
@@ -176,15 +291,26 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   const storageSnapshot = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
+  useEffect(function loadWorkspace() {
     if (identity) {
       let cancelled = false;
-      accountRequest().then((snapshot) => {
-        if (!cancelled) { acceptAccount(snapshot); setReady(true); }
-      }).catch((error: Error) => {
-        if (!cancelled) { setMessage(error.message); setSaveState("error"); setReady(true); }
-      });
-      return () => { cancelled = true; };
+      accountRequest()
+        .then((snapshot) => {
+          if (!cancelled) {
+            acceptAccount(snapshot);
+            setReady(true);
+          }
+        })
+        .catch((error: Error) => {
+          if (!cancelled) {
+            setMessage(error.message);
+            setSaveState("error");
+            setReady(true);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
     }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -213,49 +339,54 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   }, []);
   const portfolio = portfolios.find((p) => p.id === selected) ?? portfolios[0];
   const orders = portfolio?.orders ?? EMPTY_ORDERS;
-  const tickers = [...new Set(orders.map((o) => o.ticker))].sort((a, b) => a.localeCompare(b)).join(",");
+  const tickers = [...new Set(orders.map((o) => o.ticker))]
+    .sort((a, b) => a.localeCompare(b))
+    .join(",");
   const start = orders.length ? chronological(orders)[0].date : "";
   const requestKey = `${portfolio?.id}|${tickers}|${start}|${refresh}`;
-  useEffect(() => {
-    if (!tickers || !start) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55_000);
-    async function load() {
-      try {
-        const response = await fetch(
-          `/api/market?${new URLSearchParams({ tickers, start })}`,
-          { signal: controller.signal },
-        );
-        if (!response.ok)
-          throw new Error("Não foi possível obter os dados de mercado.");
-        const body = await response.json();
-        setMarketResult({ key: requestKey, data: body.assets, error: "" });
-      } catch {
-        if (!controller.signal.aborted)
-          setMarketResult({
-            key: requestKey,
-            data: {},
-            error:
-              "O Yahoo Finance está indisponível. As tuas transações continuam guardadas.",
-          });
-        else if (!cancelled)
-          setMarketResult({
-            key: requestKey,
-            data: {},
-            error: "O pedido demorou demasiado. Tenta atualizar os preços.",
-          });
-      } finally {
-        clearTimeout(timeout);
+  useEffect(
+    function loadMarketData() {
+      if (!tickers || !start) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55_000);
+      async function load() {
+        try {
+          const response = await fetch(
+            `/api/market?${new URLSearchParams({ tickers, start })}`,
+            { signal: controller.signal },
+          );
+          if (!response.ok)
+            throw new Error("Não foi possível obter os dados de mercado.");
+          const body = await response.json();
+          setMarketResult({ key: requestKey, data: body.assets, error: "" });
+        } catch {
+          if (!controller.signal.aborted)
+            setMarketResult({
+              key: requestKey,
+              data: {},
+              error:
+                "O Yahoo Finance está indisponível. As tuas transações continuam guardadas.",
+            });
+          else if (!cancelled)
+            setMarketResult({
+              key: requestKey,
+              data: {},
+              error: "O pedido demorou demasiado. Tenta atualizar os preços.",
+            });
+        } finally {
+          clearTimeout(timeout);
+        }
       }
-    }
-    let cancelled = false;
-    void load();
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [tickers, start, requestKey]);
+      let cancelled = false;
+      void load();
+      return () => {
+        cancelled = true;
+        clearTimeout(timeout);
+        controller.abort();
+      };
+    },
+    [tickers, start, requestKey],
+  );
   const market =
     marketResult.key === requestKey ? marketResult.data : EMPTY_MARKET;
   const loading = !!tickers && marketResult.key !== requestKey;
@@ -269,7 +400,11 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     .map((p) => p.ticker)
     .sort((a, b) => a.localeCompare(b))
     .join(",");
-  const geography = useGeography(openTickers, ready && tab === "overview", refresh);
+  const geography = useGeography(
+    openTickers,
+    ready && tab === "overview",
+    refresh,
+  );
   const geographicMarket = Object.fromEntries(
     Object.entries(market).map(([ticker, asset]) => [
       ticker,
@@ -284,10 +419,20 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           currency,
           maximumFractionDigits: 2,
         });
-  async function persist(next: Portfolio[], id = selected, recoveryOriginal?: string): Promise<boolean> {
+  async function persist(
+    next: Portfolio[],
+    id = selected,
+    recoveryOriginal?: string,
+  ): Promise<boolean> {
     if (!mounted.current || writing.current || !ready) return false;
-    if (!identity && storageBroken !== null && recoveryOriginal !== storageBroken) {
-      setMessage("Recupera o armazenamento local antes de alterar as carteiras.");
+    if (
+      !identity &&
+      storageBroken !== null &&
+      recoveryOriginal !== storageBroken
+    ) {
+      setMessage(
+        "Recupera o armazenamento local antes de alterar as carteiras.",
+      );
       return false;
     }
     if (identity) {
@@ -298,7 +443,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
       writing.current = true;
       setSaveState("saving");
       try {
-        const snapshot = await accountRequest({ changes: buildAccountChanges(accountSnapshot, next) });
+        const snapshot = await accountRequest({
+          changes: buildAccountChanges(accountSnapshot, next),
+        });
         if (!mounted.current) return false;
         acceptAccount(snapshot, id);
         setMessage("");
@@ -310,12 +457,16 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
           setAccountConflict(true);
         }
         return false;
-      } finally { writing.current = false; }
+      } finally {
+        writing.current = false;
+      }
     }
     try {
       const current = localStorage.getItem(STORAGE_KEY);
       if (recoveryOriginal !== undefined && current !== recoveryOriginal) {
-        setMessage("O armazenamento foi alterado noutro separador. Recarrega a página e verifica os dados antes de repor.");
+        setMessage(
+          "O armazenamento foi alterado noutro separador. Recarrega a página e verifica os dados antes de repor.",
+        );
         return false;
       }
       if (current !== storageSnapshot.current) {
@@ -359,8 +510,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     try {
       const raw = Object.fromEntries(new FormData(event.currentTarget));
       const order = validateOrder(raw);
-      if (await update({ ...portfolio, orders: [...orders, order] })) setModal(null);
-      else setFormError("Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.");
+      if (await update({ ...portfolio, orders: [...orders, order] }))
+        setModal(null);
+      else
+        setFormError(
+          "Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.",
+        );
     } catch (e) {
       setFormError((e as Error).message);
     }
@@ -385,7 +540,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         return;
       }
       const renamed = validatePortfolio({ ...target, name });
-      if (await persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))) {
+      if (
+        await persist(portfolios.map((p) => (p.id === target.id ? renamed : p)))
+      ) {
         setModal(null);
       } else {
         setFormError(
@@ -411,7 +568,10 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         orders: [],
       });
       if (await persist([...portfolios, next], next.id)) setModal(null);
-      else setFormError("Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.");
+      else
+        setFormError(
+          "Não foi possível guardar. Fecha este diálogo e consulta o aviso na página antes de repetir a operação.",
+        );
     } catch (e) {
       setFormError((e as Error).message);
     }
@@ -447,15 +607,32 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
   async function confirmCsvImport(imported: Order[]) {
     if (!csvReview) return;
     const destination = portfolios.find((p) => p.id === csvReview.portfolio.id);
-    if (!destination || JSON.stringify(destination) !== JSON.stringify(csvReview.portfolio)) {
-      throw new Error("A carteira de destino foi alterada. Cancela esta revisão e importa o ficheiro novamente para rever os dados atualizados.");
+    if (
+      !destination ||
+      JSON.stringify(destination) !== JSON.stringify(csvReview.portfolio)
+    ) {
+      throw new Error(
+        "A carteira de destino foi alterada. Cancela esta revisão e importa o ficheiro novamente para rever os dados atualizados.",
+      );
     }
-    const next = validatePortfolio({ ...destination, orders: [...destination.orders, ...imported] });
-    if (!await persist(portfolios.map((p) => p.id === next.id ? next : p), next.id)) {
-      throw new Error("Não foi possível guardar a importação. As edições foram mantidas. Cancela a revisão e consulta o aviso na página antes de tentar novamente.");
+    const next = validatePortfolio({
+      ...destination,
+      orders: [...destination.orders, ...imported],
+    });
+    if (
+      !(await persist(
+        portfolios.map((p) => (p.id === next.id ? next : p)),
+        next.id,
+      ))
+    ) {
+      throw new Error(
+        "Não foi possível guardar a importação. As edições foram mantidas. Cancela a revisão e consulta o aviso na página antes de tentar novamente.",
+      );
     }
     setCsvReview(null);
-    setMessage(`${imported.length} ${imported.length === 1 ? "transação importada" : "transações importadas"}. Confirma a moeda dos ativos antes de analisar os totais.`);
+    setMessage(
+      `${imported.length} ${imported.length === 1 ? "transação importada" : "transações importadas"}. Confirma a moeda dos ativos antes de analisar os totais.`,
+    );
   }
   async function deleteOrder(id: string) {
     if (!portfolio || !window.confirm("Remover esta transação?")) return;
@@ -491,17 +668,91 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
     void persist([...portfolios, p], p.id);
   }
 
+  function selectPortfolio(id: string) {
+    setSelected(id);
+    if (accountPage) router.push("/");
+    setSearches({ overview: "", positions: "", transactions: "", notes: "" });
+  }
+
+  async function restoreLocalStorage() {
+    if (storageBroken === null) return;
+    const confirmed = window.confirm(
+      "Repor o armazenamento? Guarda primeiro os dados originais.",
+    );
+    if (!confirmed) return;
+
+    const replacement = initialPortfolio();
+    if (await persist([replacement], replacement.id, storageBroken)) {
+      setStorageBroken(null);
+    }
+  }
+
+  function closeDataMenuOnEscape(
+    event: React.KeyboardEvent<HTMLDetailsElement>,
+  ) {
+    if (event.key !== "Escape") return;
+    event.currentTarget.open = false;
+    event.currentTarget.querySelector("summary")?.focus();
+  }
+
+  function closeDataMenuOnAction(event: React.MouseEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest("button, a")) {
+      event.currentTarget.closest("details")?.removeAttribute("open");
+    }
+  }
+
+  function openNoteSection(event: React.MouseEvent<HTMLElement>) {
+    const link = (event.target as HTMLElement).closest("a");
+    const target = link?.getAttribute("href")?.slice(1);
+    if (target) {
+      document
+        .getElementById(target)
+        ?.closest("details")
+        ?.setAttribute("open", "");
+    }
+  }
+
+  function chooseCsvFile() {
+    setModal(null);
+    fileRef.current?.click();
+  }
+
+  function dropCsvFile(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setModal(null);
+    void importFile(event.dataTransfer.files[0]);
+  }
+
+  function importCsvFile(event: React.ChangeEvent<HTMLInputElement>) {
+    void importFile(event.target.files?.[0]);
+    event.target.value = "";
+  }
+
+  function restoreBackupFile(event: React.ChangeEvent<HTMLInputElement>) {
+    void importFile(event.target.files?.[0], true);
+    event.target.value = "";
+  }
+
   if (!ready && !accountPage)
     return (
-      <main className="boot" aria-busy="true">
-        {accountControls}
-        A abrir a tua carteira…
+      <main
+        className="boot"
+        aria-busy="true"
+      >
+        {accountControls}A abrir a tua carteira…
       </main>
     );
   if (storageBroken !== null && !accountPage)
     return (
       <main className="boot">
-        {accountControls ?? <Link className="button secondary" href="/conta">Aceder à conta</Link>}
+        {accountControls ?? (
+          <Link
+            className="button secondary"
+            href="/conta"
+          >
+            Aceder à conta
+          </Link>
+        )}
         <h1>Recuperar carteiras</h1>
         <p role="alert">{message}</p>
         <button
@@ -511,94 +762,94 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         >
           Exportar dados originais
         </button>
-        <button
-          onClick={async () => {
-            if (
-              window.confirm(
-                "Repor o armazenamento? Guarda primeiro os dados originais.",
-              )
-            ) {
-              const p = initialPortfolio();
-              if (await persist([p], p.id, storageBroken)) setStorageBroken(null);
-            }
-          }}
-        >
-          Repor armazenamento
-        </button>
+        <button onClick={restoreLocalStorage}>Repor armazenamento</button>
       </main>
     );
   const dataMenu = (
-              <details
-                className="data-actions"
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.currentTarget.open = false;
-                    event.currentTarget.querySelector("summary")?.focus();
-                  }
-                }}
-              >
-                <summary className="button secondary">
-                  <span className="visually-hidden">Dados e exportação</span><span aria-hidden="true">•••</span>
-                </summary>
-                <div
-                  className="data-actions-panel"
-                  onClick={(event) => {
-                    if ((event.target as HTMLElement).closest("button, a")) {
-                      event.currentTarget
-                        .closest("details")
-                        ?.removeAttribute("open");
-                    }
-                  }}
-                >
-                  <span className="action-group-label">Carteira atual</span>
-                  <button className="mobile-menu-action" disabled={loading || !orders.length} onClick={() => setRefresh((value) => value + 1)}><Icon name="refresh" /> Atualizar preços</button>
-                  <button disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}>
-                    <Icon name="upload" /> Importar CSV
-                  </button>
-                  <button
-                    onClick={() =>
-                      download(exportCsv(orders), "transacoes.csv", "text/csv")
-                    }
-                  >
-                    <Icon name="download" /> Exportar transações CSV
-                  </button>
-                  <button onClick={() => window.print()}>
-                    <Icon name="file" /> Relatório PDF
-                  </button>
-                  <a href="/modelo_site_ativos.csv" download>
-                    <Icon name="download" /> Modelo de importação CSV
-                  </a>
-                  <button className="delete-button" disabled={!portfolio} onClick={removePortfolio}>Eliminar carteira</button>
-                  <span className="action-group-label">Todas as carteiras</span>
-                  <button
-                    disabled={!portfolios.length}
-                    onClick={() =>
-                      download(
-                        encodeStorage(portfolios),
-                        "carteiras.json",
-                        "application/json",
-                      )
-                    }
-                  >
-                    <Icon name="download" /> Exportar backup JSON
-                  </button>
-                  <button onClick={() => backupRef.current?.click()}>
-                    <Icon name="upload" /> Restaurar cópia de segurança
-                  </button>
-                </div>
-              </details>
+    <details
+      className="data-actions"
+      onKeyDown={closeDataMenuOnEscape}
+    >
+      <summary className="button secondary">
+        <span className="visually-hidden">Dados e exportação</span>
+        <span aria-hidden="true">•••</span>
+      </summary>
+      <div
+        className="data-actions-panel"
+        onClick={closeDataMenuOnAction}
+      >
+        <span className="action-group-label">Carteira atual</span>
+        <button
+          className="mobile-menu-action"
+          disabled={loading || !orders.length}
+          onClick={() => setRefresh((value) => value + 1)}
+        >
+          <Icon name="refresh" /> Atualizar preços
+        </button>
+        <button
+          disabled={!portfolio || saveState === "saving"}
+          onClick={() => openModal("import")}
+        >
+          <Icon name="upload" /> Importar CSV
+        </button>
+        <button
+          onClick={() =>
+            download(exportCsv(orders), "transacoes.csv", "text/csv")
+          }
+        >
+          <Icon name="download" /> Exportar transações CSV
+        </button>
+        <button onClick={() => window.print()}>
+          <Icon name="file" /> Relatório PDF
+        </button>
+        <a
+          href="/modelo_site_ativos.csv"
+          download
+        >
+          <Icon name="download" /> Modelo de importação CSV
+        </a>
+        <button
+          className="delete-button"
+          disabled={!portfolio}
+          onClick={removePortfolio}
+        >
+          Eliminar carteira
+        </button>
+        <span className="action-group-label">Todas as carteiras</span>
+        <button
+          disabled={!portfolios.length}
+          onClick={() =>
+            download(
+              encodeStorage(portfolios),
+              "carteiras.json",
+              "application/json",
+            )
+          }
+        >
+          <Icon name="download" /> Exportar backup JSON
+        </button>
+        <button onClick={() => backupRef.current?.click()}>
+          <Icon name="upload" /> Restaurar cópia de segurança
+        </button>
+      </div>
+    </details>
   );
   return (
     <WorkspaceShell
       portfolioName={portfolio?.name ?? "As tuas carteiras"}
       currency={portfolio?.currency}
       mobileNavigation={
-        <nav className="mobile-navigation no-print" aria-label="Navegação móvel">
+        <nav
+          className="mobile-navigation no-print"
+          aria-label="Navegação móvel"
+        >
           {primaryNavigation.map((item) => (
             <button
               key={item.key}
               type="button"
-              aria-current={!accountPage && tab === item.key ? "page" : undefined}
+              aria-current={
+                !accountPage && tab === item.key ? "page" : undefined
+              }
               onClick={() => {
                 navigateToTab(item.key);
                 window.scrollTo({ top: 0, behavior: "instant" });
@@ -608,8 +859,12 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               <span>{item.text}</span>
             </button>
           ))}
-          <Link href="/conta" aria-current={accountPage ? "page" : undefined}>
-            <Icon name="shield" /><span>Conta</span>
+          <Link
+            href="/conta"
+            aria-current={accountPage ? "page" : undefined}
+          >
+            <Icon name="shield" />
+            <span>Conta</span>
           </Link>
         </nav>
       }
@@ -628,7 +883,9 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 className={`nav-item ${n.key !== "notes" ? "sidebar-primary-link" : ""} ${!accountPage && tab === n.key ? "active" : ""}`}
                 aria-label={n.text}
                 title={n.text}
-                aria-current={!accountPage && tab === n.key ? "page" : undefined}
+                aria-current={
+                  !accountPage && tab === n.key ? "page" : undefined
+                }
                 onClick={() => navigateToTab(n.key)}
               >
                 <Icon name={n.icon} />
@@ -652,46 +909,15 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 <Icon name="plus" />
               </button>
             </div>
-            {portfolios.map((p) => (
-              <div
-                className={`portfolio-row ${portfolio?.id === p.id ? "selected" : ""}`}
-                key={p.id}
-              >
-                <button
-                  onClick={() => {
-                    setSelected(p.id);
-                    if (accountPage) router.push("/");
-                    setSearches({ overview: "", positions: "", transactions: "", notes: "" });
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    startRename(p.id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "ContextMenu" ||
-                      (event.shiftKey && event.key === "F10")
-                    ) {
-                      event.preventDefault();
-                      startRename(p.id);
-                    }
-                  }}
-                  className={`portfolio-link ${portfolio?.id === p.id ? "selected" : ""}`}
-                  aria-current={portfolio?.id === p.id ? "true" : undefined}
-                  title="Botão direito para renomear"
-                >
-                  <i className="portfolio-dot" />
-                  <span className="portfolio-identity"><span className="portfolio-name">{p.name}</span><small>{p.currency}</small></span>
-                </button>
-                <button
-                  className="portfolio-rename icon-button"
-                  aria-label={`Renomear carteira ${p.name}`}
-                  disabled={!ready || storageBroken !== null}
-                  onClick={() => startRename(p.id)}
-                >
-                  <Icon name="edit" />
-                </button>
-              </div>
+            {portfolios.map((item) => (
+              <PortfolioNavigationRow
+                key={item.id}
+                portfolio={item}
+                selected={portfolio?.id === item.id}
+                disabled={!ready || storageBroken !== null}
+                onSelect={selectPortfolio}
+                onRename={startRename}
+              />
             ))}
           </div>
           <div className="sidebar-bottom">
@@ -701,7 +927,14 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 <strong>{identity ? "Modo conta" : "Modo local"}</strong>
               </div>
             </div>
-            <Link className={`nav-item ${accountPage ? "active" : ""}`} href="/conta" aria-current={accountPage ? "page" : undefined}><Icon name="shield" /><span className="nav-label">Definições da conta</span></Link>
+            <Link
+              className={`nav-item ${accountPage ? "active" : ""}`}
+              href="/conta"
+              aria-current={accountPage ? "page" : undefined}
+            >
+              <Icon name="shield" />
+              <span className="nav-label">Definições da conta</span>
+            </Link>
             {sidebarAccountControls}
             <a
               href="https://github.com/pecoelho01"
@@ -717,486 +950,875 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
       <div className={`main-area view-${accountPage ? "account" : tab}`}>
         <header className="topbar no-print">
           <div className="breadcrumb">
-            Espaço pessoal <span>/</span> <strong>{accountPage ? "Definições da conta" : tab === "notes" ? "Notas explicativas" : primaryNavigation.find((item) => item.key === tab)?.text}</strong>
+            Espaço pessoal <span>/</span>{" "}
+            <strong>
+              {accountPage
+                ? "Definições da conta"
+                : tab === "notes"
+                  ? "Notas explicativas"
+                  : primaryNavigation.find((item) => item.key === tab)?.text}
+            </strong>
           </div>
           <div className="topbar-right">
             <span className="market-source">
               <Icon name="shield" />
               Mercado via Yahoo Finance
             </span>
-            {!accountPage ? <>{dataMenu}<ThemeControl /></> : null}
+            {!accountPage ? (
+              <>
+                {dataMenu}
+                <ThemeControl />
+              </>
+            ) : null}
           </div>
         </header>
         <main className="content">
-          {accountPage ? <>
-            {children}
-            {message ? <div className="notice" role={saveState === "error" ? "alert" : "status"}>
-              <span>{message}</span><button aria-label="Fechar aviso" onClick={() => setMessage("")}><Icon name="close" /></button>
-            </div> : null}
-            {identity ? <p className="account-save-status" role="status">{saveState === "saving" ? "A guardar ou carregar carteiras…" : saveState === "error" ? "Erro ao guardar ou carregar. Verifica o aviso e recarrega os dados antes de repetir." : "Guardado na conta"}</p> : null}
-            <div className="account-settings-grid">
-              <div>
-                {accountControls ?? <section className="account-controls"><div className="account-description"><strong>Modo local</strong><p>As carteiras ficam apenas neste navegador. Inicia sessão pelo menu para aceder às carteiras da tua conta.</p></div></section>}
-                {accountControls ? null : accountFeedback}
-                <section className="panel settings-card">
-                  <h2>Preferências</h2>
-                  <p>Personaliza a aparência do teu espaço.</p>
-                  <div className="settings-row"><div><strong>Aparência</strong><span>Alterna entre o tema claro e escuro.</span></div><ThemeControl /></div>
-                  <div className="settings-row"><div><strong>Armazenamento das carteiras</strong><span>{identity ? "Carteiras guardadas na tua conta." : "Carteiras guardadas neste navegador."} Os modos local e conta são independentes.</span></div></div>
-                </section>
-                {identity ? <section className="panel settings-card">
-                  <h2>Carteiras da conta</h2>
-                  <p>Recarrega os dados ou copia as carteiras locais após confirmação.</p>
-                  <div className="account-actions settings-row">
-                    <button className="button secondary" disabled={saveState === "saving"} onClick={() => void reloadAccount()}>Recarregar dados da conta</button>
-                    <button className="button secondary" disabled={saveState === "saving" || !accountSnapshot} onClick={() => void migrateLocal()}>Copiar carteiras locais para a conta</button>
-                  </div>
-                </section> : null}
-              </div>
-              <aside className="panel settings-card">
-                <div className="settings-illustration"><Icon name="shield" /></div>
-                <span className="eyebrow">PROTEÇÃO DOS TEUS DADOS</span>
-                <h2>As tuas carteiras, sob o teu controlo.</h2>
-                <p>Acede aos investimentos através da tua conta ou mantém os dados neste navegador, em modo local. Cada carteira mantém a sua moeda, sem conversão automática.</p>
-                <div className="settings-backup"><h2>Guarda o teu histórico</h2><p>Exporta uma cópia JSON das carteiras do modo ativo para poderes recuperar os teus dados.</p>
-                  <button className="button secondary" disabled={!portfolios.length} onClick={() => download(encodeStorage(portfolios), "carteiras.json", "application/json")}><Icon name="download" /> Exportar backup JSON</button>
+          {accountPage ? (
+            <>
+              {children}
+              {message ? (
+                <div
+                  className="notice"
+                  role={saveState === "error" ? "alert" : "status"}
+                >
+                  <span>{message}</span>
+                  <button
+                    aria-label="Fechar aviso"
+                    onClick={() => setMessage("")}
+                  >
+                    <Icon name="close" />
+                  </button>
                 </div>
-              </aside>
-            </div>
-            {storageBroken !== null ? <div className="notice" role="alert">
-              <span>Não foi possível ler o armazenamento local. Recupera os dados antes de alterar as carteiras.</span>
-              <Link className="button secondary" href="/">Recuperar carteiras</Link>
-            </div> : null}
-          </> : <>
-          {accountFeedback}
-          {identity ? (
-            <div className={`account-storage account-storage-${saveState} no-print`} aria-busy={saveState === "saving"}>
-              <span aria-live="polite">{saveState === "saving" ? "A guardar…" : saveState === "error" ? "Erro ao guardar ou carregar" : "Guardado na conta"}</span>
-              <button className="button secondary" disabled={saveState === "saving"} onClick={() => void reloadAccount()}>Recarregar dados da conta</button>
-              <button className="button secondary" disabled={saveState === "saving" || !accountSnapshot} onClick={() => void migrateLocal()}>Copiar carteiras locais para a conta</button>
-            </div>
-          ) : null}
-          <div className="page-heading">
-            <div>
-              <span className="eyebrow">{tab === "notes" ? "CENTRO DE AJUDA" : "OS TEUS INVESTIMENTOS"}</span>
-              <h1 aria-label={tab === "overview" ? "Visão Geral" : undefined}>
-                {tab === "notes"
-                  ? "Conhece os teus números"
-                  : tab === "positions"
-                    ? "Posições"
-                    : tab === "transactions"
-                      ? "Transações"
-                      : "Visão geral"}
-              </h1>
-              <p>{tab === "notes" ? "Compreende os cálculos e a forma como tratamos os teus dados." : tab === "positions" ? "As tuas posições e o seu desempenho." : tab === "transactions" ? "O histórico de compras e vendas da tua carteira." : "O essencial da tua carteira, apresentado com clareza."}</p>
-            </div>
-            <div className="heading-actions no-print">
-              <button className="button secondary import-csv-action" disabled={!portfolio || saveState === "saving"} onClick={() => openModal("import")}><Icon name="upload" /> Importar CSV</button>
-
-              <button
-                className="button primary"
-                disabled={!portfolio || saveState === "saving"}
-                onClick={() => openModal("order")}
-              >
-                <Icon name="plus" /> Nova transação
-              </button>
-            </div>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="visually-hidden"
-            aria-label="Importar ficheiro CSV"
-            onChange={(e) => {
-              void importFile(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-          <input
-            ref={backupRef}
-            type="file"
-            accept=".json,application/json"
-            className="visually-hidden"
-            aria-label="Restaurar cópia de segurança"
-            onChange={(e) => {
-              void importFile(e.target.files?.[0], true);
-              e.target.value = "";
-            }}
-          />
-          {identity && accountSnapshot && !portfolios.length ? (
-            <div className="notice account-empty-notice">
-              <span>A tua conta ainda não tem carteiras.</span>
-              <button className="button secondary" onClick={() => openModal("portfolio")}>Criar a primeira carteira</button>
-            </div>
-          ) : null}
-          {message ? (
-            <div className="notice" role="status">
-              {message}
-              <button aria-label="Fechar aviso" onClick={() => setMessage("")}>
-                <Icon name="close" />
-              </button>
-            </div>
-          ) : null}
-          {marketResult.key === requestKey && marketResult.error ? (
-            <div className="notice" role="alert">
-              {marketResult.error}
-            </div>
-          ) : null}
-          {orders.length &&
-          !loading &&
-          (summary.value === null ||
-            Object.values(market).some((a) => a.error)) ? (
-            <div className="notice">
-              Algumas cotações estão em falta ou noutra moeda. Os totais que
-              dependem delas aparecem como «—». A carteira usa {currency}, sem
-              conversão cambial.
-            </div>
-          ) : null}
-          {tab === "notes" ? (
-            <div className="notes-layout">
-              <aside className="panel notes-index no-print"><strong>NESTA PÁGINA</strong><nav aria-label="Índice das notas" onClick={(event) => { const link = (event.target as HTMLElement).closest("a"); const target = link?.getAttribute("href")?.slice(1); if (target) document.getElementById(target)?.closest("details")?.setAttribute("open", ""); }}><a href="#fifo">Custo de aquisição FIFO</a><a href="#roi">Ganho e ROI total</a><a href="#posicoes-abertas">Rentabilidade das posições abertas</a><a href="#ganho-transacao">Ganho por transação</a><a href="#historico">Histórico da carteira</a><a href="#moedas">Moedas, preços e limites</a><a href="#exportar">Guardar e exportar</a><a href="#projeto">Sobre o projeto</a></nav></aside>
-            <section className="panel notes">
-              <h2>Como calculamos a rentabilidade</h2>
-              <h3 id="fifo">Custo de aquisição FIFO</h3>
-              <p>
-                Cada venda consome primeiro as unidades compradas há mais tempo.
-                O ganho realizado é a receita da venda menos o custo desses
-                lotes. O custo médio FIFO é a média dos lotes que continuam
-                abertos. No mesmo dia, preservamos a ordem de registo das
-                transações.
-              </p>
-              <div className="formula">Ganho realizado = Valor da venda − Custo de aquisição FIFO</div>
-              <h3 id="roi">Ganho e ROI total</h3>
-              <p>
-                Ganho não realizado = valor das posições abertas − custo FIFO
-                dos lotes restantes. Ganho total = realizado + não realizado.
-                ROI = ganho total ÷ valor de todas as compras × 100. Não é uma
-                taxa anualizada nem uma rentabilidade ponderada pelo tempo.
-              </p>
-              <div className="formula">ROI total = Ganho total ÷ Compras acumuladas × 100</div>
-              <details className="notes-disclosure"><summary id="posicoes-abertas">Rentabilidade das posições abertas<Icon name="chevron" /></summary>
-              <p>
-                Ganho não realizado ÷ custo FIFO das posições abertas × 100. Sem
-                posições abertas, a percentagem fica indisponível. O toggle do
-                gráfico permite consultar esta métrica ou o ROI total. No
-                histórico, consideramos as posições abertas em cada data; as
-                vendas podem alterar a percentagem sem alterar as cotações.
-              </p></details>
-              <details className="notes-disclosure"><summary id="ganho-transacao">Ganho por transação<Icon name="chevron" /></summary>
-              <p>
-                Nas compras, mostramos o ganho total do lote: o realizado nas
-                vendas mais o não realizado das unidades ainda em carteira,
-                sobre o custo original da compra. Nas vendas, mostramos o ganho realizado
-                sobre o custo FIFO das unidades vendidas. Os preços das transações
-                devem ser superiores a zero. Os valores não incluem
-                comissões nem impostos.
-              </p></details>
-              <details className="notes-disclosure"><summary id="historico">Histórico da carteira<Icon name="chevron" /></summary>
-              <p>
-                Em 1D, usamos observações intradiárias de cinco minutos do dia UTC,
-                com horas em UTC e possíveis atrasos. Sem esses dados, o gráfico
-                fica indisponível. Em falhas curtas, reutilizamos a última cotação
-                válida por até 15 minutos e identificamos o valor como estimado;
-                após esse prazo, mantemos a interrupção, mesmo que outra bolsa esteja aberta.
-                Como as transações não têm hora, as transações
-                do dia aplicam-se a todas as observações desse dia, pela ordem de registo.
-                Reconstruímos a carteira com fechos diários em 5D e 1M e
-                semanais nos restantes períodos, usando apenas preços desse dia
-                ou anteriores, nas datas disponíveis dos ativos da carteira.
-                Em Máximo, a carteira mantém os
-                custos originais. Em 1D, 5D, 1M, 6M, YTD e 1A, as posições iniciais usam o
-                último fecho anterior ao início efetivo do intervalo. A rentabilidade
-                total inclui as compras e vendas do período; nas posições
-                abertas, só contam os lotes ainda detidos, desde o início do
-                intervalo ou a aquisição. 1D abrange o dia atual e 5D os últimos
-                cinco dias de calendário. YTD começa em 1 de janeiro. As compras
-                entram integralmente na base, sem ponderação temporal.
-              </p></details>
-              <details className="notes-disclosure"><summary id="moedas">Moedas, preços e limites<Icon name="chevron" /></summary>
-              <p>
-                Os preços das ordens devem estar na moeda da carteira. Cotações
-                noutra moeda não são convertidas e impedem a valorização de
-                posições abertas. Dividendos, impostos, comissões e ajustes
-                automáticos de quantidades por splits não estão incluídos. O
-                Yahoo pode ajustar retroativamente os preços históricos por
-                splits; nesses ativos, adapta também as transações antes de
-                interpretar a série.
-              </p></details>
-              <details className="notes-disclosure"><summary id="exportar">Guardar e exportar<Icon name="chevron" /></summary>
-              <p>
-                {identity ? "As carteiras deste modo são guardadas na tua conta e podem ser abertas noutros dispositivos. As carteiras locais permanecem separadas." : "Os dados ficam apenas neste navegador. Não sincronizam com outros dispositivos. A limpeza dos dados do navegador remove as carteiras."} Exporta regularmente uma cópia JSON. O CSV contém
-                apenas as transações da carteira selecionada. «Relatório PDF»
-                abre a impressão do navegador: escolhe «Guardar como PDF».
-              </p></details>
-              <details className="notes-disclosure"><summary id="projeto">Sobre o projeto<Icon name="chevron" /></summary>
-              <p>
-                Criado por Pedro, estudante de Engenharia Informática, para
-                acompanhar investimentos de forma simples. A integração Yahoo
-                Finance é não oficial e pode sofrer atrasos ou interrupções.
-              </p></details>
-            </section>
-            </div>
+              ) : null}
+              {identity ? (
+                <p
+                  className="account-save-status"
+                  role="status"
+                >
+                  {saveState === "saving"
+                    ? "A guardar ou carregar carteiras…"
+                    : saveState === "error"
+                      ? "Erro ao guardar ou carregar. Verifica o aviso e recarrega os dados antes de repetir."
+                      : "Guardado na conta"}
+                </p>
+              ) : null}
+              <div className="account-settings-grid">
+                <div>
+                  {accountControls ?? (
+                    <section className="account-controls">
+                      <div className="account-description">
+                        <strong>Modo local</strong>
+                        <p>
+                          As carteiras ficam apenas neste navegador. Inicia
+                          sessão pelo menu para aceder às carteiras da tua
+                          conta.
+                        </p>
+                      </div>
+                    </section>
+                  )}
+                  {accountControls ? null : accountFeedback}
+                  <section className="panel settings-card">
+                    <h2>Preferências</h2>
+                    <p>Personaliza a aparência do teu espaço.</p>
+                    <div className="settings-row">
+                      <div>
+                        <strong>Aparência</strong>
+                        <span>Alterna entre o tema claro e escuro.</span>
+                      </div>
+                      <ThemeControl />
+                    </div>
+                    <div className="settings-row">
+                      <div>
+                        <strong>Armazenamento das carteiras</strong>
+                        <span>
+                          {identity
+                            ? "Carteiras guardadas na tua conta."
+                            : "Carteiras guardadas neste navegador."}{" "}
+                          Os modos local e conta são independentes.
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+                  {identity ? (
+                    <section className="panel settings-card">
+                      <h2>Carteiras da conta</h2>
+                      <p>
+                        Recarrega os dados ou copia as carteiras locais após
+                        confirmação.
+                      </p>
+                      <div className="account-actions settings-row">
+                        <button
+                          className="button secondary"
+                          disabled={saveState === "saving"}
+                          onClick={() => void reloadAccount()}
+                        >
+                          Recarregar dados da conta
+                        </button>
+                        <button
+                          className="button secondary"
+                          disabled={saveState === "saving" || !accountSnapshot}
+                          onClick={() => void migrateLocal()}
+                        >
+                          Copiar carteiras locais para a conta
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+                <aside className="panel settings-card">
+                  <div className="settings-illustration">
+                    <Icon name="shield" />
+                  </div>
+                  <span className="eyebrow">PROTEÇÃO DOS TEUS DADOS</span>
+                  <h2>As tuas carteiras, sob o teu controlo.</h2>
+                  <p>
+                    Acede aos investimentos através da tua conta ou mantém os
+                    dados neste navegador, em modo local. Cada carteira mantém a
+                    sua moeda, sem conversão automática.
+                  </p>
+                  <div className="settings-backup">
+                    <h2>Guarda o teu histórico</h2>
+                    <p>
+                      Exporta uma cópia JSON das carteiras do modo ativo para
+                      poderes recuperar os teus dados.
+                    </p>
+                    <button
+                      className="button secondary"
+                      disabled={!portfolios.length}
+                      onClick={() =>
+                        download(
+                          encodeStorage(portfolios),
+                          "carteiras.json",
+                          "application/json",
+                        )
+                      }
+                    >
+                      <Icon name="download" /> Exportar backup JSON
+                    </button>
+                  </div>
+                </aside>
+              </div>
+              {storageBroken !== null ? (
+                <div
+                  className="notice"
+                  role="alert"
+                >
+                  <span>
+                    Não foi possível ler o armazenamento local. Recupera os
+                    dados antes de alterar as carteiras.
+                  </span>
+                  <Link
+                    className="button secondary"
+                    href="/"
+                  >
+                    Recuperar carteiras
+                  </Link>
+                </div>
+              ) : null}
+            </>
           ) : (
             <>
-              <div className={`portfolio-toolbar ${tab !== "overview" ? "portfolio-toolbar-list" : ""}`}>
-                <div className="portfolio-context">
-                  <label className="portfolio-selector no-print">
-                    <Icon name="wallet" />
-                    <span className="portfolio-selection-label" aria-hidden="true"><strong>{portfolio?.name ?? "As tuas carteiras"}</strong><span> · {currency}</span></span><Icon name="chevron" />
-                    <select aria-label="Selecionar carteira" value={portfolio?.id ?? ""} disabled={!ready || !portfolios.length} onChange={(event) => {
-                      setSelected(event.target.value);
-                      setSearches({ overview: "", positions: "", transactions: "", notes: "" });
-                    }}>
-                      {!portfolios.length ? <option value="">As tuas carteiras</option> : portfolios.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}
-                    </select>
-                  </label>
-                  <span className="portfolio-print-context"><strong>{portfolio?.name ?? "As tuas carteiras"}</strong><span className="currency-tag">Moeda: {currency}</span></span>
-                </div>
-                <button
-                  className="text-button refresh-prices no-print"
-                  aria-label={loading ? "A obter cotações…" : "Atualizar preços"}
-                  disabled={loading || !orders.length}
-                  onClick={() => setRefresh((n) => n + 1)}
+              {accountFeedback}
+              {identity ? (
+                <div
+                  className={`account-storage account-storage-${saveState} no-print`}
+                  aria-busy={saveState === "saving"}
                 >
-                  <Icon name="refresh" />
-                  <span className="refresh-label">{loading ? "A obter cotações…" : "Atualizar preços"}</span>
-                </button>
-              </div>
-              {tab === "positions" ? <div className="summary-strip" aria-label="Resumo das posições">
-                <Metric label="Valor atual" value={money(summary.value)} />
-                <Metric label="Posições abertas" value={`${summary.positions.filter((position) => position.shares > 0).length} ativos`} />
-                <Metric label="Ganho não realizado" value={money(summary.unrealized)} trend={summary.unrealized} />
-              </div> : tab === "transactions" ? <div className="summary-strip" aria-label="Resumo das transações">
-                <Metric label="Total de transações" value={`${orders.length} operações`} />
-                <Metric label="Compras" value={String(orders.filter((order) => order.type === "buy").length)} />
-                <Metric label="Vendas" value={String(orders.filter((order) => order.type === "sell").length)} />
-              </div> : null}
-              {tab === "overview" ? (
-                <div className="metrics">
-                  <Metric
-                    label="Valor da carteira"
-                    value={money(summary.value)}
-                    featured
-                    detail="Posições abertas · valor de mercado"
-                  />
-                  <Metric
-                    label="Rentabilidade total"
-                    value={pct(summary.roi)}
-                    detail={`${money(summary.gain)} de ganho total`}
-                    trend={summary.gain}
-                  />
-                  <Metric
-                    label="Ganho realizado"
-                    value={money(summary.realized)}
-                    detail="Em unidades vendidas"
-                    trend={summary.realized}
-                  />
-                  <Metric
-                    label="Compras acumuladas"
-                    value={money(summary.invested)}
-                    detail="Valor de todas as compras"
-                  />
+                  <span aria-live="polite">
+                    {saveState === "saving"
+                      ? "A guardar…"
+                      : saveState === "error"
+                        ? "Erro ao guardar ou carregar"
+                        : "Guardado na conta"}
+                  </span>
+                  <button
+                    className="button secondary"
+                    disabled={saveState === "saving"}
+                    onClick={() => void reloadAccount()}
+                  >
+                    Recarregar dados da conta
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={saveState === "saving" || !accountSnapshot}
+                    onClick={() => void migrateLocal()}
+                  >
+                    Copiar carteiras locais para a conta
+                  </button>
                 </div>
               ) : null}
-              {tab === "overview" ? (
-                <div className="charts-grid">
-                  <PerformanceChart
-                    key={portfolio?.id ?? "empty"}
-                    orders={orders}
-                    market={market}
-                    currency={currency}
-                  />
-                  <section className="panel allocation-card" aria-label="Distribuição da carteira">
-                    <div className="panel-heading">
-                      <div>
-                        <h2>A tua distribuição</h2><p className="panel-subtitle">Por valor de mercado</p>
-                      </div>
-                    <div
-                      className="segments allocation-toggle no-print"
-                      role="group"
-                      aria-label="Tipo de distribuição"
+              <div className="page-heading">
+                <div>
+                  <span className="eyebrow">
+                    {tab === "notes"
+                      ? "CENTRO DE AJUDA"
+                      : "OS TEUS INVESTIMENTOS"}
+                  </span>
+                  <h1
+                    aria-label={tab === "overview" ? "Visão Geral" : undefined}
+                  >
+                    {tab === "notes"
+                      ? "Conhece os teus números"
+                      : tab === "positions"
+                        ? "Posições"
+                        : tab === "transactions"
+                          ? "Transações"
+                          : "Visão geral"}
+                  </h1>
+                  <p>
+                    {tab === "notes"
+                      ? "Compreende os cálculos e a forma como tratamos os teus dados."
+                      : tab === "positions"
+                        ? "As tuas posições e o seu desempenho."
+                        : tab === "transactions"
+                          ? "O histórico de compras e vendas da tua carteira."
+                          : "O essencial da tua carteira, apresentado com clareza."}
+                  </p>
+                </div>
+                <div className="heading-actions no-print">
+                  <button
+                    className="button secondary import-csv-action"
+                    disabled={!portfolio || saveState === "saving"}
+                    onClick={() => openModal("import")}
+                  >
+                    <Icon name="upload" /> Importar CSV
+                  </button>
+
+                  <button
+                    className="button primary"
+                    disabled={!portfolio || saveState === "saving"}
+                    onClick={() => openModal("order")}
+                  >
+                    <Icon name="plus" /> Nova transação
+                  </button>
+                </div>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="visually-hidden"
+                aria-label="Importar ficheiro CSV"
+                onChange={importCsvFile}
+              />
+              <input
+                ref={backupRef}
+                type="file"
+                accept=".json,application/json"
+                className="visually-hidden"
+                aria-label="Restaurar cópia de segurança"
+                onChange={restoreBackupFile}
+              />
+              {identity && accountSnapshot && !portfolios.length ? (
+                <div className="notice account-empty-notice">
+                  <span>A tua conta ainda não tem carteiras.</span>
+                  <button
+                    className="button secondary"
+                    onClick={() => openModal("portfolio")}
+                  >
+                    Criar a primeira carteira
+                  </button>
+                </div>
+              ) : null}
+              {message ? (
+                <div
+                  className="notice"
+                  role="status"
+                >
+                  {message}
+                  <button
+                    aria-label="Fechar aviso"
+                    onClick={() => setMessage("")}
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+              ) : null}
+              {marketResult.key === requestKey && marketResult.error ? (
+                <div
+                  className="notice"
+                  role="alert"
+                >
+                  {marketResult.error}
+                </div>
+              ) : null}
+              {orders.length &&
+              !loading &&
+              (summary.value === null ||
+                Object.values(market).some((a) => a.error)) ? (
+                <div className="notice">
+                  Algumas cotações estão em falta ou noutra moeda. Os totais que
+                  dependem delas aparecem como «—». A carteira usa {currency},
+                  sem conversão cambial.
+                </div>
+              ) : null}
+              {tab === "notes" ? (
+                <div className="notes-layout">
+                  <aside className="panel notes-index no-print">
+                    <strong>NESTA PÁGINA</strong>
+                    <nav
+                      aria-label="Índice das notas"
+                      onClick={openNoteSection}
                     >
-                      <button
-                        aria-pressed={allocationView === "assets"}
-                        onClick={() => setAllocationView("assets")}
-                      >
-                        ETFs
-                      </button>
-                      <button
-                        aria-pressed={allocationView === "geography"}
-                        onClick={() => setAllocationView("geography")}
-                      >
-                        Geografia
-                      </button>
+                      <a href="#fifo">Custo de aquisição FIFO</a>
+                      <a href="#roi">Ganho e ROI total</a>
+                      <a href="#posicoes-abertas">
+                        Rentabilidade das posições abertas
+                      </a>
+                      <a href="#ganho-transacao">Ganho por transação</a>
+                      <a href="#historico">Histórico da carteira</a>
+                      <a href="#moedas">Moedas, preços e limites</a>
+                      <a href="#exportar">Guardar e exportar</a>
+                      <a href="#projeto">Sobre o projeto</a>
+                    </nav>
+                  </aside>
+                  <section className="panel notes">
+                    <h2>Como calculamos a rentabilidade</h2>
+                    <h3 id="fifo">Custo de aquisição FIFO</h3>
+                    <p>
+                      Cada venda consome primeiro as unidades compradas há mais
+                      tempo. O ganho realizado é a receita da venda menos o
+                      custo desses lotes. O custo médio FIFO é a média dos lotes
+                      que continuam abertos. No mesmo dia, preservamos a ordem
+                      de registo das transações.
+                    </p>
+                    <div className="formula">
+                      Ganho realizado = Valor da venda − Custo de aquisição FIFO
                     </div>
+                    <h3 id="roi">Ganho e ROI total</h3>
+                    <p>
+                      Ganho não realizado = valor das posições abertas − custo
+                      FIFO dos lotes restantes. Ganho total = realizado + não
+                      realizado. ROI = ganho total ÷ valor de todas as compras ×
+                      100. Não é uma taxa anualizada nem uma rentabilidade
+                      ponderada pelo tempo.
+                    </p>
+                    <div className="formula">
+                      ROI total = Ganho total ÷ Compras acumuladas × 100
                     </div>
-                    <div className="allocation-content">
-                      <div className="allocation asset-allocation" hidden={allocationView !== "assets"}>
-                        {summary.value !== null && summary.value > 0 ? (
-                          <AllocationDonut
-                            slices={summary.positions.filter((position) => position.shares > 0).map((position, index) => ({
-                              id: position.ticker,
-                              label: position.ticker,
-                              percent: ((position.value ?? 0) / summary.value!) * 100,
-                              color: colors[index % colors.length],
-                            }))}
-                            label="Alocação da carteira por valor de mercado"
-                            centerLabel="Ativos"
-                            centerValue={String(summary.positions.filter((position) => position.shares > 0).length)}
-                          />
-                        ) : (
-                          <div className="allocation-empty">
-                            <div className="empty-ring" />
-                            <p>
-                              A distribuição dos teus ativos
-                              <br />
-                              vai aparecer aqui.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="geographic-view" hidden={allocationView !== "geography"}>
-                        <GeographicChart
-                          positions={summary.positions}
-                          market={geographicMarket}
-                          loading={loading || geography.loading}
-                        />
-                      </div>
-                    </div>
-                    <div className="allocation-footer"><span>{summary.positions.filter((position) => position.shares > 0).length} ativos na carteira</span><button className="text-button" onClick={() => navigateToTab("positions")}>Ver posições <span aria-hidden="true">→</span></button></div>
+                    <details className="notes-disclosure">
+                      <summary id="posicoes-abertas">
+                        Rentabilidade das posições abertas
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        Ganho não realizado ÷ custo FIFO das posições abertas ×
+                        100. Sem posições abertas, a percentagem fica
+                        indisponível. O toggle do gráfico permite consultar esta
+                        métrica ou o ROI total. No histórico, consideramos as
+                        posições abertas em cada data; as vendas podem alterar a
+                        percentagem sem alterar as cotações.
+                      </p>
+                    </details>
+                    <details className="notes-disclosure">
+                      <summary id="ganho-transacao">
+                        Ganho por transação
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        Nas compras, mostramos o ganho total do lote: o
+                        realizado nas vendas mais o não realizado das unidades
+                        ainda em carteira, sobre o custo original da compra. Nas
+                        vendas, mostramos o ganho realizado sobre o custo FIFO
+                        das unidades vendidas. Os preços das transações devem
+                        ser superiores a zero. Os valores não incluem comissões
+                        nem impostos.
+                      </p>
+                    </details>
+                    <details className="notes-disclosure">
+                      <summary id="historico">
+                        Histórico da carteira
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        Em 1D, usamos observações intradiárias de cinco minutos
+                        do dia UTC, com horas em UTC e possíveis atrasos. Sem
+                        esses dados, o gráfico fica indisponível. Em falhas
+                        curtas, reutilizamos a última cotação válida por até 15
+                        minutos e identificamos o valor como estimado; após esse
+                        prazo, mantemos a interrupção, mesmo que outra bolsa
+                        esteja aberta. Como as transações não têm hora, as
+                        transações do dia aplicam-se a todas as observações
+                        desse dia, pela ordem de registo. Reconstruímos a
+                        carteira com fechos diários em 5D e 1M e semanais nos
+                        restantes períodos, usando apenas preços desse dia ou
+                        anteriores, nas datas disponíveis dos ativos da
+                        carteira. Em Máximo, a carteira mantém os custos
+                        originais. Em 1D, 5D, 1M, 6M, YTD e 1A, as posições
+                        iniciais usam o último fecho anterior ao início efetivo
+                        do intervalo. A rentabilidade total inclui as compras e
+                        vendas do período; nas posições abertas, só contam os
+                        lotes ainda detidos, desde o início do intervalo ou a
+                        aquisição. 1D abrange o dia atual e 5D os últimos cinco
+                        dias de calendário. YTD começa em 1 de janeiro. As
+                        compras entram integralmente na base, sem ponderação
+                        temporal.
+                      </p>
+                    </details>
+                    <details className="notes-disclosure">
+                      <summary id="moedas">
+                        Moedas, preços e limites
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        Os preços das ordens devem estar na moeda da carteira.
+                        Cotações noutra moeda não são convertidas e impedem a
+                        valorização de posições abertas. Dividendos, impostos,
+                        comissões e ajustes automáticos de quantidades por
+                        splits não estão incluídos. O Yahoo pode ajustar
+                        retroativamente os preços históricos por splits; nesses
+                        ativos, adapta também as transações antes de interpretar
+                        a série.
+                      </p>
+                    </details>
+                    <details className="notes-disclosure">
+                      <summary id="exportar">
+                        Guardar e exportar
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        {identity
+                          ? "As carteiras deste modo são guardadas na tua conta e podem ser abertas noutros dispositivos. As carteiras locais permanecem separadas."
+                          : "Os dados ficam apenas neste navegador. Não sincronizam com outros dispositivos. A limpeza dos dados do navegador remove as carteiras."}{" "}
+                        Exporta regularmente uma cópia JSON. O CSV contém apenas
+                        as transações da carteira selecionada. «Relatório PDF»
+                        abre a impressão do navegador: escolhe «Guardar como
+                        PDF».
+                      </p>
+                    </details>
+                    <details className="notes-disclosure">
+                      <summary id="projeto">
+                        Sobre o projeto
+                        <Icon name="chevron" />
+                      </summary>
+                      <p>
+                        Criado por Pedro, estudante de Engenharia Informática,
+                        para acompanhar investimentos de forma simples. A
+                        integração Yahoo Finance é não oficial e pode sofrer
+                        atrasos ou interrupções.
+                      </p>
+                    </details>
                   </section>
                 </div>
-              ) : null}
-              <section className={`panel holdings ${tab !== "overview" ? "holdings-list" : ""}`}>
-                <div className="panel-heading">
-                  <div>
-                    <h2>
-                      {tab === "transactions"
-                        ? "Histórico de transações"
-                        : "As tuas posições"}{" "}
-                      <span className="count">
-                        {tab === "transactions"
-                          ? orders.length
-                          : summary.positions.length}
+              ) : (
+                <>
+                  <div
+                    className={`portfolio-toolbar ${tab !== "overview" ? "portfolio-toolbar-list" : ""}`}
+                  >
+                    <div className="portfolio-context">
+                      <label className="portfolio-selector no-print">
+                        <Icon name="wallet" />
+                        <span
+                          className="portfolio-selection-label"
+                          aria-hidden="true"
+                        >
+                          <strong>
+                            {portfolio?.name ?? "As tuas carteiras"}
+                          </strong>
+                          <span> · {currency}</span>
+                        </span>
+                        <Icon name="chevron" />
+                        <select
+                          aria-label="Selecionar carteira"
+                          value={portfolio?.id ?? ""}
+                          disabled={!ready || !portfolios.length}
+                          onChange={(event) => {
+                            setSelected(event.target.value);
+                            setSearches({
+                              overview: "",
+                              positions: "",
+                              transactions: "",
+                              notes: "",
+                            });
+                          }}
+                        >
+                          {!portfolios.length ? (
+                            <option value="">As tuas carteiras</option>
+                          ) : (
+                            portfolios.map((item) => (
+                              <option
+                                key={item.id}
+                                value={item.id}
+                              >
+                                {item.name} · {item.currency}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </label>
+                      <span className="portfolio-print-context">
+                        <strong>
+                          {portfolio?.name ?? "As tuas carteiras"}
+                        </strong>
+                        <span className="currency-tag">Moeda: {currency}</span>
                       </span>
-                    </h2>
-                  </div>
-                  <div className="table-actions no-print">
-                    <label className="search">
-                      <Icon name="search" />
-                      <input
-                        aria-label="Pesquisar ativo"
-                        placeholder="Pesquisar ativo…"
-                        value={search}
-                        onChange={(e) => setSearches((current) => ({
-                          ...current,
-                          [tab]: e.target.value,
-                        }))}
-                      />
-                    </label>
-                    {tab === "overview" ? <button className="text-button overview-all" onClick={() => navigateToTab("positions")}>Ver todas <span aria-hidden="true">→</span></button> : null}
-                  </div>
-                </div>
-                {!orders.length ? (
-                  <div className="empty-state">
-                    <div className="empty-illustration">
-                      <Icon name="positions" />
                     </div>
-                    <h3>
-                      {tab === "positions"
-                        ? "Ainda não tens posições"
-                        : "Ainda não tens transações"}
-                    </h3>
-                    <p>
-                      {portfolio
-                        ? "Adiciona a primeira transação ou importa um CSV."
-                        : "Cria a primeira carteira para registar transações."}
-                    </p>
-                    <div>
-                      <button
-                        className="button primary no-print"
-                        onClick={() => openModal(portfolio ? "order" : "portfolio")}
-                      >
-                        <Icon name="plus" /> {portfolio ? "Adicionar transação" : "Criar carteira"}
-                      </button>
-                      <button
-                        className="text-button no-print"
-                        onClick={loadDemo}
-                      >
-                        Explorar uma carteira de exemplo{" "}
-                        <Icon name="external" />
-                      </button>
-                    </div>
-                    <a
-                      className="template-link no-print"
-                      href="/modelo_site_ativos.csv"
-                      download
+                    <button
+                      className="text-button refresh-prices no-print"
+                      aria-label={
+                        loading ? "A obter cotações…" : "Atualizar preços"
+                      }
+                      disabled={loading || !orders.length}
+                      onClick={() => setRefresh((n) => n + 1)}
                     >
-                      Descarregar modelo CSV
-                    </a>
+                      <Icon name="refresh" />
+                      <span className="refresh-label">
+                        {loading ? "A obter cotações…" : "Atualizar preços"}
+                      </span>
+                    </button>
                   </div>
-                ) : (
-                  <div className="table-scroll">
-                    {tab === "transactions" ? (
-                      <TransactionsTable
-                        key={portfolio?.id}
-                        orders={orders}
-                        orderGains={summary.orderGains}
-                        currency={currency}
-                        search={search}
-                        onClearSearch={() => setSearches((current) => ({ ...current, [tab]: "" }))}
-                        onDelete={deleteOrder}
+                  {tab === "positions" ? (
+                    <div
+                      className="summary-strip"
+                      aria-label="Resumo das posições"
+                    >
+                      <Metric
+                        label="Valor atual"
+                        value={money(summary.value)}
                       />
-                    ) : (
-                      <PositionsTable
-                        compact={tab === "overview"}
-                        key={portfolio?.id}
-                        positions={summary.positions}
+                      <Metric
+                        label="Posições abertas"
+                        value={`${summary.positions.filter((position) => position.shares > 0).length} ativos`}
+                      />
+                      <Metric
+                        label="Ganho não realizado"
+                        value={money(summary.unrealized)}
+                        trend={summary.unrealized}
+                      />
+                    </div>
+                  ) : tab === "transactions" ? (
+                    <div
+                      className="summary-strip"
+                      aria-label="Resumo das transações"
+                    >
+                      <Metric
+                        label="Total de transações"
+                        value={`${orders.length} operações`}
+                      />
+                      <Metric
+                        label="Compras"
+                        value={String(
+                          orders.filter((order) => order.type === "buy").length,
+                        )}
+                      />
+                      <Metric
+                        label="Vendas"
+                        value={String(
+                          orders.filter((order) => order.type === "sell")
+                            .length,
+                        )}
+                      />
+                    </div>
+                  ) : null}
+                  {tab === "overview" ? (
+                    <div className="metrics">
+                      <Metric
+                        label="Valor da carteira"
+                        value={money(summary.value)}
+                        featured
+                        detail="Posições abertas · valor de mercado"
+                      />
+                      <Metric
+                        label="Rentabilidade total"
+                        value={pct(summary.roi)}
+                        detail={`${money(summary.gain)} de ganho total`}
+                        trend={summary.gain}
+                      />
+                      <Metric
+                        label="Ganho realizado"
+                        value={money(summary.realized)}
+                        detail="Em unidades vendidas"
+                        trend={summary.realized}
+                      />
+                      <Metric
+                        label="Compras acumuladas"
+                        value={money(summary.invested)}
+                        detail="Valor de todas as compras"
+                      />
+                    </div>
+                  ) : null}
+                  {tab === "overview" ? (
+                    <div className="charts-grid">
+                      <PerformanceChart
+                        key={portfolio?.id ?? "empty"}
+                        orders={orders}
                         market={market}
                         currency={currency}
-                        loading={loading}
-                        search={search}
-                        onClearSearch={() => setSearches((current) => ({ ...current, [tab]: "" }))}
                       />
+                      <section
+                        className="panel allocation-card"
+                        aria-label="Distribuição da carteira"
+                      >
+                        <div className="panel-heading">
+                          <div>
+                            <h2>A tua distribuição</h2>
+                            <p className="panel-subtitle">
+                              Por valor de mercado
+                            </p>
+                          </div>
+                          <div
+                            className="segments allocation-toggle no-print"
+                            role="group"
+                            aria-label="Tipo de distribuição"
+                          >
+                            <button
+                              aria-pressed={allocationView === "assets"}
+                              onClick={() => setAllocationView("assets")}
+                            >
+                              ETFs
+                            </button>
+                            <button
+                              aria-pressed={allocationView === "geography"}
+                              onClick={() => setAllocationView("geography")}
+                            >
+                              Geografia
+                            </button>
+                          </div>
+                        </div>
+                        <div className="allocation-content">
+                          <div
+                            className="allocation asset-allocation"
+                            hidden={allocationView !== "assets"}
+                          >
+                            {summary.value !== null && summary.value > 0 ? (
+                              <AllocationDonut
+                                slices={summary.positions
+                                  .filter((position) => position.shares > 0)
+                                  .map((position, index) => ({
+                                    id: position.ticker,
+                                    label: position.ticker,
+                                    percent:
+                                      ((position.value ?? 0) / summary.value!) *
+                                      100,
+                                    color: colors[index % colors.length],
+                                  }))}
+                                label="Alocação da carteira por valor de mercado"
+                                centerLabel="Ativos"
+                                centerValue={String(
+                                  summary.positions.filter(
+                                    (position) => position.shares > 0,
+                                  ).length,
+                                )}
+                              />
+                            ) : (
+                              <div className="allocation-empty">
+                                <div className="empty-ring" />
+                                <p>
+                                  A distribuição dos teus ativos
+                                  <br />
+                                  vai aparecer aqui.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <div
+                            className="geographic-view"
+                            hidden={allocationView !== "geography"}
+                          >
+                            <GeographicChart
+                              positions={summary.positions}
+                              market={geographicMarket}
+                              loading={loading || geography.loading}
+                            />
+                          </div>
+                        </div>
+                        <div className="allocation-footer">
+                          <span>
+                            {
+                              summary.positions.filter(
+                                (position) => position.shares > 0,
+                              ).length
+                            }{" "}
+                            ativos na carteira
+                          </span>
+                          <button
+                            className="text-button"
+                            onClick={() => navigateToTab("positions")}
+                          >
+                            Ver posições <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+                  ) : null}
+                  <section
+                    className={`panel holdings ${tab !== "overview" ? "holdings-list" : ""}`}
+                  >
+                    <div className="panel-heading">
+                      <div>
+                        <h2>
+                          {tab === "transactions"
+                            ? "Histórico de transações"
+                            : "As tuas posições"}{" "}
+                          <span className="count">
+                            {tab === "transactions"
+                              ? orders.length
+                              : summary.positions.length}
+                          </span>
+                        </h2>
+                      </div>
+                      <div className="table-actions no-print">
+                        <label className="search">
+                          <Icon name="search" />
+                          <input
+                            aria-label="Pesquisar ativo"
+                            placeholder="Pesquisar ativo…"
+                            value={search}
+                            onChange={(e) =>
+                              setSearches((current) => ({
+                                ...current,
+                                [tab]: e.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                        {tab === "overview" ? (
+                          <button
+                            className="text-button overview-all"
+                            onClick={() => navigateToTab("positions")}
+                          >
+                            Ver todas <span aria-hidden="true">→</span>
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {!orders.length ? (
+                      <div className="empty-state">
+                        <div className="empty-illustration">
+                          <Icon name="positions" />
+                        </div>
+                        <h3>
+                          {tab === "positions"
+                            ? "Ainda não tens posições"
+                            : "Ainda não tens transações"}
+                        </h3>
+                        <p>
+                          {portfolio
+                            ? "Adiciona a primeira transação ou importa um CSV."
+                            : "Cria a primeira carteira para registar transações."}
+                        </p>
+                        <div>
+                          <button
+                            className="button primary no-print"
+                            onClick={() =>
+                              openModal(portfolio ? "order" : "portfolio")
+                            }
+                          >
+                            <Icon name="plus" />{" "}
+                            {portfolio
+                              ? "Adicionar transação"
+                              : "Criar carteira"}
+                          </button>
+                          <button
+                            className="text-button no-print"
+                            onClick={loadDemo}
+                          >
+                            Explorar uma carteira de exemplo{" "}
+                            <Icon name="external" />
+                          </button>
+                        </div>
+                        <a
+                          className="template-link no-print"
+                          href="/modelo_site_ativos.csv"
+                          download
+                        >
+                          Descarregar modelo CSV
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="table-scroll">
+                        {tab === "transactions" ? (
+                          <TransactionsTable
+                            key={portfolio?.id}
+                            orders={orders}
+                            orderGains={summary.orderGains}
+                            currency={currency}
+                            search={search}
+                            onClearSearch={() =>
+                              setSearches((current) => ({
+                                ...current,
+                                [tab]: "",
+                              }))
+                            }
+                            onDelete={deleteOrder}
+                          />
+                        ) : (
+                          <PositionsTable
+                            compact={tab === "overview"}
+                            key={portfolio?.id}
+                            positions={summary.positions}
+                            market={market}
+                            currency={currency}
+                            loading={loading}
+                            search={search}
+                            onClearSearch={() =>
+                              setSearches((current) => ({
+                                ...current,
+                                [tab]: "",
+                              }))
+                            }
+                          />
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-                <div className="table-footer">
-                  <span>
-                    Valores em {currency} · Cotações sujeitas a atraso
-                    {tab === "transactions" ? (
-                      <span className="transaction-gain-note">
-                        Compras: ganho total do lote (realizado + não realizado), % sobre o custo original.
-                        Vendas: ganho realizado, % sobre o custo vendido.
-                        Os ganhos das vendas já estão incluídos nas compras; não somar as duas vistas.
+                    <div className="table-footer">
+                      <span>
+                        Valores em {currency} · Cotações sujeitas a atraso
+                        {tab === "transactions" ? (
+                          <span className="transaction-gain-note">
+                            Compras: ganho total do lote (realizado + não
+                            realizado), % sobre o custo original. Vendas: ganho
+                            realizado, % sobre o custo vendido. Os ganhos das
+                            vendas já estão incluídos nas compras; não somar as
+                            duas vistas.
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </span>
-                </div>
-              </section>
-              <div className="bottom-actions no-print">
-                <span>
-                  <Icon name="download" /> Exporta uma cópia regularmente.
-                </span>
-                <button className="bottom-delete" onClick={removePortfolio}>Eliminar carteira</button>
-              </div>
+                    </div>
+                  </section>
+                  <div className="bottom-actions no-print">
+                    <span>
+                      <Icon name="download" /> Exporta uma cópia regularmente.
+                    </span>
+                    <button
+                      className="bottom-delete"
+                      onClick={removePortfolio}
+                    >
+                      Eliminar carteira
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
-          </>}
         </main>
       </div>
-      {!accountPage ? <button className="mobile-trade-action no-print" aria-label="Nova transação" title="Nova transação" disabled={!portfolio || saveState === "saving"} onClick={() => openModal("order")}><Icon name="plus" /></button> : null}
-      {csvReview ? <CsvImportReview
-        key={csvReview.drafts[0].id}
-        portfolio={csvReview.portfolio}
-        filename={csvReview.filename}
-        drafts={csvReview.drafts}
-        onClose={() => setCsvReview(null)}
-        onConfirm={confirmCsvImport}
-      /> : null}
+      {!accountPage ? (
+        <button
+          className="mobile-trade-action no-print"
+          aria-label="Nova transação"
+          title="Nova transação"
+          disabled={!portfolio || saveState === "saving"}
+          onClick={() => openModal("order")}
+        >
+          <Icon name="plus" />
+        </button>
+      ) : null}
+      {csvReview ? (
+        <CsvImportReview
+          key={csvReview.drafts[0].id}
+          portfolio={csvReview.portfolio}
+          filename={csvReview.filename}
+          drafts={csvReview.drafts}
+          onClose={() => setCsvReview(null)}
+          onConfirm={confirmCsvImport}
+        />
+      ) : null}
       {modal === "rename" ? (
-        <Dialog title="Renomear carteira" onClose={() => setModal(null)}>
+        <Dialog
+          title="Renomear carteira"
+          onClose={() => setModal(null)}
+        >
           <form onSubmit={renamePortfolio}>
             <label>
               Nome da carteira
@@ -1208,7 +1830,10 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               />
             </label>
             {formError ? (
-              <p className="form-error" role="alert">
+              <p
+                className="form-error"
+                role="alert"
+              >
                 {formError}
               </p>
             ) : null}
@@ -1220,7 +1845,11 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               >
                 Cancelar
               </button>
-              <button className="button primary" disabled={saveState === "saving"} type="submit">
+              <button
+                className="button primary"
+                disabled={saveState === "saving"}
+                type="submit"
+              >
                 Guardar nome
               </button>
             </div>
@@ -1228,48 +1857,88 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </Dialog>
       ) : null}
       {modal === "import" ? (
-        <Dialog title="Importar CSV" eyebrow="IMPORTAÇÃO DE DADOS" onClose={() => setModal(null)}>
-          <div className="import-stepper" aria-label="Etapas da importação"><span aria-current="step"><b>1</b> Escolher ficheiro</span><span><b>2</b> Rever dados</span><span><b>3</b> Confirmar</span></div>
-          <button className="import-upload" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setModal(null); void importFile(event.dataTransfer.files[0]); }} onClick={() => { setModal(null); fileRef.current?.click(); }}><Icon name="upload" /><strong>Arrasta o ficheiro CSV para aqui</strong><small>ou escolhe um ficheiro no teu dispositivo</small><span className="button secondary">Escolher ficheiro</span></button>
-          <p className="import-summary">Até 2 MB. As transações são acrescentadas à carteira, após revisão.</p>
-          <p className="import-destination">Carteira: <strong>{portfolio?.name} · {currency}</strong></p>
-          <details className="import-format-details"><summary>Consultar formato e exemplo CSV <Icon name="chevron" /></summary>
-          <p className="import-help">
-            Prepara o teu ficheiro com uma transação por linha, como neste
-            exemplo. Podes descarregar o modelo e substituir os dados pelos
-            teus. Antes de guardar, podes rever e editar as transações.
+        <Dialog
+          title="Importar CSV"
+          eyebrow="IMPORTAÇÃO DE DADOS"
+          onClose={() => setModal(null)}
+        >
+          <div
+            className="import-stepper"
+            aria-label="Etapas da importação"
+          >
+            <span aria-current="step">
+              <b>1</b> Escolher ficheiro
+            </span>
+            <span>
+              <b>2</b> Rever dados
+            </span>
+            <span>
+              <b>3</b> Confirmar
+            </span>
+          </div>
+          <button
+            className="import-upload"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={dropCsvFile}
+            onClick={chooseCsvFile}
+          >
+            <Icon name="upload" />
+            <strong>Arrasta o ficheiro CSV para aqui</strong>
+            <small>ou escolhe um ficheiro no teu dispositivo</small>
+            <span className="button secondary">Escolher ficheiro</span>
+          </button>
+          <p className="import-summary">
+            Até 2 MB. As transações são acrescentadas à carteira, após revisão.
           </p>
-          <pre className="csv-example" aria-label="Exemplo de CSV">
-            <code>{`date,ticker,name,pricebuy,shares,type
+          <p className="import-destination">
+            Carteira:{" "}
+            <strong>
+              {portfolio?.name} · {currency}
+            </strong>
+          </p>
+          <details className="import-format-details">
+            <summary>
+              Consultar formato e exemplo CSV <Icon name="chevron" />
+            </summary>
+            <p className="import-help">
+              Prepara o teu ficheiro com uma transação por linha, como neste
+              exemplo. Podes descarregar o modelo e substituir os dados pelos
+              teus. Antes de guardar, podes rever e editar as transações.
+            </p>
+            <pre
+              className="csv-example"
+              aria-label="Exemplo de CSV"
+            >
+              <code>{`date,ticker,name,pricebuy,shares,type
 2024-01-10,SXR8.DE,iShares Core S&P 500,60,5,buy
 2024-11-01,SXR8.DE,iShares Core S&P 500,75,2,sell`}</code>
-          </pre>
-          <ul className="import-help">
-            <li>
-              <code>date</code>: data no formato AAAA-MM-DD.
-            </li>
-            <li>
-              <code>ticker</code>: símbolo do ativo no Yahoo Finance.
-            </li>
-            <li>
-              <code>pricebuy</code>: preço por unidade na moeda da carteira,
-              também nas vendas.
-            </li>
-            <li>
-              <code>shares</code>: quantidade positiva.
-            </li>
-            <li>
-              <code>name</code> e <code>type</code> são opcionais. Usa{" "}
-              <code>buy</code> para compras ou <code>sell</code> para vendas; se
-              omitido, assume compra.
-            </li>
-          </ul>
-          <p className="import-help">
-            Separa as colunas por vírgulas ou ponto e vírgula. Usa ponto nos
-            decimais ou coloca os valores com vírgula entre aspas. Máximo: 2 MB.
-            As transações são acrescentadas à carteira selecionada; importar o
-            mesmo ficheiro novamente duplica-as.
-          </p>
+            </pre>
+            <ul className="import-help">
+              <li>
+                <code>date</code>: data no formato AAAA-MM-DD.
+              </li>
+              <li>
+                <code>ticker</code>: símbolo do ativo no Yahoo Finance.
+              </li>
+              <li>
+                <code>pricebuy</code>: preço por unidade na moeda da carteira,
+                também nas vendas.
+              </li>
+              <li>
+                <code>shares</code>: quantidade positiva.
+              </li>
+              <li>
+                <code>name</code> e <code>type</code> são opcionais. Usa{" "}
+                <code>buy</code> para compras ou <code>sell</code> para vendas;
+                se omitido, assume compra.
+              </li>
+            </ul>
+            <p className="import-help">
+              Separa as colunas por vírgulas ou ponto e vírgula. Usa ponto nos
+              decimais ou coloca os valores com vírgula entre aspas. Máximo: 2
+              MB. As transações são acrescentadas à carteira selecionada;
+              importar o mesmo ficheiro novamente duplica-as.
+            </p>
           </details>
           <div className="dialog-actions import-actions">
             <a
@@ -1281,10 +1950,7 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
             </a>
             <button
               className="button primary"
-              onClick={() => {
-                setModal(null);
-                fileRef.current?.click();
-              }}
+              onClick={chooseCsvFile}
             >
               Escolher ficheiro CSV
             </button>
@@ -1292,12 +1958,28 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
         </Dialog>
       ) : null}
       {modal === "order" ? (
-        <Dialog title="Nova transação" eyebrow="INVESTIMENTOS" className="trade-dialog" onClose={() => setModal(null)}>
-          <OrderEntryForm orders={orders} currency={currency} onSubmit={addOrder} onClose={() => setModal(null)} error={formError} saving={saveState === "saving"} />
+        <Dialog
+          title="Nova transação"
+          eyebrow="INVESTIMENTOS"
+          className="trade-dialog"
+          onClose={() => setModal(null)}
+        >
+          <OrderEntryForm
+            orders={orders}
+            currency={currency}
+            onSubmit={addOrder}
+            onClose={() => setModal(null)}
+            error={formError}
+            saving={saveState === "saving"}
+          />
         </Dialog>
       ) : null}
       {modal === "portfolio" ? (
-        <Dialog title="Criar carteira" eyebrow="ORGANIZAÇÃO" onClose={() => setModal(null)}>
+        <Dialog
+          title="Criar carteira"
+          eyebrow="ORGANIZAÇÃO"
+          onClose={() => setModal(null)}
+        >
           <form onSubmit={addPortfolio}>
             <label>
               Nome da carteira
@@ -1308,15 +1990,38 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
                 placeholder="Investimentos a longo prazo"
               />
             </label>
-            <fieldset className="choice-segments currency-choice"><legend>Moeda</legend>
-              {([['EUR', '€'], ['USD', '$'], ['GBP', '£']] as const).map(([code, symbol]) => <label key={code}><input type="radio" name="currency" value={code} defaultChecked={code === "EUR"} aria-label={code} /><span>{symbol} {code}</span></label>)}
+            <fieldset className="choice-segments currency-choice">
+              <legend>Moeda</legend>
+              {(
+                [
+                  ["EUR", "€"],
+                  ["USD", "$"],
+                  ["GBP", "£"],
+                ] as const
+              ).map(([code, symbol]) => (
+                <label key={code}>
+                  <input
+                    type="radio"
+                    name="currency"
+                    value={code}
+                    defaultChecked={code === "EUR"}
+                    aria-label={code}
+                  />
+                  <span>
+                    {symbol} {code}
+                  </span>
+                </label>
+              ))}
             </fieldset>
             <p className="form-note">
               Usa uma carteira por moeda. Não fazemos conversão cambial
               automática.
             </p>
             {formError ? (
-              <p className="form-error" role="alert">
+              <p
+                className="form-error"
+                role="alert"
+              >
                 {formError}
               </p>
             ) : null}
@@ -1328,7 +2033,13 @@ export function Dashboard({ identity = null, accountControls, sidebarAccountCont
               >
                 Cancelar
               </button>
-              <button type="submit" className="button primary" disabled={saveState === "saving"}>Criar carteira</button>
+              <button
+                type="submit"
+                className="button primary"
+                disabled={saveState === "saving"}
+              >
+                Criar carteira
+              </button>
             </div>
           </form>
         </Dialog>
