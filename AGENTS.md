@@ -154,25 +154,25 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 
 ## Papel do agente principal
 
-O agente principal é responsável por compreender o pedido, classificar a complexidade e o risco, escolher o routing, fornecer contexto aos agentes, consolidar resultados e validar a solução antes de concluir.
+O agente principal é responsável por compreender o pedido, classificar a complexidade e o risco, planear e orquestrar o trabalho, fornecer contexto aos agentes, consolidar resultados e validar a solução antes de concluir. Pode fazer consultas e pequenas alterações exclusivamente documentais. Alterações de código ou de configuração executável devem ser implementadas pelo `luna_coder` quando estiver disponível, incluindo correções.
 
 ## Routing obrigatório
 
-Antes de trabalhar no repositório, classificar o pedido pelo âmbito, risco e tipo de alteração. Usar os seguintes papéis quando a delegação estiver disponível e acrescentar valor.
+Antes de trabalhar no repositório, classificar o pedido pelo âmbito, risco e tipo de alteração. Aplicar os papéis abaixo quando a delegação estiver disponível; não ignorar um papel obrigatório por a coordenação parecer mais dispendiosa do que a implementação.
 
 ### Tarefa trivial
 
-Executar diretamente com o agente principal quando a tarefa for pequena, clara e de baixo risco, sem alteração de código nem de comportamento.
+O agente principal pode executar diretamente consultas e pequenas alterações exclusivamente documentais, sem alteração de código nem de comportamento.
 
-Exemplos: consulta de ficheiros, correção textual ou pequena atualização documental.
+Exemplos: consulta de ficheiros, correção textual ou pequena atualização documental. Uma correção de código, mesmo pequena, é encaminhada para `luna_coder` quando disponível.
 
 ### Pequena alteração de código clara
 
-Pode usar-se `luna_coder` para uma alteração focada, com contexto suficiente e validação proporcional ao impacto. O agente principal pode executá-la diretamente quando a coordenação for mais dispendiosa do que a implementação.
+Encaminhar para `luna_coder` com âmbito, contexto e critérios de validação claros. O agente principal acompanha e valida o resultado; não assume a implementação por conveniência ou por considerar a coordenação mais dispendiosa.
 
 ### Tarefa não trivial ou complexa
 
-Começar por `sol_planner` para analisar o pedido e produzir um plano. Selecionar os restantes agentes conforme a necessidade:
+O agente principal produz o plano e orquestra a tarefa. Pode recorrer a `sol_planner` separadamente quando essa análise acrescentar valor. Encaminhar a implementação para `luna_coder`, a exploração sem edição para `luna_scout` quando faltar contexto, os testes adequados para `luna_tester` e a revisão independente para `sol_reviewer` em alterações de comportamento ou de risco. Selecionar os papéis adicionais conforme necessário:
 
 | Agente                 | Responsabilidade                                                                |
 | ---------------------- | ------------------------------------------------------------------------------- |
@@ -185,30 +185,34 @@ Começar por `sol_planner` para analisar o pedido e produzir um plano. Seleciona
 | `integration_guardian` | Rever contratos entre UI, lógica, adaptador Yahoo, persistência e dependências. |
 | `test_auditor`         | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos.         |
 
-Os três últimos papéis são opcionais, conforme o risco. Não é obrigatório usar agentes de implementação em análises ou reviews, nem agentes de testes ou revisão quando não acrescentarem valor.
+`regression_reviewer`, `integration_guardian` e `test_auditor` são opcionais, conforme o risco. Não é obrigatório usar agentes de implementação em análises ou reviews, nem agentes de testes ou revisão quando não acrescentarem valor, exceto a revisão independente prevista para alterações de comportamento ou de risco.
 
 Alterações às fórmulas de ROI, contabilização de compras e vendas, custo médio, séries temporais ou tratamento de dados financeiros exigem planeamento e validação explícitos, mesmo que o diff seja pequeno.
 
 ### Disponibilidade dos agentes
 
-Os nomes acima identificam papéis de routing; este ficheiro não instala agentes nem configura modelos. Este repositório ainda não contém definições em `.codex/agents/`.
+Os oito papéis acima têm definições standalone em `.codex/agents/*.toml`; cada TOML é a fonte de verdade para as instruções e o modelo do respetivo papel. `luna_*` usa `gpt-6-luna`; `sol_planner`, `sol_reviewer` e os três papéis opcionais de revisão usam `gpt-6.1-sol`. Os nomes identificam papéis de routing, não provam que um agente foi executado. Usar a seleção de agente personalizado quando a ferramenta a suportar; caso contrário, ler o TOML e transmitir explicitamente as instruções, o modelo e o esforço definidos no TOML, através dos parâmetros suportados. `task_name` não carrega a configuração. Confirmar a disponibilidade no runtime e comunicar modelo solicitado/executado apenas quando forem expostos; não presumir carregamento automático dos TOML, em particular no T3.
 
-- Usar agentes personalizados com estes nomes quando estiverem configurados e disponíveis no ambiente.
-- Respeitar as ferramentas e regras de delegação do ambiente em execução.
-- Se um agente ou modelo necessário não estiver disponível, indicar a limitação e não afirmar que foi utilizado.
-- Quando as regras do ambiente permitirem execução direta, o agente principal assume as responsabilidades necessárias e mantém o mesmo nível de planeamento e validação.
-- Não substituir um modelo ou fornecedor expressamente pedido pelo utilizador sem autorização.
+- Respeitar as ferramentas, os modelos e as regras de delegação do ambiente em execução. Não presumir que `.codex/agents` foi carregado nem inventar opções ou flags.
+- Quando o runtime disponibilizar `spawn_agent` nativo para o mesmo fornecedor, com um modelo suportado pela ferramenta nativa e sem settings adicionais, usá-lo. Selecionar explicitamente o modelo do papel; para um modelo diferente do principal, usar `fork_turns: "none"`. O `task_name` identifica o papel/tarefa, não seleciona o agente ou modelo.
+- No fluxo T3, usar `delegate_task` quando o utilizador pedir explicitamente essa ferramenta pelo nome, outro fornecedor, settings adicionais, worktree ou background. Antes da primeira utilização, consultar `orchestrator_capabilities` e escolher modelos e opções suportados; usar a pesquisa do catálogo se o modelo não constar da lista abreviada. Nunca usar um lançamento top-level para criar subagentes.
+- Confirmar o início e a conclusão reais da delegação. Registar identificador e resultado; registar modelo solicitado/executado apenas se forem expostos. O nome do papel, a intenção de delegar ou a presença num catálogo não provam execução.
+- Se um agente ou modelo necessário não estiver disponível, indicar a limitação e não afirmar que foi utilizado. Não substituir um modelo ou fornecedor expressamente pedido pelo utilizador sem autorização.
+- Se `luna_coder` devolver uma implementação com falhas, devolver-lhe a correção. Distinguir essa falha de implementação de indisponibilidade técnica comprovada: ferramenta ausente após descoberta ou recusada, modelo ausente, limite atingido ou erro real. Registar a evidência da indisponibilidade. Nesse caso, o agente principal prossegue com investigação, plano e revisão e pede autorização explícita para implementar ou escolher outro modelo, salvo autorização prévia aplicável. Respeitar instruções superiores do ambiente que exijam pequenas correções pelo agente principal; documentar essa exceção sem a ocultar.
 
 ## Regras de delegação
 
-- Dar a cada agente uma tarefa delimitada, os ficheiros relevantes, as restrições e o resultado esperado.
+- Dar a cada agente uma tarefa delimitada, os ficheiros relevantes, as restrições, o resultado esperado e a evidência a reportar, como ficheiros, símbolos, linhas ou comandos.
 - Pedir referências concretas a ficheiros, símbolos, linhas ou comandos nas análises e revisões.
-- Iniciar a implementação apenas quando houver contexto suficiente.
+- Iniciar a implementação por `luna_coder` quando houver contexto suficiente; se faltar contexto, usar `luna_scout` para exploração sem edição antes de definir o brief de implementação.
 - Executar em paralelo apenas tarefas independentes, com responsabilidade explícita sobre os ficheiros; nunca permitir edições simultâneas dos mesmos ficheiros.
 - O agente de testes reporta falhas e evidência; não corrige código por iniciativa própria.
 - O agente de revisão permanece em modo de leitura e procura erros, regressões, problemas de segurança e lacunas de validação.
+- Delegados não iniciam novas delegações, salvo se o brief do agente principal o permitir explicitamente.
+- Não incluir nem expor segredos, credenciais, dados pessoais ou carteiras reais nos briefs, logs ou resultados.
 - Esperar pelos resultados necessários antes de concluir e resolver os problemas relevantes encontrados.
-- Manter a delegação visível quando a interface o permitir e comunicar apenas agentes efetivamente iniciados.
+- Aguardar resultados conforme o mecanismo do runtime: no fluxo nativo, usar `wait_agent`; no T3, obedecer às instruções de `delegate_task`/espera, incluindo terminar a resposta quando `next` anunciar que o runtime retomará o trabalho, sem polling adicional.
+- Manter a delegação visível quando a interface o permitir e comunicar apenas agentes efetivamente iniciados, com o identificador e o resultado confirmados.
 
 ## Qualidade e validação
 
