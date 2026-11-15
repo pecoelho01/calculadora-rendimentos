@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality, tests and build
+    name: Quality checks and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -57,6 +58,28 @@ jobs:
       - name: Build
         run: npm run build
 
+  e2e-local:
+    name: E2E local
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build without account configuration
+        run: npm run build
+
       - name: Install Chromium
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
@@ -66,12 +89,45 @@ jobs:
           TEST_NO_ACCOUNT_CONFIG: "1"
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/local
 
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-diagnostics-local
+          path: |
+            playwright-report/local/
+            test-results/local/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-account:
+    name: E2E account
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
       - name: Build with mock account configuration
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://rendimentos-test.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: public-test-key
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+
+      - name: Install Chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: Account end-to-end tests with HTTP mocks
         run: npm run test:e2e -- tests/account.spec.ts --reporter=line,html --output=test-results/account
@@ -84,12 +140,29 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: playwright-diagnostics
+          name: playwright-diagnostics-account
           path: |
-            playwright-report/
-            test-results/
+            playwright-report/account/
+            test-results/account/
           if-no-files-found: ignore
           retention-days: 7
+
+  quality-gate:
+    name: Quality, tests and build
+    needs: [quality, e2e-local, e2e-account]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require quality and both E2E suites
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$LOCAL_RESULT" = success
+          test "$ACCOUNT_RESULT" = success
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          LOCAL_RESULT: ${{ needs.e2e-local.result }}
+          ACCOUNT_RESULT: ${{ needs.e2e-account.result }}
 
   sql:
     name: SQL migrations and isolation
@@ -97,6 +170,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
@@ -112,6 +187,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc

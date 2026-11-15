@@ -121,7 +121,7 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 
 ### ESLint e revisão automática de qualidade
 
-- O job `Quality, tests and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks existentes. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
+- O job `Quality checks and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks de qualidade. O check obrigatório `Quality, tests and build` agrega este job e os dois E2E. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
 - Os limites de manutenção em `eslint.config.mjs` são avisos para permitir adoção gradual, sem bloquear PRs pela dívida existente. Não usar `--max-warnings 0` nesta fase.
 
 | Regra                               | Critério                                                                                                                                |
@@ -144,6 +144,13 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 - Ao manter essa integração, preservar o endpoint `https://openrouter.ai/api/v1/chat/completions`, o modelo exclusivo `openrouter/free`, os preços máximos de entrada/saída zero e a ausência de retries ou fallback pago. Usar apenas o secret `OPENROUTER_API_KEY`, sem o expor em código, logs ou comentários.
 - Preservar o isolamento do job de IA: obter apenas o script da revisão confiável da base `main` pela API GitHub, sem checkout de repositórios nesse job; nunca executar código do PR com acesso à chave, tratar o diff como dados não confiáveis e manter os filtros de ficheiros sensíveis e os limites de contexto. Forks, Dependabot, chave ausente e indisponibilidade devem continuar a produzir indicação informativa sem falhar os restantes checks.
 - Consultar [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md) para configuração do secret, detalhes dos checks, limites gratuitos e validação da integração. Manter esse documento, estas instruções e as configurações coerentes quando as regras mudarem.
+
+## Condições de release
+
+- Preservar o check agregador `Quality, tests and build`: exige sucesso dos jobs de qualidade, E2E local e E2E account, incluindo quando alguma dependência falha ou é ignorada.
+- Manter os Deployment Checks de produção da Vercel alinhados com os nomes publicados; não exigir checks exclusivos de PR num deployment de push.
+- As migrations 007 e 008 devem preceder a publicação com conta. A 008 mantém aliases públicos para rollback da aplicação e expõe apenas metadados constantes para o preflight. Não remover aliases sem uma transição planeada.
+- O preflight de build de produção bloqueia contratos de BD incompatíveis; o smoke de deployment verifica a revisão já publicada e não substitui esse bloqueio. Consultar `.github/CODE_QUALITY.md` para rollout e limitações.
 
 ## Papel do agente principal
 
