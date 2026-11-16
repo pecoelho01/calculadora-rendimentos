@@ -174,16 +174,16 @@ Encaminhar para `luna_coder` com âmbito, contexto e critérios de validação c
 
 O agente principal produz o plano e orquestra a tarefa. Pode recorrer a `sol_planner` separadamente quando essa análise acrescentar valor. Encaminhar a implementação para `luna_coder`, a exploração sem edição para `luna_scout` quando faltar contexto, os testes adequados para `luna_tester` e a revisão independente para `sol_reviewer` em alterações de comportamento ou de risco. Selecionar os papéis adicionais conforme necessário:
 
-| Agente                 | Responsabilidade                                                                |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `sol_planner`          | Definir abordagem, dependências, riscos e critérios de aceitação.               |
-| `luna_scout`           | Mapear código e recolher evidência sem editar ficheiros.                        |
-| `luna_coder`           | Implementar alterações delimitadas pelo plano.                                  |
-| `luna_tester`          | Preparar ou executar validações e reportar falhas.                              |
-| `sol_reviewer`         | Rever correção, segurança, manutenção e regressões sem editar.                  |
-| `regression_reviewer`  | Rever impacto em cálculos existentes, CSV, gráficos e PDF.                      |
-| `integration_guardian` | Rever contratos entre UI, lógica, adaptador Yahoo, persistência e dependências. |
-| `test_auditor`         | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos.         |
+| Agente                 | Fornecedor principal                    | Responsabilidade                                                                |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| `sol_planner`          | Claude (`claude-opus-5-5`)              | Definir abordagem, dependências, riscos e critérios de aceitação.               |
+| `luna_scout`           | ChatGPT (`gpt-6-luna`)                  | Mapear código e recolher evidência sem editar ficheiros.                        |
+| `luna_coder`           | ChatGPT (`gpt-6-luna`)                  | Implementar alterações delimitadas pelo plano.                                  |
+| `luna_tester`          | ChatGPT (`gpt-6-luna`)                  | Preparar ou executar validações e reportar falhas.                              |
+| `sol_reviewer`         | Claude (`claude-opus-5-5`)              | Rever correção, segurança, manutenção e regressões sem editar.                  |
+| `regression_reviewer`  | ChatGPT (`gpt-6.1-sol`)                 | Rever impacto em cálculos existentes, CSV, gráficos e PDF.                      |
+| `integration_guardian` | Oposto ao do autor (por omissão Claude) | Rever contratos entre UI, lógica, adaptador Yahoo, persistência e dependências. |
+| `test_auditor`         | Oposto ao do autor (por omissão Claude) | Avaliar cobertura e qualidade das verificações, sobretudo dos cálculos.         |
 
 `regression_reviewer`, `integration_guardian` e `test_auditor` são opcionais, conforme o risco. Não é obrigatório usar agentes de implementação em análises ou reviews, nem agentes de testes ou revisão quando não acrescentarem valor, exceto a revisão independente prevista para alterações de comportamento ou de risco.
 
@@ -191,9 +191,18 @@ Alterações às fórmulas de ROI, contabilização de compras e vendas, custo m
 
 ### Disponibilidade dos agentes
 
-Os oito papéis acima têm definições standalone em `.codex/agents/*.toml`; cada TOML é a fonte de verdade para as instruções e o modelo do respetivo papel. `luna_*` usa `gpt-6-luna`; `sol_planner`, `sol_reviewer` e os três papéis opcionais de revisão usam `gpt-6.1-sol`. Os nomes identificam papéis de routing, não provam que um agente foi executado. Usar a seleção de agente personalizado quando a ferramenta a suportar; caso contrário, ler o TOML e transmitir explicitamente as instruções, o modelo e o esforço definidos no TOML, através dos parâmetros suportados. `task_name` não carrega a configuração. Confirmar a disponibilidade no runtime e comunicar modelo solicitado/executado apenas quando forem expostos; não presumir carregamento automático dos TOML, em particular no T3.
+O projeto usa duas subscrições, ChatGPT e Claude, e o routing reparte os papéis entre os dois fornecedores. Os oito papéis acima têm definições standalone em `.codex/agents/*.toml` (ChatGPT). Os quatro papéis que o Claude pode assumir (`sol_planner`, `sol_reviewer`, `integration_guardian` e `test_auditor`) têm também definições em `.claude/agents/*.md`, com o modelo `claude-opus-5-5` e esforço `medium`, tal como os TOML do ChatGPT. Cada ficheiro é a fonte de verdade do respetivo fornecedor; as instruções do corpo são idênticas nos dois formatos, por isso, ao alterar um papel, atualizar ambos. Os nomes identificam papéis de routing, não o modelo nem provam que um agente foi executado: `sol_planner` e `sol_reviewer` correm por omissão no Claude. Usar a seleção de agente personalizado quando a ferramenta a suportar; caso contrário, ler o ficheiro do fornecedor escolhido e transmitir explicitamente as instruções, o modelo e o esforço definidos, através dos parâmetros suportados. `task_name` não carrega a configuração. Confirmar a disponibilidade no runtime e comunicar modelo solicitado/executado apenas quando forem expostos; não presumir carregamento automático das definições, em particular no T3.
 
-- Respeitar as ferramentas, os modelos e as regras de delegação do ambiente em execução. Não presumir que `.codex/agents` foi carregado nem inventar opções ou flags.
+#### Fornecedores e revisão cruzada
+
+- O fornecedor principal de cada papel consta da tabela acima. O Claude trata do planeamento e da revisão principal; o ChatGPT, da exploração, da implementação e dos testes.
+- Quem escreve não revê: o revisor pertence sempre ao fornecedor oposto ao do implementador. Com `luna_coder` como autor, a revisão independente é do Claude. Se o Claude implementar (exceção documentada), a revisão passa para um papel ChatGPT, como `regression_reviewer`.
+- `integration_guardian` e `test_auditor` não têm fornecedor fixo: usar o oposto ao do autor da alteração, por omissão o Claude.
+- Alterações às fórmulas de ROI, FIFO, custo médio, séries temporais ou tratamento de dados financeiros exigem plano de `sol_planner` e revisão dos dois fornecedores: `sol_reviewer` (Claude) e `regression_reviewer` (ChatGPT). Nas restantes alterações de comportamento ou de risco, basta a revisão cruzada de um fornecedor.
+- Se a quota de uma subscrição se esgotar, o papel passa para o outro fornecedor, usando a definição correspondente e registando a evidência do limite atingido. Nesse caso, manter a regra de autor diferente do revisor sempre que possível e indicar quando não for.
+- Para lançar um papel noutro fornecedor, usar `delegate_task` com o fornecedor e o modelo indicados na tabela, depois de consultar `orchestrator_capabilities`.
+
+- Respeitar as ferramentas, os modelos e as regras de delegação do ambiente em execução. Não presumir que `.codex/agents` ou `.claude/agents` foi carregado nem inventar opções ou flags.
 - Quando o runtime disponibilizar `spawn_agent` nativo para o mesmo fornecedor, com um modelo suportado pela ferramenta nativa e sem settings adicionais, usá-lo. Selecionar explicitamente o modelo do papel; para um modelo diferente do principal, usar `fork_turns: "none"`. O `task_name` identifica o papel/tarefa, não seleciona o agente ou modelo.
 - No fluxo T3, usar `delegate_task` quando o utilizador pedir explicitamente essa ferramenta pelo nome, outro fornecedor, settings adicionais, worktree ou background. Antes da primeira utilização, consultar `orchestrator_capabilities` e escolher modelos e opções suportados; usar a pesquisa do catálogo se o modelo não constar da lista abreviada. Nunca usar um lançamento top-level para criar subagentes.
 - Confirmar o início e a conclusão reais da delegação. Registar identificador e resultado; registar modelo solicitado/executado apenas se forem expostos. O nome do papel, a intenção de delegar ou a presença num catálogo não provam execução.
