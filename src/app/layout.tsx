@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
 import "./fidelity.css";
@@ -20,11 +21,20 @@ export default async function RootLayout({
   // Request-time headers opt the document into dynamic rendering for its nonce.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="pt-PT" suppressHydrationWarning>
+    <html
+      lang="pt-PT"
+      suppressHydrationWarning
+    >
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {process.env.VERCEL === "1" ? <SpeedInsights /> : null}
+      </body>
     </html>
   );
 }
