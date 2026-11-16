@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import {
   numberValue,
   validDate,
@@ -33,10 +33,16 @@ test("validateOrder valida quantidades numéricas e respetivo formato", () => {
   assert.throws(() => validateOrder({ ...orderBase, shares: "1e-8" }), {
     message: "Introduz um número positivo, com ponto ou vírgula decimal.",
   });
+  assert.throws(() => validateOrder({ ...orderBase, shares: "-1" }), {
+    message: "Introduz um número positivo, com ponto ou vírgula decimal.",
+  });
   assert.throws(() => validateOrder({ ...orderBase, shares: 0.000000001 }), {
     message: "A quantidade aceita até 8 casas decimais (mínimo 0,00000001).",
   });
   assert.throws(() => validateOrder({ ...orderBase, shares: 1.123456789 }), {
+    message: "A quantidade aceita até 8 casas decimais (mínimo 0,00000001).",
+  });
+  assert.throws(() => validateOrder({ ...orderBase, shares: "1.123456789" }), {
     message: "A quantidade aceita até 8 casas decimais (mínimo 0,00000001).",
   });
   assert.equal(validateOrder({ ...orderBase, shares: 1e-8 }).shares, 1e-8);
@@ -54,7 +60,8 @@ test("validateOrder valida quantidades numéricas e respetivo formato", () => {
   );
 });
 
-test("numberValue troca apenas a primeira vírgula decimal", () => {
+test("numberValue aceita uma vírgula decimal e rejeita várias vírgulas ou milhares", () => {
+  // O teste fixa as entradas aceites e rejeitadas, sem inferir a estratégia de substituição.
   assert.equal(numberValue("1,5"), 1.5);
   assert.throws(() => numberValue("1,2,3"), {
     message: "Introduz um número positivo, com ponto ou vírgula decimal.",
@@ -66,6 +73,9 @@ test("numberValue troca apenas a primeira vírgula decimal", () => {
 
 test("validateOrder valida o preço e aceita mais de oito casas decimais", () => {
   assert.throws(() => validateOrder({ ...orderBase, pricebuy: 0 }), {
+    message: "Número inválido.",
+  });
+  assert.throws(() => validateOrder({ ...orderBase, pricebuy: -1 }), {
     message: "Número inválido.",
   });
   assert.throws(() => validateOrder({ ...orderBase, pricebuy: "inválido" }), {
@@ -116,9 +126,13 @@ test("validDate rejeita datas impossíveis, anteriores ao limite e formatos erra
   assert.equal(validDate(""), false);
   assert.equal(validDate("2024-01-01T00:00:00Z"), false);
 
-  const todayUtc = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(`${todayUtc}T00:00:00Z`);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  assert.equal(validDate(todayUtc), true);
-  assert.equal(validDate(tomorrow.toISOString().slice(0, 10)), false);
+  const fixedNow = new Date("2024-06-30T23:30:00Z");
+  mock.timers.enable({ apis: ["Date"], now: fixedNow });
+  try {
+    assert.equal(validDate("2024-06-30"), true);
+    assert.equal(validDate("2024-07-01"), false);
+    assert.equal(validDate("2024-06-29"), true);
+  } finally {
+    mock.timers.reset();
+  }
 });
