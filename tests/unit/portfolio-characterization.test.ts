@@ -22,6 +22,7 @@ function asset(
 ): MarketAsset {
   return {
     price,
+    // Este valor determina dayGain: (12 - 8) × 3 = 12 e (0 - 8) × 3 = -24.
     previousClose: 8,
     currency,
     name: "Ativo",
@@ -152,31 +153,42 @@ test("posição fechada sem mercado mantém ganhos dos lotes e preço nulo", () 
     date: "2024-01-02",
   });
   const result = calculatePortfolio([first, sale], {}, "EUR");
-  assert.deepEqual(result.positions[0], {
-    ticker: "CCC",
-    name: "CCC",
-    shares: 0,
-    average: 0,
-    costBasis: 0,
-    invested: 8,
-    received: 14,
-    realized: 6,
-    realizedCost: 8,
-    price: null,
-    value: 0,
-    unrealized: 0,
-    unrealizedPercent: null,
-    realizedPercent: 75,
-    dayGain: 0,
-    issue: null,
-  });
-  assert.deepEqual(
-    [...result.orderGains],
-    [
+  // 2 × (7 - 4) = 6 realizado; as 2 ações fechadas valem zero. ROI = 6 / 8.
+  assert.deepEqual(result, {
+    positions: [
+      {
+        ticker: "CCC",
+        name: "CCC",
+        shares: 0,
+        average: 0,
+        costBasis: 0,
+        invested: 8,
+        received: 14,
+        realized: 6,
+        realizedCost: 8,
+        price: null,
+        value: 0,
+        unrealized: 0,
+        unrealizedPercent: null,
+        realizedPercent: 75,
+        dayGain: 0,
+        issue: null,
+      },
+    ],
+    orderGains: new Map([
       ["c2", { gain: 6, percent: 75, shares: 2 }],
       ["c1", { gain: 6, percent: 75, shares: 0 }],
-    ],
-  );
+    ]),
+    invested: 8,
+    realized: 6,
+    received: 14,
+    value: 0,
+    unrealized: 0,
+    openCost: 0,
+    openRoi: null,
+    gain: 6,
+    roi: 75,
+  });
 });
 
 test("cotação ausente difere de cotação válida a zero", () => {
@@ -201,46 +213,45 @@ test("cotação ausente difere de cotação válida a zero", () => {
   );
   // CCC não tem valor mensurável. DDD vale 0 e perde os 6 EUR investidos:
   // (0 - 6) / 6 = -100%. O total permanece nulo por CCC.
-  assert.deepEqual(result.positions, [
-    {
-      ticker: "CCC",
-      name: "CCC",
-      shares: 2,
-      average: 4,
-      costBasis: 8,
-      invested: 8,
-      received: 0,
-      realized: 0,
-      realizedCost: 0,
-      price: null,
-      value: null,
-      unrealized: null,
-      unrealizedPercent: null,
-      realizedPercent: null,
-      dayGain: null,
-      issue: "Cotação indisponível",
-    },
-    {
-      ticker: "DDD",
-      name: "DDD",
-      shares: 3,
-      average: 2,
-      costBasis: 6,
-      invested: 6,
-      received: 0,
-      realized: 0,
-      realizedCost: 0,
-      price: 0,
-      value: 0,
-      unrealized: -6,
-      unrealizedPercent: -100,
-      realizedPercent: null,
-      dayGain: -24,
-      issue: null,
-    },
-  ]);
   assert.deepEqual(result, {
-    positions: result.positions,
+    positions: [
+      {
+        ticker: "CCC",
+        name: "CCC",
+        shares: 2,
+        average: 4,
+        costBasis: 8,
+        invested: 8,
+        received: 0,
+        realized: 0,
+        realizedCost: 0,
+        price: null,
+        value: null,
+        unrealized: null,
+        unrealizedPercent: null,
+        realizedPercent: null,
+        dayGain: null,
+        issue: "Cotação indisponível",
+      },
+      {
+        ticker: "DDD",
+        name: "DDD",
+        shares: 3,
+        average: 2,
+        costBasis: 6,
+        invested: 6,
+        received: 0,
+        realized: 0,
+        realizedCost: 0,
+        price: 0,
+        value: 0,
+        unrealized: -6,
+        unrealizedPercent: -100,
+        realizedPercent: null,
+        dayGain: -24,
+        issue: null,
+      },
+    ],
     orderGains: new Map([
       ["c1", { gain: null, percent: null, shares: 2 }],
       ["d1", { gain: -6, percent: -100, shares: 3 }],
@@ -285,8 +296,9 @@ test("abertura ausente para lote antigo deixa ROI e openRoi nulos", () => {
     "2024-06-30T16:00:00Z",
   );
   // O valor atual é 8 EUR. Sem preço histórico de DDD, opening.value e openCost
-  // não podem ser calculados: ambos os retornos ficam nulos.
-  assert.notEqual(calculatePortfolio(orders, market, "EUR").value, null);
+  // ficam nulos pela mesma causa. Uma moeda histórica incompatível com value
+  // disponível é inalcançável: marketAt copia a moeda do ativo.
+  assert.equal(calculatePortfolio(orders, market, "EUR").value, 8);
   assert.deepEqual(result, {
     data: [
       { date: "2024-05-29", roi: null, openRoi: null },
@@ -396,6 +408,109 @@ test("asOf inválido ignora as observações intradiárias", () => {
   });
 });
 
+test("filtra datas sem hora e timestamps cujo dia UTC difere do end", () => {
+  const orders = [
+    order("f1", "FFF", {
+      type: "buy",
+      shares: 1,
+      pricebuy: 4,
+      date: "2024-06-30",
+    }),
+  ];
+  const result = calculatePerformance(
+    orders,
+    {
+      FFF: {
+        ...asset(8),
+        intraday: [
+          { date: "2024-06-30T00:30:00+02:00", close: 10 },
+          { date: "2024-06-30", close: 12 },
+        ],
+      },
+    },
+    "EUR",
+    "1D",
+    "2024-06-30",
+    "2024-06-30T16:00:00Z",
+  );
+  // O primeiro timestamp é 2024-06-29T22:30Z; o segundo não contém T.
+  assert.deepEqual(result, {
+    data: [],
+    roi: null,
+    openRoi: null,
+    start: "2024-06-30",
+    end: "2024-06-30",
+    boundary: "2024-06-29",
+  });
+});
+
+test("lacuna intradiária gera grelha e expira a cotação aos 15 minutos", () => {
+  const orders = [
+    order("f1", "FFF", {
+      type: "buy",
+      shares: 1,
+      pricebuy: 4,
+      date: "2024-06-30",
+    }),
+  ];
+  const result = calculatePerformance(
+    orders,
+    {
+      FFF: {
+        ...asset(8),
+        intraday: [
+          { date: "2024-06-30T15:00:00Z", close: 10 },
+          { date: "2024-06-30T15:05:00Z", close: null },
+          { date: "2024-06-30T15:20:00Z", close: 12 },
+        ],
+      },
+    },
+    "EUR",
+    "1D",
+    "2024-06-30",
+    "2024-06-30T15:20:00Z",
+  );
+  // A cotação das 15:00 é carregada até 15:15; 15:15:00.001 já expirou.
+  // 15:05 preserva o último valor válido (ROI 150%) e é estimated; 15:10 e
+  // 15:15:00.001 não têm preço e retornam ROI/openRoi nulos. A nova cotação
+  // das 15:20 volta a produzir ROI 200%.
+  assert.deepEqual(result, {
+    data: [
+      { date: "2024-06-30T15:00:00.000Z", roi: 150, openRoi: 150 },
+      {
+        date: "2024-06-30T15:05:00.000Z",
+        roi: 150,
+        openRoi: 150,
+        estimated: true,
+      },
+      {
+        date: "2024-06-30T15:10:00.000Z",
+        roi: 150,
+        openRoi: 150,
+        estimated: true,
+      },
+      {
+        date: "2024-06-30T15:15:00.000Z",
+        roi: 150,
+        openRoi: 150,
+        estimated: true,
+      },
+      { date: "2024-06-30T15:15:00.001Z", roi: null, openRoi: null },
+      {
+        date: "2024-06-30T15:20:00.000Z",
+        roi: 200,
+        openRoi: 200,
+        current: true,
+      },
+    ],
+    roi: 200,
+    openRoi: 200,
+    start: "2024-06-30",
+    end: "2024-06-30",
+    boundary: "2024-06-29",
+  });
+});
+
 test("cálculo diário repetido mantém a série determinística entre chamadas", () => {
   const orders = [
     order("i1", "III", {
@@ -460,49 +575,21 @@ test("cálculo diário repetido mantém a série determinística entre chamadas"
 });
 
 test("geografia absorve resíduos de ponto flutuante e ignora valor zero", () => {
-  const positions = calculatePortfolio(
-    [
-      order("g1", "GGG", {
-        type: "buy",
-        shares: 10,
-        pricebuy: 10,
-        date: "2024-01-01",
-      }),
-      order("h1", "HHH", {
-        type: "buy",
-        shares: 1,
-        pricebuy: 1,
-        date: "2024-01-01",
-      }),
-    ],
-    {
-      GGG: {
-        ...asset(10),
-        geography: {
-          allocations: [
-            { country: "US", weight: 0.1 },
-            { country: "DE", weight: 0.2 },
-            { country: "BR", weight: 0.7 },
-          ],
-          asOf: "2024-06-30",
-          source: "test",
-          sourceName: "Fonte",
-          method: "published",
-          holdingsCount: 3,
-        },
-      },
-      HHH: {
-        ...asset(0),
-        geography: {
-          allocations: [{ country: "PT", weight: 1 }],
-          asOf: "2024-06-30",
-          source: "ignored",
-        },
-      },
-    },
-    "EUR",
-  ).positions;
-  const result = geographicAllocation(positions, {
+  const orders = [
+    order("g1", "GGG", {
+      type: "buy",
+      shares: 10,
+      pricebuy: 10,
+      date: "2024-01-01",
+    }),
+    order("h1", "HHH", {
+      type: "buy",
+      shares: 1,
+      pricebuy: 1,
+      date: "2024-01-01",
+    }),
+  ];
+  const market: MarketData = {
     GGG: {
       ...asset(10),
       geography: {
@@ -526,7 +613,15 @@ test("geografia absorve resíduos de ponto flutuante e ignora valor zero", () =>
         source: "ignored",
       },
     },
-  });
+  };
+  market.GGG.geography!.allocations = [
+    { country: "BR", weight: 0.7 },
+    { country: "DE", weight: 0.2 },
+    { country: "US", weight: 0.1 },
+  ];
+  // A soma é 0.9999999999999999; a tolerância evita residual UNKNOWN.
+  const positions = calculatePortfolio(orders, market, "EUR").positions;
+  const result = geographicAllocation(positions, market);
   assert.deepEqual(result, {
     total: 100,
     allocations: [
