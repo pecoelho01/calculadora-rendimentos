@@ -1,12 +1,12 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { loadGeography } from "../../lib/geography-source";
+import { loadGeography } from "../../lib/geography/geography-source";
 import {
   loadIsharesGeography,
   compactIsharesCatalog,
   ukCatalogUrl,
   usCatalogUrl,
-} from "../../lib/ishares-geography";
+} from "../../lib/geography/ishares-geography";
 import type { Geography } from "../../lib/types";
 import { publicText } from "../../lib/public-data";
 

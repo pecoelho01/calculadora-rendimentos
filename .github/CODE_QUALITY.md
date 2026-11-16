@@ -3,7 +3,7 @@
 ## Prettier e ESLint
 
 O job `Quality checks and build` verifica a formatação com a versão
-local de Prettier, `.prettierrc.json` e `.prettierignore`. O script
+local de Prettier, `config/prettier.config.json` e `.prettierignore`. O script
 `scripts/check-format.mjs` passa caminhos explícitos a `npm run format:check`,
 sem escrever ficheiros, através de `npm run format:check:changed`. O Git é
 invocado por `/usr/bin/git` (runners Ubuntu e desenvolvimento macOS/Linux), e o
@@ -128,7 +128,7 @@ npm run lint
 npm run build
 ```
 
-Os testes `tests/ai-review.test.mjs` usam HTTP simulado e verificam os limites,
+Os testes `tests/integration/ai-review.test.mjs` usam HTTP simulado e verificam os limites,
 modelo/preço fixos, skips, falhas, atualização do comentário, neutralização da
 resposta e commits ultrapassados. Não consomem quota nem usam credenciais reais.
 Para verificar o script incremental, usar SHAs completos existentes no clone:

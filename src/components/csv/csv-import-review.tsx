@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import type { CsvDraftOrder } from "@/lib/csv";
-import { reviewCsvOrders, type CsvReviewRow } from "@/lib/csv-review";
+import type { CsvDraftOrder } from "@/lib/csv/csv";
+import { reviewCsvOrders, type CsvReviewRow } from "@/lib/csv/csv-review";
 import type { Order, Portfolio } from "@/lib/types";
 import { Dialog } from "../shared/dialog";
 

@@ -1,7 +1,7 @@
 import { AllocationDonut } from "./allocation-donut";
-import { CONTINENT_LABELS, type Continent } from "@/lib/continents";
+import { CONTINENT_LABELS, type Continent } from "@/lib/geography/continents";
 import type { MarketData } from "@/lib/types";
-import { geographicAllocation, type Position } from "@/lib/portfolio";
+import { geographicAllocation, type Position } from "@/lib/portfolio/portfolio";
 
 const colors: Record<Continent, string> = {
   NA: "#4d8dff",

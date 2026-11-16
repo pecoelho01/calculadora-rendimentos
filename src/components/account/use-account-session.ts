@@ -2,19 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { getBrowserSupabase } from "@/lib/auth/supabase-browser";
 import {
   AUTH_BROWSER_MESSAGE,
   AUTH_BUSY_MESSAGE,
   AUTH_RECOVERY_CHANGED,
   AUTH_SESSION_MESSAGE,
   completeBrowserAuthCallback,
-} from "@/lib/browser-auth";
+} from "@/lib/auth/browser-auth";
 import {
   getRecoverySession,
   matchesRecoverySession,
   type RecoverySession,
-} from "@/lib/recovery-session";
+} from "@/lib/auth/recovery-session";
 import type {
   AccountIdentity,
   AuthViewState,

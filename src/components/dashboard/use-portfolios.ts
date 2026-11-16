@@ -8,7 +8,7 @@ import {
   buildAccountChanges,
   validateAccountSnapshot,
   type AccountSnapshot,
-} from "@/lib/account";
+} from "@/lib/account/account";
 import type { AccountIdentity } from "../account/account-gateway";
 
 export type PortfolioSaveState = "saving" | "saved" | "error";

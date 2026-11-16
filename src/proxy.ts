@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_CALLBACK_FIELDS, AUTH_TOKEN_FIELDS } from "./lib/auth-callback-params";
+import {
+  AUTH_CALLBACK_FIELDS,
+  AUTH_TOKEN_FIELDS,
+} from "./lib/auth/auth-callback-params";
 import { contentSecurityPolicy } from "./lib/content-security-policy";
 
 export function proxy(request: NextRequest) {
@@ -34,5 +37,6 @@ export function proxy(request: NextRequest) {
 
 // All rendered documents need a fresh nonce, including the not-found page.
 export const config = {
-  matcher: "/((?!api(?:/|$)|_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|icon\\.svg$|modelo_site_ativos\\.csv$|sample_combo\\.csv$).*)",
+  matcher:
+    "/((?!api(?:/|$)|_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|icon\\.svg$|modelo_site_ativos\\.csv$|sample_combo\\.csv$).*)",
 };

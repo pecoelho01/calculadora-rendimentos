@@ -126,7 +126,6 @@ Verificações após commit:
 
 Esta aplicação confirma o esquema e as permissões no serviço real. Os testes funcionais de quotas/60 escritas, rollback e isolamento continuam a ser os testes locais PGlite já documentados; não foram repetidos com sessões reais. Não houve alteração de Auth/SMTP, commit, push, merge ou deploy. A UI corrigida e o percurso integrado Vercel/Auth/SMTP continuam pendentes de validação externa.
 
-
 ## Correções dos comentários Copilot — 1 de novembro de 2026
 
 Os dois comentários novos sobre o HEAD `0d4365e` foram corrigidos. A limpeza dos parâmetros Auth na URL é executada mesmo sem configuração Supabase ou quando a URL configurada é rejeitada, preservando parâmetros não relacionados e o modo local, sem pedidos Auth. O resultado continua coalescido entre efeitos React para não perder o erro nem consumir códigos duas vezes.
@@ -203,7 +202,7 @@ Validação em Node.js 24.22.2: `npm ci`, arranque de `npm run dev` e HTTP 200, 
 
 Playwright com Supabase/Turnstile fictícios: `TEST_ACCOUNT_AUTH=1 TEST_CAPTCHA=1 npm run test:e2e -- --workers=4` passou com 191 aprovados e 11 ignorados (dez exigem build sem configuração e um é exclusivo de desktop). A execução usou `PLAYWRIGHT_PORT=3197` para não interferir com outro worktree que ocupava 3100. Após acrescentar verificações de dimensões e capturas dos formulários, os dez casos focados CAPTCHA/reautenticação passaram novamente em computador e telemóvel; as capturas foram inspecionadas sem sobreposição nem corte dos controlos. O mock do widget respeita os tamanhos documentados, mas não comprova o widget Cloudflare real. Os testes CSP usam cabeçalhos HTTP reais e injeção no HTML recebido para comprovar bloqueio de scripts/handlers; não confundem avaliação privilegiada por DevTools com execução normal da página.
 
-No build sem configuração, `TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/dashboard.spec.ts tests/auth-callback.spec.ts tests/content-security-policy.spec.ts --workers=4`, também com `PLAYWRIGHT_PORT=3197`, passou com 77 aprovados e um ignorado (sidebar exclusiva de desktop). Inclui os dez casos de entrada/callback sem Supabase omitidos na suite configurada.
+No build sem configuração, `TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/e2e/dashboard.spec.ts tests/e2e/auth-callback.spec.ts tests/e2e/content-security-policy.spec.ts --workers=4`, também com `PLAYWRIGHT_PORT=3197`, passou com 77 aprovados e um ignorado (sidebar exclusiva de desktop). Inclui os dez casos de entrada/callback sem Supabase omitidos na suite configurada.
 
 Os serviços Auth/Data API/Cloudflare/SMTP reais e a Vercel não foram testados nesta alteração. O build final não contém configuração fictícia. Não houve commit, push ou deploy.
 
@@ -214,7 +213,6 @@ A pedido do utilizador, foi selecionado **Turnstile by Cloudflare** e guardada a
 O formulário foi guardado com CAPTCHA **desativado**. A configuração foi confirmada por resposta PATCH HTTP 200 e nova leitura GET HTTP 200; depois de recarregar, o fornecedor Turnstile e o campo de segredo preenchido continuavam presentes. A consulta do formulário para verificar o segredo não foi guardada com o toggle ativo; o estado final foi novamente confirmado como desativado e sem alterações pendentes.
 
 Ainda falta definir a Site key pública em `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, publicar a aplicação com o widget e, só depois, ativar a proteção CAPTCHA no Supabase. Não foi feito deploy, não foram enviados emails nem criadas contas de teste nesta operação. Guardar o segredo não valida a sua correspondência com uma Site key nem comprova um desafio Cloudflare real; a integração completa continua pendente.
-
 
 ## Site key Turnstile configurada na Vercel — 4 de novembro de 2026
 

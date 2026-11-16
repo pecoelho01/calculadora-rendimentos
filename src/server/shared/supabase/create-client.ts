@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { validateSupabaseUrl } from "../../../lib/supabase-url";
+import { validateSupabaseUrl } from "../../../lib/auth/supabase-url";
 
 export type SupabaseBackend = {
   getUser(

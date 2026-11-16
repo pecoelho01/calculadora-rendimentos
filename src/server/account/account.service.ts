@@ -4,7 +4,7 @@ import {
   validateAccountWrite,
   type AccountSnapshot,
   type AccountWrite,
-} from "../../lib/account";
+} from "../../lib/account/account";
 import { encodeStorage } from "../../lib/storage";
 import { AccountError } from "./account.errors";
 import type { AccountRepository } from "./account.repository";

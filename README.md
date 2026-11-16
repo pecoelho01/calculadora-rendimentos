@@ -31,7 +31,7 @@ O modo local não requer chaves nem variáveis de ambiente. A conta opcional usa
 
 ## Formatação do código
 
-O projeto usa Prettier com configuração partilhada em `.prettierrc.json` e versão fixada no lockfile. No editor, selecionar o Prettier local como formatador para respeitar as mesmas regras. As instruções e os exemplos de legibilidade estão em `AGENTS.md`.
+O projeto usa Prettier com configuração partilhada em `config/prettier.config.json` e versão fixada no lockfile. No editor, selecionar o Prettier local como formatador para respeitar as mesmas regras. As instruções e os exemplos de legibilidade estão em `AGENTS.md`.
 
 Indicar explicitamente os ficheiros a formatar ou verificar:
 
@@ -212,28 +212,38 @@ Referências oficiais: [Auth por palavra-passe](https://supabase.com/docs/guides
 ## Estrutura
 
 ```text
-src/app/                     # App Router, layout e estilos
-src/app/api/market/route.ts   # Composição do endpoint de mercado
-src/app/api/account/route.ts  # Composição da API privada da conta
-src/server/account/          # Controller HTTP, casos de uso, repository RPC e erros
-src/server/market/           # Controller, service e adaptador Yahoo
-src/server/geography/        # Controller, service e adaptador geográfico
-src/server/shared/           # Auth, cliente Supabase por pedido e leitura HTTP limitada
-supabase/                    # Contrato, migrations SQL e políticas RLS
-src/components/dashboard/    # Dashboard e estrutura de navegação
-src/components/account/      # Entrada, autenticação e estilos da conta
-src/components/tables/       # Listas, ordenação partilhada e estilos
-src/components/charts/       # Gráficos e obtenção de geografia
-src/components/orders/       # Formulário e campos das transações
-src/components/csv/          # Interface de revisão CSV
-src/components/shared/       # Diálogos, ícones e controlo de tema
-src/lib/portfolio.ts          # Cálculos puros e reconstrução histórica
-src/lib/validation.ts         # Validação de ordens/carteiras
-src/lib/csv.ts                # Importação/exportação CSV
-src/lib/storage.ts            # Formato local versionado e validação
-public/                       # CSV para download
-legacy/streamlit/             # Referência Python anterior, fora da aplicação ativa
-tests/                        # Testes determinísticos e fluxos Playwright
+src/app/                                 # App Router, layout e estilos
+src/app/api/market/route.ts              # Composição do endpoint de mercado
+src/app/api/account/route.ts             # Composição da API privada da conta
+src/server/account/                      # Controller HTTP, casos de uso, repository RPC e erros
+src/server/market/                       # Controller, service e adaptador Yahoo
+src/server/geography/                    # Controller, service e adaptador geográfico
+src/server/shared/                       # Auth, cliente Supabase por pedido e leitura HTTP limitada
+supabase/                                # Contrato, migrations SQL e políticas RLS
+src/components/dashboard/                # Dashboard e estrutura de navegação
+src/components/account/                  # Entrada, autenticação e estilos da conta
+src/components/tables/                   # Listas, ordenação partilhada e estilos
+src/components/charts/                   # Gráficos e obtenção de geografia
+src/components/orders/                   # Formulário e campos das transações
+src/components/csv/                      # Interface de revisão CSV
+src/components/shared/                   # Diálogos, ícones e controlo de tema
+src/lib/account/                         # Conta local e workspace partilhado
+src/lib/auth/                            # Sessão e integração Supabase no browser
+src/lib/csv/                             # Importação/exportação e revisão CSV
+src/lib/geography/                       # Parsers e dados geográficos
+src/lib/market/                          # Datas de bolsa e dados intradiários
+src/lib/portfolio/                       # Cálculos, histórico e carteira de demonstração
+src/lib/validation.ts                    # Validação de ordens/carteiras
+src/lib/storage.ts                       # Formato local versionado e validação
+config/                                  # ESLint, Playwright e Prettier
+scripts/                                 # Verificações e automações
+public/                                  # CSV para download
+legacy/streamlit/                        # Referência Python anterior, fora da aplicação ativa
+tests/unit/                              # Testes determinísticos
+tests/integration/                       # Testes de API, conta, release e scripts
+tests/e2e/                               # Fluxos Playwright
+tests/helpers/                           # Auxiliares partilhados
+tests/fixtures/csv/                      # CSV de teste
 ```
 
 As rotas compõem dependências por pedido. Os controllers tratam HTTP; os services validam e executam casos de uso sem conhecer HTTP ou parâmetros RPC. O repository de conta encapsula as RPCs e traduz SQLSTATE em erros da aplicação; transações, RLS, revisões e quotas continuam no PostgreSQL. Os adaptadores de fornecedores mantêm apenas caches públicas. Os parsers e auxiliares puros existentes permanecem em `src/lib/`.
@@ -269,7 +279,7 @@ Para verificar a entrada sem Supabase mesmo quando existe `.env.local`, usar um 
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= npm run build
-TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/dashboard.spec.ts
+TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/e2e/dashboard.spec.ts
 ```
 
 Depois dos testes com configuração fictícia ou vazia, executar novamente `npm run build` para repor a configuração local real.
