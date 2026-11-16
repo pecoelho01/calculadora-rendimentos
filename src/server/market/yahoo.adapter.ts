@@ -2,8 +2,8 @@ import "server-only";
 import YahooFinance from "yahoo-finance2";
 import { unstable_cache } from "next/cache";
 import type { MarketAsset } from "../../lib/types";
-import { tradingDate } from "../../lib/market-date";
-import { normalizeIntraday } from "../../lib/market-intraday";
+import { tradingDate } from "../../lib/market/market-date";
+import { normalizeIntraday } from "../../lib/market/market-intraday";
 
 const yahoo = new YahooFinance({
   suppressNotices: ["yahooSurvey"],

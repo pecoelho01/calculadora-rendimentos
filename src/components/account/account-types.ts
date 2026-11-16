@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import type { RecoverySession } from "@/lib/recovery-session";
+import type { RecoverySession } from "@/lib/auth/recovery-session";
 
 export type AccountIdentity = {
   userId: string;

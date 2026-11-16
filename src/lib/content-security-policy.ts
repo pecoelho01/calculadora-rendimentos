@@ -1,14 +1,19 @@
-import { validateSupabaseUrl } from "./supabase-url";
+import { validateSupabaseUrl } from "./auth/supabase-url";
 
 /** Only public service origins belong here; never interpolate arbitrary request headers. */
-export function contentSecurityPolicy(nonce: string, options: {
-  supabaseUrl?: string;
-  captcha: boolean;
-  development: boolean;
-}) {
+export function contentSecurityPolicy(
+  nonce: string,
+  options: {
+    supabaseUrl?: string;
+    captcha: boolean;
+    development: boolean;
+  },
+) {
   const supabase = validateSupabaseUrl(options.supabaseUrl);
   const authOrigin = supabase ? ` ${new URL(supabase).origin}` : "";
-  const challengeOrigin = options.captcha ? " https://challenges.cloudflare.com" : "";
+  const challengeOrigin = options.captcha
+    ? " https://challenges.cloudflare.com"
+    : "";
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${challengeOrigin}${options.development ? " 'unsafe-eval'" : ""}`,

@@ -6,15 +6,15 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 
 - `src/app/`: Next.js App Router, layout, navegação e estilos em `globals.css`.
 - `src/components/`: interface React, dashboard, diálogos e gráficos.
-- `src/lib/portfolio.ts`: cálculos puros e reconstrução histórica; nunca duplicar fórmulas na UI ou no relatório.
+- `src/lib/portfolio/portfolio.ts`: cálculos puros e reconstrução histórica; nunca duplicar fórmulas na UI ou no relatório.
 - `src/lib/validation.ts`: validação partilhada de números, datas, tickers, ordens e carteiras.
-- `src/lib/csv.ts`: contrato de importação/exportação CSV.
+- `src/lib/csv/csv.ts`: contrato de importação/exportação CSV.
 - `src/lib/storage.ts`: persistência local versionada e validação de cópias de segurança.
 - `src/server/market/yahoo.adapter.ts`: adaptador Yahoo Finance exclusivamente no servidor, com cache curto.
 - `src/app/api/`: rotas finas e composição de dependências por pedido.
 - `src/server/`: controllers HTTP, services de casos de uso, repository de conta e adaptadores externos.
-- `public/`: modelos CSV para download; manter sincronizados com os exemplos na raiz.
-- `tests/`: cálculos determinísticos e fluxos Playwright.
+- `public/`: modelos CSV para download; manter sincronizados com os CSV de teste em `tests/fixtures/csv/`.
+- `tests/unit/`, `tests/integration/` e `tests/e2e/`: testes determinísticos, integrações e fluxos Playwright; `tests/helpers/` e `tests/fixtures/` guardam recursos partilhados.
 - `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.
 - `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 26 LTS e npm.
 
@@ -111,7 +111,7 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 
 ### Formatação automática
 
-- Usar a versão local de Prettier fixada no `package-lock.json` e a configuração `.prettierrc.json`: indentação de dois espaços, aspas duplas, ponto e vírgula e largura preferida de 80 colunas. A largura é uma preferência do formatador, não um limite rígido.
+- Usar a versão local de Prettier fixada no `package-lock.json` e a configuração `config/prettier.config.json`: indentação de dois espaços, aspas duplas, ponto e vírgula e largura preferida de 80 colunas. A largura é uma preferência do formatador, não um limite rígido.
 - Formatar apenas os ficheiros abrangidos pelo pedido: `npm run format -- caminho/ficheiro.ts caminho/componente.tsx`.
 - Verificar esses mesmos ficheiros com `npm run format:check -- caminho/ficheiro.ts caminho/componente.tsx`.
 - Os comandos exigem caminhos explícitos para evitar uma reformatação global acidental. Não executar uma reformatação de todo o repositório sem pedido explícito.
@@ -122,7 +122,7 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 ### ESLint e revisão automática de qualidade
 
 - O job `Quality checks and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks de qualidade. O check obrigatório `Quality, tests and build` agrega este job e os dois E2E. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
-- Os limites de manutenção em `eslint.config.mjs` são avisos para permitir adoção gradual, sem bloquear PRs pela dívida existente. Não usar `--max-warnings 0` nesta fase.
+- Os limites de manutenção em `config/eslint.config.mjs` são avisos para permitir adoção gradual, sem bloquear PRs pela dívida existente. Não usar `--max-warnings 0` nesta fase.
 
 | Regra                               | Critério                                                                                                                                |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -226,7 +226,7 @@ O projeto usa duas subscrições, ChatGPT e Claude, e o routing reparte os papé
 ## Qualidade e validação
 
 - Fazer alterações focadas e preservar trabalho não relacionado.
-- Manter os cálculos em `src/lib/portfolio.ts` e evitar duplicar fórmulas na interface ou no PDF.
+- Manter os cálculos em `src/lib/portfolio/portfolio.ts` e evitar duplicar fórmulas na interface ou no PDF.
 - Preservar o contrato CSV documentado no `README.md`; atualizar documentação e exemplos se esse contrato mudar.
 - Validar dados externos e entradas do utilizador, incluindo números, datas, tickers e tipos de ordem.
 - Distinguir ausência ou falha de dados de preços e retornos iguais a zero.

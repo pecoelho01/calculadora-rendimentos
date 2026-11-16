@@ -1,6 +1,6 @@
 # Unicode CLDR
 
-O mapeamento territorial em `src/lib/continents.ts` foi derivado de Unicode CLDR 49 `territoryContainment.json`.
+O mapeamento territorial em `src/lib/geography/continents.ts` foi derivado de Unicode CLDR 49 `territoryContainment.json`.
 
 Fonte: https://github.com/unicode-org/cldr-json
 

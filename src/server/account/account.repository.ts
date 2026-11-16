@@ -1,4 +1,4 @@
-import type { AccountWrite } from "../../lib/account";
+import type { AccountWrite } from "../../lib/account/account";
 import type { SupabaseBackend } from "../shared/supabase/create-client";
 import { AccountError } from "./account.errors";
 

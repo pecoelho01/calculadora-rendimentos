@@ -130,7 +130,7 @@ jobs:
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: Account end-to-end tests with HTTP mocks
-        run: npm run test:e2e -- tests/account.spec.ts --reporter=line,html --output=test-results/account
+        run: npm run test:e2e -- tests/e2e/account.spec.ts --reporter=line,html --output=test-results/account
         env:
           TEST_ACCOUNT_AUTH: "1"
           TEST_CAPTCHA: "1"

@@ -19,7 +19,9 @@ env/
 # Editores e SO
 .DS_Store
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+
 *.swp
 
 # Next.js / Node / Vercel
