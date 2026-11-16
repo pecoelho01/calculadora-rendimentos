@@ -111,6 +111,37 @@ test("interpreta aspas escapadas e mantém os dados numa ida e volta CSV", () =>
   assert.notEqual(parsedOrder.id, roundTrippedOrder.id);
 });
 
+test("exporta texto CSV exato e apenas o cabeçalho para uma lista vazia", () => {
+  const orders: Order[] = [
+    {
+      id: "ordem-1",
+      date: "2024-01-01",
+      ticker: "AAPL",
+      name: 'Empresa "X"',
+      pricebuy: 12.5,
+      shares: 2,
+      type: "buy",
+    },
+    {
+      id: "ordem-2",
+      date: "2024-01-02",
+      ticker: "MSFT",
+      name: "Empresa Y",
+      pricebuy: 15,
+      shares: 3,
+      type: "sell",
+    },
+  ];
+
+  assert.equal(
+    exportCsv(orders),
+    "date,ticker,name,pricebuy,shares,type\r\n" +
+      '"2024-01-01","AAPL","Empresa ""X""","12.5","2","buy"\r\n' +
+      '"2024-01-02","MSFT","Empresa Y","15","3","sell"',
+  );
+  assert.equal(exportCsv([]), "date,ticker,name,pricebuy,shares,type\r\n");
+});
+
 test("rejeita espaço antes da aspa de abertura com mensagem exata", () => {
   const csv = 'date,ticker,pricebuy,shares\n2024-01-01, "AAPL",10,1';
 
@@ -161,4 +192,24 @@ test("mantém mensagens estáveis para erros estruturais CSV", () => {
         "Linha 2: Número de colunas inválido; coloca decimais com vírgula entre aspas.",
     },
   );
+});
+
+test("usa buy por omissão quando o cabeçalho não inclui type", () => {
+  const csv = "date,ticker,pricebuy,shares\n2024-01-01,AAPL,12.5,2";
+  const [draft] = parseCsvDraft(csv);
+  const [order] = parseCsv(csv);
+
+  assert.equal(draft.type, "buy");
+  assert.equal(order.type, "buy");
+});
+
+test("inclui a linha correta na mensagem de validação de uma ordem posterior", () => {
+  const csv =
+    "date,ticker,pricebuy,shares\n" +
+    "2024-01-01,AAPL,10,1\n" +
+    "data-inválida,MSFT,20,2";
+
+  assert.throws(() => parseCsv(csv), {
+    message: "Linha 3: Data inválida: usa YYYY-MM-DD, entre 2000-01-01 e hoje.",
+  });
 });
