@@ -248,6 +248,10 @@ tests/fixtures/csv/                      # CSV de teste
 
 As rotas compõem dependências por pedido. Os controllers tratam HTTP; os services validam e executam casos de uso sem conhecer HTTP ou parâmetros RPC. O repository de conta encapsula as RPCs e traduz SQLSTATE em erros da aplicação; transações, RLS, revisões e quotas continuam no PostgreSQL. Os adaptadores de fornecedores mantêm apenas caches públicas. Os parsers e auxiliares puros existentes permanecem em `src/lib/`.
 
+### Diagnóstico de tempos das APIs
+
+No DevTools do navegador, abre **Network**, seleciona um pedido `GET` para `/api/account`, `/api/market` ou `/api/geography` e consulta **Timing** e o cabeçalho de resposta `Server-Timing`. Os valores `dur` estão em milissegundos. `total` mede o processamento do handler até criar a resposta, incluindo a serialização JSON. Em `/api/account`, `auth` mede a autenticação e `account_read` mede a leitura do snapshot, incluindo a validação. Em mercado e geografia, `service` é a fase agregada do serviço e pode incluir cache e chamadas ao fornecedor; uma duração baixa não prova que o Yahoo foi consultado e a duração de uma cache não equivale ao tempo de uma chamada Yahoo. As fases podem decorrer em paralelo, pelo que não se devem somar como se fossem sequenciais. A medição não inclui rede nem inicialização fria anterior ao handler. Respostas HTTP devolvidas, incluindo erros de validação/autenticação, incluem o cabeçalho; exceções inesperadas propagadas sem resposta mantêm o comportamento atual e não produzem esse cabeçalho.
+
 ## Validação
 
 ```bash
