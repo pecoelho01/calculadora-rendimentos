@@ -8,6 +8,7 @@ import { validateOrder } from "../../src/lib/validation";
 
 function draft(overrides: Partial<CsvReviewRow> = {}): CsvReviewRow {
   return {
+    line: 2,
     id: "buy",
     date: "2024-01-01",
     ticker: "TEST",
