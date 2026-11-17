@@ -325,11 +325,11 @@ export function CsvImportReview({
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row, offset) => (
+                {visibleRows.map((row) => (
                   <CsvImportRow
                     key={row.id}
                     row={row}
-                    line={first + offset + 2}
+                    line={row.line}
                     error={review.errors.get(row.id)}
                     duplicate={review.duplicates.get(row.id)}
                     fields={fields}
