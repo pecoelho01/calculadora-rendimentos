@@ -1,6 +1,10 @@
 import { readJsonBody } from "../shared/http/read-json-body";
 import { AccountError, type AccountErrorKind } from "./account.errors";
 import type { AccountService } from "./account.service";
+import {
+  createServerTiming,
+  type ServerTiming,
+} from "../shared/http/server-timing";
 
 export type AccountSession = {
   authenticate(): Promise<{ id: string } | null>;
@@ -17,11 +21,13 @@ function accountResponse(
   body: unknown,
   status = 200,
   extraHeaders?: Record<string, string>,
+  timing?: ServerTiming,
 ) {
-  return Response.json(body, {
+  const response = Response.json(body, {
     status,
     headers: { ...privateResponseHeaders, ...extraHeaders },
   });
+  return timing ? timing.response(response) : response;
 }
 
 type AccountFailureResponse = {
@@ -77,6 +83,7 @@ async function readAccountInput(request: Request): Promise<unknown> {
 
 export function createAccountHandler(createSession: AccountSessionFactory) {
   return async function handle(request: Request): Promise<Response> {
+    const timing = request.method === "GET" ? createServerTiming() : undefined;
     try {
       const authorization = request.headers.get("authorization");
       const token = authorization?.match(/^Bearer ([^\s]+)$/i)?.[1];
@@ -84,6 +91,8 @@ export function createAccountHandler(createSession: AccountSessionFactory) {
         return accountResponse(
           { error: "Inicia sessão para aceder às carteiras da conta." },
           401,
+          undefined,
+          timing,
         );
 
       const session = createSession(token);
@@ -91,9 +100,13 @@ export function createAccountHandler(createSession: AccountSessionFactory) {
         return accountResponse(
           { error: "O modo de conta não está configurado." },
           503,
+          undefined,
+          timing,
         );
-      if (!(await session.authenticate()))
-        throw new AccountError("session-expired");
+      const authenticated = timing
+        ? await timing.measure("auth", () => session.authenticate())
+        : await session.authenticate();
+      if (!authenticated) throw new AccountError("session-expired");
 
       if (request.method === "POST") {
         const input = await readAccountInput(request);
@@ -102,7 +115,10 @@ export function createAccountHandler(createSession: AccountSessionFactory) {
       if (request.method !== "GET")
         return accountResponse({ error: "Método não permitido." }, 405);
 
-      return accountResponse(await session.service.snapshot());
+      const snapshot = timing
+        ? await timing.measure("account_read", () => session.service.snapshot())
+        : await session.service.snapshot();
+      return accountResponse(snapshot, 200, undefined, timing);
     } catch (error) {
       const failure =
         failures[error instanceof AccountError ? error.kind : "unavailable"];
@@ -110,6 +126,7 @@ export function createAccountHandler(createSession: AccountSessionFactory) {
         { error: failure.message },
         failure.status,
         failure.headers,
+        timing,
       );
     }
   };

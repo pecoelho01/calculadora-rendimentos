@@ -153,6 +153,70 @@ test("API rejeita ausência/sessão inválida antes de executar DB e sinaliza co
   assert.equal(calls, 0);
   assert.equal((await createAccountHandler(() => null)(request())).status, 503);
 });
+test("GET da conta inclui tempos de autenticação/leitura sem alterar headers privados", async () => {
+  const handle = createAccountHandler(() => ({
+    async getUser() {
+      return { data: { user: { id: "session-user" } }, error: null };
+    },
+    async rpc() {
+      return { data: snapshot, error: null };
+    },
+  }));
+
+  const response = await handle(request());
+  const serverTiming = response.headers.get("server-timing") ?? "";
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.equal(response.headers.get("vary"), "Authorization");
+  assert.match(serverTiming, /auth;dur=/);
+  assert.match(serverTiming, /account_read;dur=/);
+  assert.match(serverTiming, /total;dur=/);
+  assert.deepEqual(await response.json(), snapshot);
+});
+test("GET da conta mantém timings em falhas de autenticação e de leitura", async () => {
+  const authenticationFailure = createAccountHandler(() => ({
+    async getUser() {
+      return { data: { user: null }, error: null };
+    },
+    async rpc() {
+      assert.fail("não deve ler a conta sem autenticação");
+    },
+  }));
+  const authResponse = await authenticationFailure(request());
+  const authTiming = authResponse.headers.get("server-timing") ?? "";
+  assert.equal(authResponse.status, 401);
+  assert.equal(authResponse.headers.get("cache-control"), "private, no-store");
+  assert.equal(authResponse.headers.get("vary"), "Authorization");
+  assert.match(authTiming, /auth;dur=/);
+  assert.doesNotMatch(authTiming, /account_read/);
+  assert.deepEqual(await authResponse.json(), {
+    error: "A sessão expirou. Inicia sessão novamente.",
+  });
+
+  const snapshotFailure = createAccountHandler(() => ({
+    async getUser() {
+      return { data: { user: { id: "session-user" } }, error: null };
+    },
+    async rpc() {
+      return { data: null, error: { code: "08006" } };
+    },
+  }));
+  const snapshotResponse = await snapshotFailure(request());
+  const snapshotTiming = snapshotResponse.headers.get("server-timing") ?? "";
+  assert.equal(snapshotResponse.status, 503);
+  assert.equal(
+    snapshotResponse.headers.get("cache-control"),
+    "private, no-store",
+  );
+  assert.equal(snapshotResponse.headers.get("vary"), "Authorization");
+  assert.match(snapshotTiming, /auth;dur=/);
+  assert.match(snapshotTiming, /account_read;dur=/);
+  assert.match(snapshotTiming, /total;dur=/);
+  assert.deepEqual(await snapshotResponse.json(), {
+    error: "Não foi possível aceder à conta. Tenta novamente.",
+  });
+  assert.doesNotMatch(snapshotTiming, /valid|session-user/i);
+});
 test("API usa token autenticado no backend, devolve snapshot confirmado e nunca permite cache", async () => {
   const called: unknown[] = [];
   const handle = createAccountHandler((token) => {
