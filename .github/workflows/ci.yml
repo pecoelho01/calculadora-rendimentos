@@ -147,22 +147,56 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  e2e-supabase-real:
+    name: E2E Supabase local real
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 3.2.0
+
+      - name: Install Chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
+
+      - name: Run E2E against disposable local Supabase
+        run: npm run test:e2e:supabase-real
+        env:
+          CI: "true"
+          E2E_SUPABASE_CLI: supabase
+
   quality-gate:
     name: Quality, tests and build
-    needs: [quality, e2e-local, e2e-account]
+    needs: [quality, e2e-local, e2e-account, e2e-supabase-real]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
-      - name: Require quality and both E2E suites
+      - name: Require every aggregated job
         run: |
-          test "$QUALITY_RESULT" = success
-          test "$LOCAL_RESULT" = success
-          test "$ACCOUNT_RESULT" = success
+          printf '%s\n' "$NEEDS_JSON" | jq -r '
+            to_entries[] | "\(.key): \(.value.result)"
+          '
+          printf '%s\n' "$NEEDS_JSON" | jq -e '
+            length > 0 and all(.[]; .result == "success")
+          ' > /dev/null
         env:
-          QUALITY_RESULT: ${{ needs.quality.result }}
-          LOCAL_RESULT: ${{ needs.e2e-local.result }}
-          ACCOUNT_RESULT: ${{ needs.e2e-account.result }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
 
   sql:
     name: SQL migrations and isolation
