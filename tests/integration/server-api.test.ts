@@ -35,6 +35,8 @@ test("mercado mantém deduplicação, preços zero e falhas isoladas por ticker"
   );
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.match(response.headers.get("server-timing") ?? "", /service;dur=/);
+  assert.match(response.headers.get("server-timing") ?? "", /total;dur=/);
   assert.deepEqual(calls, [
     ["ZERO", "2024-01-01"],
     ["FAIL", "2024-01-01"],
@@ -91,6 +93,7 @@ test("mercado e geografia rejeitam pedidos inválidos sem consultar fornecedores
       );
       assert.equal(response.status, 400);
       assert.equal(response.headers.get("cache-control"), null);
+      assert.match(response.headers.get("server-timing") ?? "", /total;dur=/);
       assert.deepEqual(await response.json(), { error: message });
     }
   }
@@ -121,6 +124,7 @@ test("geografia preserva null, resultados e deduplicação, sem ocultar falhas i
   const response = await handler(query("geography?tickers=TEST,NONE,TEST,,"));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.match(response.headers.get("server-timing") ?? "", /service;dur=/);
   assert.deepEqual(await response.json(), {
     geographies: { TEST: data, NONE: null },
   });

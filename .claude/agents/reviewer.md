@@ -1,5 +1,5 @@
 ---
-name: sol_reviewer
+name: reviewer
 description: Revê alterações de forma independente, procurando erros, regressões, riscos de segurança e lacunas de validação.
 model: claude-opus-5-5
 effort: medium

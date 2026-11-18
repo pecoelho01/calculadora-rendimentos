@@ -1,4 +1,4 @@
-name = "luna_scout"
+name = "scout"
 description = "Explora o repositório quando falta contexto e reporta evidência concreta sem alterar ficheiros."
 model = "gpt-6-luna"
 model_reasoning_effort = "medium"
