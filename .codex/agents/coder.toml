@@ -1,4 +1,4 @@
-name = "luna_coder"
+name = "coder"
 description = "Implementa alterações delimitadas de código ou configuração executável, incluindo correções, respeitando a arquitetura e os contratos da aplicação."
 model = "gpt-6-luna"
 model_reasoning_effort = "medium"
