@@ -1,0 +1,30 @@
+name: Production schema readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema-readiness:
+    name: Production schema readiness
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Instalar dependências bloqueadas sem executar scripts
+        run: npm ci --ignore-scripts
+      - name: Verificar contrato do schema de produção
+        run: node --import tsx scripts/check-release.ts --strict-production
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PRODUCTION_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}

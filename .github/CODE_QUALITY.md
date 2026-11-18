@@ -196,6 +196,43 @@ Procedimento de release com conta:
    No rollback da aplicação, manter 008 e os aliases na BD.
    Rollback da aplicação não faz rollback de dados nem de migrations.
 
+### Verificação manual do contrato de produção
+
+1. Em **Settings → Secrets and variables → Actions → Variables**, criar as
+   variáveis de repositório `PRODUCTION_SUPABASE_URL` e
+   `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`. Usar os valores públicos do mesmo
+   projeto Supabase configurado na Vercel para Production. O workflow fornece
+   estes valores apenas ao passo que lê a RPC de metadados, sem secrets, sessão
+   de utilizador ou credenciais administrativas.
+2. Depois de o workflow estar na branch predefinida, um mantenedor com permissão
+   de escrita pode abrir **Actions → Production schema readiness → Run workflow**,
+   selecionar `main` e pedir a verificação antes do merge ou da promoção.
+   Alternativamente, executar
+   `gh workflow run production-schema-readiness.yml --ref main`.
+   [Disparo manual no GitHub Actions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+3. Consultar o resultado em Actions. O job usa o SHA da `main` no momento do
+   disparo. Se for selecionada outra ref, o job é ignorado. O disparo é manual
+   também durante a revisão de PRs de forks e executa apenas o código da `main`
+   quando esta é selecionada. Configuração ausente, parcial ou inválida, RPC
+   indisponível ou contrato incompatível fazem falhar a execução.
+
+Um resultado verde confirma que os metadados atuais de produção correspondem ao
+contrato esperado pela `main` registada na execução. Em PRs que mudem o contrato,
+preparar e testar migrations com dados sintéticos. Quando for altura de confirmar
+o rollout, executar o script com o código revisto do candidato e a configuração
+pública do destino. Sem `--strict-production`, o script continua a aceitar o modo
+local quando as duas variáveis estão ausentes.
+
+```bash
+node --env-file=.env.production.local --import tsx scripts/check-release.ts --strict-production
+```
+
+`Production schema readiness` é informativo. Mantê-lo fora dos checks obrigatórios
+do GitHub e dos Deployment Checks da Vercel para permitir preparar migrations
+futuras. O preflight bloqueia o build de produção com conta se o contrato do
+candidato for incompatível. `Production deployment smoke` verifica a revisão
+publicada depois do deployment.
+
 `GET /api/health` devolve apenas estado, modo de conta e SHA, sem carteiras ou
 credenciais, e usa `no-store`. Em falha devolve 503 genérico. A consulta à RPC só lê
 metadados constantes. Para executar o smoke localmente após `npm run build` e
