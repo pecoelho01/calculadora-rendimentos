@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/unit/*.test.ts tests/unit/*.test.mjs tests/integration/*.test.ts tests/integration/*.test.mjs",
     "test:e2e": "playwright test --config=config/playwright.config.ts",
+    "test:e2e:supabase-real": "node scripts/test-e2e-supabase-real.mjs",
     "test:sql": "node --import tsx supabase/tests/check-migration.mjs"
   },
   "keywords": [],
