@@ -16,6 +16,12 @@ type MailpitMessage = {
   To?: MailpitAddress[];
 };
 
+const HTML_ENTITIES: Readonly<Record<string, string>> = {
+  "&amp;": "&",
+  "&quot;": '"',
+  "&#x3D;": "=",
+};
+
 function requestSignal(deadline: AbortSignal): AbortSignal {
   return AbortSignal.any([deadline, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
 }
@@ -25,10 +31,11 @@ function verificationLink(
   authOrigin: string,
   appOrigin: string,
 ): string {
-  const content = `${message.HTML ?? ""}\n${message.Text ?? ""}`
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#x3D;", "=");
+  const html = (message.HTML ?? "").replace(
+    /&(?:amp|quot|#x3D);/g,
+    (entity) => HTML_ENTITIES[entity],
+  );
+  const content = `${html}\n${message.Text ?? ""}`;
   const candidates = content.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
 
   for (const candidate of candidates) {
