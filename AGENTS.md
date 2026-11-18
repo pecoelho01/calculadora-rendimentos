@@ -121,7 +121,7 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 
 ### ESLint e revisão automática de qualidade
 
-- O job `Quality checks and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks de qualidade. O check obrigatório `Quality, tests and build` agrega este job e os dois E2E. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
+- O job `Quality checks and build`, em `.github/workflows/ci.yml`, executa Prettier antes de `npm run lint`, seguido dos restantes checks de qualidade. O check obrigatório `Quality, tests and build` agrega este job, `E2E local`, `E2E account` com mocks HTTP e `E2E Supabase local real`. O Prettier verifica os ficheiros alterados suportados pelo formatador, respeitando `.prettierignore`; uma falha de formatação ou um erro de ESLint faz falhar o job.
 - Os limites de manutenção em `config/eslint.config.mjs` são avisos para permitir adoção gradual, sem bloquear PRs pela dívida existente. Não usar `--max-warnings 0` nesta fase.
 
 | Regra                               | Critério                                                                                                                                |
@@ -147,7 +147,7 @@ function ExportButton({ isExporting, onExport }: ExportButtonProps) {
 
 ## Condições de release
 
-- Preservar o check agregador `Quality, tests and build`: exige sucesso dos jobs de qualidade, E2E local e E2E account, incluindo quando alguma dependência falha ou é ignorada.
+- Preservar o check agregador `Quality, tests and build`. Exigir sucesso de todos os jobs que o agregador lista como dependências, incluindo qualidade e os três E2E. Falhas, cancelamentos e skips impedem o sucesso.
 - Manter os Deployment Checks de produção da Vercel alinhados com os nomes publicados; não exigir checks exclusivos de PR num deployment de push.
 - As migrations 007 e 008 devem preceder a publicação com conta. A 008 mantém aliases públicos para rollback da aplicação e expõe apenas metadados constantes para o preflight. Não remover aliases sem uma transição planeada.
 - O preflight de build de produção bloqueia contratos de BD incompatíveis; o smoke de deployment verifica a revisão já publicada e não substitui esse bloqueio. Consultar `.github/CODE_QUALITY.md` para rollout e limitações.
