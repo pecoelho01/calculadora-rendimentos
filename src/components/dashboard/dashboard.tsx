@@ -17,7 +17,6 @@ import { AllocationDonut } from "../charts/allocation-donut";
 import { GeographicChart } from "../charts/geographic-chart";
 import { useGeography } from "../charts/use-geography";
 import { Icon } from "../shared/icon";
-import { ThemeControl } from "../shared/theme-control";
 import { WorkspaceShell } from "./workspace-shell";
 import type { AccountIdentity } from "../account/account-gateway";
 import { AccountSettings } from "./account-settings";
@@ -694,12 +693,7 @@ export function Dashboard({
               <Icon name="shield" />
               Mercado via Yahoo Finance
             </span>
-            {!accountPage ? (
-              <>
-                {dataMenu}
-                <ThemeControl />
-              </>
-            ) : null}
+            {!accountPage ? dataMenu : null}
           </div>
         </header>
         <main className="content">

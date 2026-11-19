@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { themeScript } from "@/lib/theme";
+import { ThemeSync } from "@/components/shared/theme-sync";
 import "./globals.css";
 import "./fidelity.css";
 import "@/components/tables/portfolio-lists.css";
@@ -32,6 +33,7 @@ export default async function RootLayout({
         />
       </head>
       <body>
+        <ThemeSync />
         {children}
         {process.env.VERCEL === "1" ? <SpeedInsights /> : null}
       </body>
