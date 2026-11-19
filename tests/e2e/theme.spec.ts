@@ -124,6 +124,47 @@ test("ignorar preferência inválida e sincronizar entre separadores", async ({
   );
 });
 
+test("sincronizar tema com dashboard aberto noutro separador", async ({
+  page,
+  context,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page
+        .locator("body")
+        .evaluate((body) => getComputedStyle(body).backgroundColor),
+    )
+    .toBe("rgb(245, 247, 249)");
+
+  const other = await context.newPage();
+  await other.emulateMedia({ colorScheme: "light" });
+  await other.goto("/");
+  await other
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
+  await openSettings(other, false);
+
+  await other.getByRole("radio", { name: "Escuro", exact: true }).check();
+  await expect.poll(() => scheme(page)).toBe("dark");
+  await openSettings(page, false);
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
+
+  await other.getByRole("radio", { name: "Sistema", exact: true }).check();
+  await expect
+    .poll(() =>
+      page
+        .locator("body")
+        .evaluate((body) => getComputedStyle(body).backgroundColor),
+    )
+    .toBe("rgb(245, 247, 249)");
+  await expect(page.getByRole("radio", { name: "Sistema" })).toBeChecked();
+});
+
 test("sincronizar o botão rápido da entrada com o seletor", async ({
   page,
 }) => {
