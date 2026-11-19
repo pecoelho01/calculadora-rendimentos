@@ -307,23 +307,35 @@ Usar o mesmo formato de Conventional Commits, tipos permitidos e regras de descr
 
 Cada PR deve ser pequeno, focado e conter uma alteração lógica ou um conjunto pequeno de alterações diretamente relacionadas. Evitar refatorações, alterações cosméticas ou atualizações de dependências fora do âmbito.
 
-A descrição deve representar o estado final da branch e explicar o problema, a solução e o resultado esperado para alguém que não acompanhou a implementação. Seguir o modelo do MetroLiveTime:
+A descrição deve representar o estado final da branch e explicar o problema, a solução e o resultado esperado para alguém que não acompanhou a implementação. Usar tabelas para o que é factual e se percorre rapidamente (o quê, onde e com que resultado) e texto para o raciocínio:
 
 ```markdown
 ## Resumo
 
-Descrever o problema ou necessidade, a solução e o resultado principal.
+Descrever em duas ou três frases o problema ou necessidade, a solução e o resultado principal.
 
 ## Alterações
 
-- Indicar as alterações relevantes e os módulos ou comportamentos afetados.
-- Explicar decisões técnicas relevantes.
+| Área   | Alteração                            | Ficheiros                |
+| ------ | ------------------------------------ | ------------------------ |
+| <área> | <alteração lógica, numa frase curta> | `ficheiro.ts`            |
+| Testes | <comportamentos cobertos>            | `tests/e2e/nome.spec.ts` |
+
+### Decisões técnicas
+
+- Explicar decisões relevantes, compromissos e compatibilidade.
 
 ## Validação
 
-- Indicar os comandos executados e os respetivos resultados.
-- Descrever verificações manuais relevantes.
-- Identificar verificações não executadas e explicar o motivo.
+| Verificação         | Resultado              |
+| ------------------- | ---------------------- |
+| `npm test`          | ✅ <n> testes passaram |
+| `npm run typecheck` | ✅                     |
+| `npm run lint`      | ✅ sem erros           |
+| `npm run build`     | ✅                     |
+| `npm run test:e2e`  | ⏭️ <motivo>            |
+
+Descrever verificações manuais relevantes, quando existirem.
 
 ## Riscos e limitações
 
@@ -340,6 +352,11 @@ Indicar alterações incompatíveis e instruções de migração ou escrever `Ne
 - Relates to #456
 ```
 
+- Na tabela de alterações, usar uma linha por alteração lógica, não por ficheiro. A coluna "Área" identifica o módulo ou comportamento afetado.
+- Na coluna "Ficheiros", indicar o nome do ficheiro ou um caminho curto quando o nome for ambíguo. Se uma linha abranger mais de quatro ficheiros, indicar a pasta, como `src/server/market/`.
+- Não colocar justificações nas células; explicar o motivo em "Decisões técnicas" e omitir essa subsecção quando não houver decisões relevantes.
+- Na tabela de validação, manter os checks não executados com ⏭️ e o motivo, ou com ⚠️ quando houver avisos ou falhas relevantes, em vez de os omitir. Incluir a revisão independente quando tiver sido feita, com os achados e o seu tratamento.
+- Em PRs muito pequenos, com uma ou duas alterações, a tabela de alterações pode ser substituída por bullets.
 - Remover secções sem conteúdo relevante, salvo se existir um modelo obrigatório no repositório.
 - Substituir as referências de exemplo por issues reais relacionadas; não inventar números. Usar `Closes` apenas quando se pretende fechar a issue após o merge.
 - Não limitar a descrição a repetir o título nem usar afirmações vagas sobre validação.
