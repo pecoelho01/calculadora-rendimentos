@@ -139,13 +139,17 @@ FORMAT_BASE=<sha-base> FORMAT_HEAD=<sha-head> npm run format:check:changed
 
 ## Publicação e rollback
 
-A CI tem três jobs independentes: `Quality checks and build` (formatação, lint,
-tipos, unitários e build), `E2E local` (build sem conta) e `E2E account` (build com
-configuração fictícia e mocks HTTP). Ambos os E2E cobrem desktop/mobile, instalam
-Chromium e guardam diagnósticos distintos em caso de falha durante sete dias.
-O agregador `Quality, tests and build` corre mesmo quando uma dependência falha:
-só passa se os três resultados forem `success`. Mantém o nome já obrigatório no
-GitHub e na Vercel; não exige adicionar checks ainda inexistentes às proteções.
+A CI agrega quatro jobs independentes: `Quality checks and build` (formatação,
+lint, tipos, unitários e build), `E2E local` (build sem conta), `E2E account`
+(build com configuração fictícia e mocks HTTP) e `E2E Supabase local real`
+(Auth, Mailpit, PostgREST e PostgreSQL numa pilha Docker descartável). Os dois E2E
+existentes cobrem desktop/mobile e guardam diagnósticos em caso de falha durante
+sete dias. A suite real usa Chromium e contas sintéticas para verificar
+confirmação de registo por email e isolamento de carteiras. Os diagnósticos
+omitem conteúdo de email, ligações de confirmação, credenciais e sessões.
+O agregador `Quality, tests and build` corre ainda que uma dependência falhe,
+seja cancelada ou ignorada. Só passa se todos os resultados forem `success`.
+O nome obrigatório no GitHub e na Vercel mantém-se, com as proteções existentes.
 `forbidOnly` impede suites focadas acidentais no CI. SQL e auditoria conservam os
 checks próprios. A revisão IA continua informativa e não é uma condição de release.
 
@@ -191,6 +195,43 @@ Procedimento de release com conta:
    pretendido e rever SHA/destino; não confiar apenas no preflight do build antigo.
    No rollback da aplicação, manter 008 e os aliases na BD.
    Rollback da aplicação não faz rollback de dados nem de migrations.
+
+### Verificação manual do contrato de produção
+
+1. Em **Settings → Secrets and variables → Actions → Variables**, criar as
+   variáveis de repositório `PRODUCTION_SUPABASE_URL` e
+   `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`. Usar os valores públicos do mesmo
+   projeto Supabase configurado na Vercel para Production. O workflow fornece
+   estes valores apenas ao passo que lê a RPC de metadados, sem secrets, sessão
+   de utilizador ou credenciais administrativas.
+2. Depois de o workflow estar na branch predefinida, um mantenedor com permissão
+   de escrita pode abrir **Actions → Production schema readiness → Run workflow**,
+   selecionar `main` e pedir a verificação antes do merge ou da promoção.
+   Alternativamente, executar
+   `gh workflow run production-schema-readiness.yml --ref main`.
+   [Disparo manual no GitHub Actions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+3. Consultar o resultado em Actions. O job usa o SHA da `main` no momento do
+   disparo. Se for selecionada outra ref, o job é ignorado. O disparo é manual
+   também durante a revisão de PRs de forks e executa apenas o código da `main`
+   quando esta é selecionada. Configuração ausente, parcial ou inválida, RPC
+   indisponível ou contrato incompatível fazem falhar a execução.
+
+Um resultado verde confirma que os metadados atuais de produção correspondem ao
+contrato esperado pela `main` registada na execução. Em PRs que mudem o contrato,
+preparar e testar migrations com dados sintéticos. Quando for altura de confirmar
+o rollout, executar o script com o código revisto do candidato e a configuração
+pública do destino. Sem `--strict-production`, o script continua a aceitar o modo
+local quando as duas variáveis estão ausentes.
+
+```bash
+node --env-file=.env.production.local --import tsx scripts/check-release.ts --strict-production
+```
+
+`Production schema readiness` é informativo. Mantê-lo fora dos checks obrigatórios
+do GitHub e dos Deployment Checks da Vercel para permitir preparar migrations
+futuras. O preflight bloqueia o build de produção com conta se o contrato do
+candidato for incompatível. `Production deployment smoke` verifica a revisão
+publicada depois do deployment.
 
 `GET /api/health` devolve apenas estado, modo de conta e SHA, sem carteiras ou
 credenciais, e usa `no-store`. Em falha devolve 503 genérico. A consulta à RPC só lê

@@ -1,4 +1,4 @@
-name = "sol_reviewer"
+name = "reviewer"
 description = "Revê alterações de forma independente, procurando erros, regressões, riscos de segurança e lacunas de validação."
 model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
