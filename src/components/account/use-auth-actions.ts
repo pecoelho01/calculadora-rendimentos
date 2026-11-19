@@ -293,9 +293,15 @@ export function useAuthActions(controller: AccountSessionController) {
     setBusy(true);
     const actionId = ++actionSequenceRef.current;
     try {
-      const { error: logoutError } = await runBrowserAuthMutation(() =>
-        supabase.auth.signOut({ scope: "local" }),
-      );
+      const { error: logoutError } = await runBrowserAuthMutation(async () => {
+        try {
+          return await supabase.auth.signOut({ scope: "local" });
+        } finally {
+          // auth-js 2.119 removes the session before /logout; clear at the end
+          // under the lock so a session written during the request cannot renew.
+          supabase.clearStoredSession();
+        }
+      });
       if (logoutError) throw logoutError;
       if (actionId === actionSequenceRef.current) {
         controller.clearSession();
