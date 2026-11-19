@@ -3,6 +3,9 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { checkAccountSchema } from "./src/server/release/schema-contract";
 const config: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    agentUpgrade: "security",
+  },
   async headers() {
     return [
       {
