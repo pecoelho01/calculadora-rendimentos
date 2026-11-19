@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "../shared/icon";
-import { ThemeControl } from "../shared/theme-control";
+import { ThemeSelector } from "../shared/theme-selector";
 
 type AccountSettingsProps = {
   children?: ReactNode;
@@ -88,9 +88,12 @@ export function AccountSettings({
             <div className="settings-row">
               <div>
                 <strong>Aparência</strong>
-                <span>Alterna entre o tema claro e escuro.</span>
+                <span>
+                  Escolhe o tema claro, escuro ou segue o sistema do
+                  dispositivo.
+                </span>
               </div>
-              <ThemeControl />
+              <ThemeSelector />
             </div>
             <div className="settings-row">
               <div>

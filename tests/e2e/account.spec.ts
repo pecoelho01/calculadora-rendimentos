@@ -2274,8 +2274,8 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
     "rgb(19, 32, 45)",
   );
   await expect(
-    page.getByRole("button", { name: "Ativar tema claro", exact: true }),
-  ).toBeVisible();
+    page.getByRole("radio", { name: "Escuro", exact: true }),
+  ).toBeChecked();
   await assertNoOverflow(page);
   await page.screenshot({
     path: testInfo.outputPath("conta-tema-escuro.png"),
@@ -2283,9 +2283,10 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
   });
   await accountAction(page, "Usar modo local");
   await expect(page.locator(".local-badge")).toContainText("Modo local");
+  await openAccountSettings(page);
   await expect(
-    page.getByRole("button", { name: "Ativar tema claro", exact: true }),
-  ).toBeVisible();
+    page.getByRole("radio", { name: "Escuro", exact: true }),
+  ).toBeChecked();
   await accountAction(page, "Sair da conta");
   await expect(
     page.getByRole("heading", {
