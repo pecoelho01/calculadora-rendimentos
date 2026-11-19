@@ -429,10 +429,12 @@ async function startLogoutAndStoreExpiredSession(
       state.authRequests.some((request) => request.path.endsWith("/logout")),
     )
     .toBe(true);
-  await page.evaluate(
-    ({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)),
-    { key: authKey, expired: session(userA, -3600) },
-  );
+  const storedSession = JSON.stringify(session(userA, -3600));
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+    key: authKey,
+    value: storedSession,
+  });
+  return storedSession;
 }
 async function expectNoRenewalAfterLogout(page: Page, state: MockAuthState) {
   await page.clock.fastForward(60_000);
@@ -1515,10 +1517,10 @@ test("logout com erro limpa uma sessão gravada durante o pedido", async ({
   await page.goto("/");
   await expect(selectedPortfolio(page)).toBeVisible();
   state.failNextLogout = true;
-  await startLogoutAndStoreExpiredSession(page, state);
+  const storedSession = await startLogoutAndStoreExpiredSession(page, state);
   await expect
     .poll(() => page.evaluate((key) => localStorage.getItem(key), authKey))
-    .toBe(JSON.stringify(session(userA, -3600)));
+    .toBe(storedSession);
   state.releaseAuth();
   await expect
     .poll(() => page.evaluate((key) => localStorage.getItem(key), authKey))
