@@ -2283,6 +2283,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
   });
   await accountAction(page, "Usar modo local");
   await expect(page.locator(".local-badge")).toContainText("Modo local");
+  await openAccountSettings(page);
   await expect(
     page.getByRole("radio", { name: "Escuro", exact: true }),
   ).toBeChecked();
