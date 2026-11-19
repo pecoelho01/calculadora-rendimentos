@@ -39,6 +39,7 @@ type AuthMethods = Pick<
 
 export type BrowserSupabase = {
   auth: AuthMethods;
+  clearStoredSession: () => void;
   restoreSession: () => ReturnType<RawAuth["getSession"]>;
   onSessionError: (listener: (message: string) => void) => () => void;
 };
@@ -49,6 +50,8 @@ export function createBrowserAuthClient(
   key: string,
 ): BrowserSupabase {
   let raw: RawAuth | undefined;
+  // Undefined means the SDK uses its default storage (localStorage).
+  let customSessionStorage: SupportedStorage | undefined;
   let initialized = false;
   let currentSession: Session | null = null;
   let restoring: ReturnType<RawAuth["getSession"]> | undefined;
@@ -83,7 +86,6 @@ export function createBrowserAuthClient(
     // a rejected old refresh would otherwise erase the valid PKCE verifier.
     // Hide only session reads during bootstrap, never the actual stored record
     // or the verifier. Invalid callbacks can still restore the previous session.
-    let storage: SupportedStorage | undefined;
     if (!raw && forCallback) {
       let persistent: Storage | undefined;
       try {
@@ -96,7 +98,7 @@ export function createBrowserAuthClient(
         /* Match the SDK's in-memory fallback when storage is unavailable. */
       }
       const memory = new Map<string, string>();
-      storage = {
+      customSessionStorage = {
         getItem(name: string) {
           if (hidePriorSession && name === storageKey) return null;
           return persistent
@@ -117,7 +119,7 @@ export function createBrowserAuthClient(
       url: new URL("auth/v1", base).href,
       headers: { apikey: key, Authorization: `Bearer ${key}` },
       storageKey,
-      storage,
+      storage: customSessionStorage,
       flowType: "pkce",
       detectSessionInUrl: false,
       persistSession: true,
@@ -224,6 +226,15 @@ export function createBrowserAuthClient(
   };
   return {
     auth,
+    clearStoredSession() {
+      assertBrowserAuthLock();
+      try {
+        if (customSessionStorage) customSessionStorage.removeItem(storageKey);
+        else window.localStorage.removeItem(storageKey);
+      } catch {
+        /* Storage may be unavailable; the next refresh reconciles the session. */
+      }
+    },
     restoreSession() {
       // React effect remounts share one initialization rather than fail as "busy".
       restoring ??= runBrowserAuthMutation(async () => {
