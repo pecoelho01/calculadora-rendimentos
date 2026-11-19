@@ -98,6 +98,7 @@ async function setup(
     releaseRefresh: () => {},
     failRefresh: false,
     delayAuthPath: "",
+    failNextLogout: false,
     releaseAuth: () => {},
     nextTokenSession: null as ReturnType<typeof session> | null,
     accountReads: 0,
@@ -188,6 +189,15 @@ async function setup(
         await new Promise<void>((resolve) => {
           state.releaseAuth = resolve;
         });
+      }
+      if (path.endsWith("/logout") && state.failNextLogout) {
+        state.failNextLogout = false;
+        await route.fulfill({
+          status: 500,
+          json: { code: "unexpected_failure", message: "Logout failed" },
+          headers: { "Access-Control-Allow-Origin": "*" },
+        });
+        return;
       }
       if (path.endsWith("/token") && grant === "refresh_token") {
         if (state.delayRefresh)
@@ -392,6 +402,50 @@ async function accountAction(page: Page, name: string) {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
+}
+// The app requests its auth lock synchronously before any refresh fetch, so an
+// idle lock manager means every refresh triggered earlier has finished.
+async function waitForAuthLocksIdle(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const locks = await navigator.locks.query();
+        return (locks.held?.length ?? 0) + (locks.pending?.length ?? 0);
+      }),
+    )
+    .toBe(0);
+}
+type MockAuthState = Awaited<ReturnType<typeof setup>>;
+// Leaves /logout pending and writes an expired session while it is in flight,
+// as a late write that the logout must not let survive.
+async function startLogoutAndStoreExpiredSession(
+  page: Page,
+  state: MockAuthState,
+) {
+  state.delayAuthPath = "/logout";
+  await accountAction(page, "Sair da conta");
+  await expect
+    .poll(() =>
+      state.authRequests.some((request) => request.path.endsWith("/logout")),
+    )
+    .toBe(true);
+  const storedSession = JSON.stringify(session(userA, -3600));
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+    key: authKey,
+    value: storedSession,
+  });
+  return storedSession;
+}
+async function expectNoRenewalAfterLogout(page: Page, state: MockAuthState) {
+  await page.clock.fastForward(60_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await waitForAuthLocksIdle(page);
+  expect(
+    state.authRequests.filter((request) => request.grant === "refresh_token"),
+  ).toHaveLength(0);
+  await expect(
+    page.getByRole("button", { name: "Sair da conta", exact: true }),
+  ).toHaveCount(0);
 }
 function authSurface(page: Page, title?: string) {
   const surface = page.locator(".entry-auth-card, dialog.auth-dialog");
@@ -1315,7 +1369,7 @@ test("recuperar, alterar palavra-passe e sair mantêm os pedidos pendentes prote
     .toBe(true);
   await expect(page.locator(".metrics")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Abrir carteiras da conta", exact: true }),
+    page.getByRole("button", { name: "Iniciar sessão", exact: true }),
   ).toBeDisabled();
   state.releaseAuth();
   await expect(
@@ -1439,17 +1493,7 @@ test("temporizador não renova durante logout nem restaura a sessão depois", as
   await page.clock.install();
   await page.goto("/");
   await expect(selectedPortfolio(page)).toBeVisible();
-  state.delayAuthPath = "/logout";
-  await accountAction(page, "Sair da conta");
-  await expect
-    .poll(() =>
-      state.authRequests.some((request) => request.path.endsWith("/logout")),
-    )
-    .toBe(true);
-  await page.evaluate(
-    ({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)),
-    { key: authKey, expired: session(userA, -3600) },
-  );
+  await startLogoutAndStoreExpiredSession(page, state);
   await page.clock.fastForward(30_000);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   expect(
@@ -1459,13 +1503,34 @@ test("temporizador não renova durante logout nem restaura a sessão depois", as
   await expect
     .poll(() => page.evaluate((key) => localStorage.getItem(key), authKey))
     .toBeNull();
-  await page.clock.fastForward(60_000);
-  expect(
-    state.authRequests.filter((request) => request.grant === "refresh_token"),
-  ).toHaveLength(0);
   await expect(
-    page.getByRole("button", { name: "Sair da conta", exact: true }),
-  ).toHaveCount(0);
+    page.getByRole("button", { name: "Iniciar sessão", exact: true }),
+  ).toBeEnabled();
+  await expectNoRenewalAfterLogout(page, state);
+});
+
+test("logout com erro limpa uma sessão gravada durante o pedido", async ({
+  page,
+}) => {
+  const state = await setup(page, true);
+  await page.clock.install();
+  await page.goto("/");
+  await expect(selectedPortfolio(page)).toBeVisible();
+  state.failNextLogout = true;
+  const storedSession = await startLogoutAndStoreExpiredSession(page, state);
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), authKey))
+    .toBe(storedSession);
+  state.releaseAuth();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), authKey))
+    .toBeNull();
+  await expect(
+    page.getByRole("button", { name: "Iniciar sessão", exact: true }),
+  ).toBeEnabled();
+  // Prove the mocked 500 was served, so this covers the error path.
+  expect(state.failNextLogout).toBe(false);
+  await expectNoRenewalAfterLogout(page, state);
 });
 
 test("renovação pendente mantém o lock até persistir e bloqueia logout concorrente", async ({
