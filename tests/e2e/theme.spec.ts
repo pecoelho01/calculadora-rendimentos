@@ -5,7 +5,26 @@ const themeKey = "rendimentos-theme-v1";
 const scheme = (page: import("@playwright/test").Page) =>
   page.locator("html").evaluate((root) => getComputedStyle(root).colorScheme);
 
-test("seguir o sistema e manter a escolha explícita após recarregar", async ({
+async function openSettings(
+  page: import("@playwright/test").Page,
+  continueWithoutSession = true,
+) {
+  if (continueWithoutSession) {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Continuar sem sessão", exact: true })
+      .click();
+  }
+  if ((page.viewportSize()?.width ?? 1440) <= 800) {
+    await page.getByRole("link", { name: "Conta", exact: true }).click();
+  } else {
+    await page
+      .getByRole("link", { name: "Definições da conta", exact: true })
+      .click();
+  }
+}
+
+test("seguir o sistema por omissão e voltar a segui-lo nas definições", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -15,14 +34,22 @@ test("seguir o sistema e manter a escolha explícita após recarregar", async ({
   });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
-  const theme = page.getByRole("button", { name: /^Ativar tema/ });
   await expect(page.locator("html")).not.toHaveAttribute(
     "data-theme",
     /^(light|dark)$/,
   );
-  const darkBackground = await page
+  const initialSystemBackground = await page
     .locator("body")
     .evaluate((body) => getComputedStyle(body).backgroundColor);
+  expect(initialSystemBackground).toBe("rgb(11, 20, 30)");
+  await openSettings(page);
+  const system = page.getByRole("radio", { name: "Sistema", exact: true });
+  await expect(system).toBeChecked();
+  await system.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio", { name: "Claro" })).toBeChecked();
+  await page.keyboard.press("ArrowLeft");
+  await expect(system).toBeChecked();
   await page.emulateMedia({ colorScheme: "light" });
   await expect
     .poll(() =>
@@ -30,39 +57,39 @@ test("seguir o sistema e manter a escolha explícita após recarregar", async ({
         .locator("body")
         .evaluate((body) => getComputedStyle(body).backgroundColor),
     )
-    .not.toBe(darkBackground);
-  await expect(theme).toHaveAccessibleName("Ativar tema escuro");
-  await theme.click();
+    .toBe("rgb(245, 247, 249)");
+  await page.getByRole("radio", { name: "Escuro", exact: true }).check();
+  await expect.poll(() => scheme(page)).toBe("dark");
+  await page.emulateMedia({ colorScheme: "light" });
   await expect.poll(() => scheme(page)).toBe("dark");
   await page.reload();
-  await expect(theme).toHaveAccessibleName("Ativar tema claro");
-  await expect.poll(() => scheme(page)).toBe("dark");
-  await page
-    .getByRole("button", { name: "Ativar tema claro", exact: true })
-    .click();
-  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
+  await page.getByRole("radio", { name: "Claro", exact: true }).check();
   await expect.poll(() => scheme(page)).toBe("light");
   await page.reload();
-  await expect(theme).toHaveAccessibleName("Ativar tema escuro");
-  await theme.focus();
-  await page.keyboard.press("Enter");
-  await expect(theme).toHaveAccessibleName("Ativar tema claro");
-  await expect.poll(() => scheme(page)).toBe("dark");
-  await expect(theme.locator(".theme-sun")).toBeVisible();
-  await expect(theme.locator(".theme-moon")).toBeHidden();
-  await page
-    .getByRole("button", { name: "Continuar sem sessão", exact: true })
-    .click();
-  if ((page.viewportSize()?.width ?? 1440) > 800)
-    await page
-      .getByRole("button", { name: "Fechar sidebar", exact: true })
-      .click();
-  await expect(theme).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  await expect(page.getByRole("radio", { name: "Claro" })).toBeChecked();
+  await expect.poll(() => scheme(page)).toBe("light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect.poll(() => scheme(page)).toBe("light");
+  await page.getByRole("radio", { name: "Sistema", exact: true }).check();
+  await expect(
+    page.evaluate(() => localStorage.getItem("rendimentos-theme-v1")),
+  ).resolves.toBeNull();
+  await expect
+    .poll(() =>
+      page
+        .locator("body")
+        .evaluate((body) => getComputedStyle(body).backgroundColor),
+    )
+    .toBe("rgb(11, 20, 30)");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect
+    .poll(() =>
+      page
+        .locator("body")
+        .evaluate((body) => getComputedStyle(body).backgroundColor),
+    )
+    .toBe("rgb(245, 247, 249)");
   expect(errors).toEqual([]);
 });
 
@@ -74,8 +101,8 @@ test("ignorar preferência inválida e sincronizar entre separadores", async ({
     (key) => localStorage.setItem(key, "invalid"),
     themeKey,
   );
-  await page.goto("/");
-  const theme = page.getByRole("button", { name: /^Ativar tema/ });
+  await openSettings(page);
+  await expect(page.getByRole("radio", { name: "Sistema" })).toBeChecked();
   await expect(page.locator("html")).not.toHaveAttribute(
     "data-theme",
     /^(light|dark)$/,
@@ -83,15 +110,34 @@ test("ignorar preferência inválida e sincronizar entre separadores", async ({
   const other = await context.newPage();
   await other.goto("/");
   await other
-    .getByRole("button", { name: "Ativar tema escuro", exact: true })
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
     .click();
-  await expect(theme).toHaveAccessibleName("Ativar tema claro");
+  await openSettings(other, false);
+  await other.getByRole("radio", { name: "Escuro", exact: true }).check();
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
   await expect.poll(() => scheme(page)).toBe("dark");
   await other.evaluate(() => localStorage.clear());
+  await expect(page.getByRole("radio", { name: "Sistema" })).toBeChecked();
   await expect(page.locator("html")).not.toHaveAttribute(
     "data-theme",
     /^(light|dark)$/,
   );
+});
+
+test("sincronizar o botão rápido da entrada com o seletor", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ativar tema escuro", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
+
+  await openSettings(page, false);
+
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
 });
 
 test("permitir mudar tema quando o armazenamento está bloqueado", async ({
@@ -109,14 +155,55 @@ test("permitir mudar tema quando o armazenamento está bloqueado", async ({
       set.call(this, key, value);
     };
   });
+  await openSettings(page);
+  await page.getByRole("radio", { name: "Escuro", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
+  await expect.poll(() => scheme(page)).toBe("dark");
+});
+
+test("manter a preferência entre controlos quando a escrita no armazenamento falha", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "rendimentos-theme-v1") throw new Error("blocked");
+      originalSetItem.call(this, key, value);
+    };
+    Storage.prototype.removeItem = function (key) {
+      if (key === "rendimentos-theme-v1") throw new Error("blocked");
+      originalRemoveItem.call(this, key);
+    };
+  });
   await page.goto("/");
-  const theme = page.getByRole("button", { name: /^Ativar tema/ });
-  await expect(page.locator("html")).not.toHaveAttribute(
-    "data-theme",
-    /^(light|dark)$/,
+  await page
+    .getByRole("button", { name: "Ativar tema escuro" })
+    .first()
+    .click();
+  await expect(page.locator(".theme-control").first()).toHaveAccessibleName(
+    "Ativar tema claro",
   );
-  await expect(theme).toHaveAccessibleName("Ativar tema escuro");
-  await theme.click();
+  const createAccountButton = page.getByRole("button", {
+    name: "Criar conta",
+    exact: true,
+  });
+  if (await createAccountButton.isVisible().catch(() => false)) {
+    await createAccountButton.click();
+    await expect(page.locator(".theme-control")).toHaveCount(2);
+    await expect(page.locator(".theme-control").nth(1)).toHaveAccessibleName(
+      "Ativar tema claro",
+    );
+    await expect(page.locator(".theme-control").first()).toHaveAccessibleName(
+      "Ativar tema claro",
+    );
+    await page.keyboard.press("Escape");
+  }
+  await page
+    .getByRole("button", { name: "Continuar sem sessão", exact: true })
+    .click();
+  await openSettings(page, false);
+  await expect(page.getByRole("radio", { name: "Escuro" })).toBeChecked();
   await expect.poll(() => scheme(page)).toBe("dark");
 });
 
@@ -145,13 +232,10 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
       },
     }),
   );
-  await page.goto("/");
-  const theme = page.getByRole("button", { name: /^Ativar tema/ });
-  await expect(theme).toHaveAccessibleName("Ativar tema escuro");
-  await theme.click();
-  await page
-    .getByRole("button", { name: "Continuar sem sessão", exact: true })
-    .click();
+  await openSettings(page);
+  await page.getByText("Escuro", { exact: true }).click();
+  await expect.poll(() => scheme(page)).toBe("dark");
+  await page.getByRole("button", { name: "Posições", exact: true }).click();
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -163,7 +247,8 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
     });
   await confirmCsvReview(page);
   await expect(page.locator(".metric").first()).toContainText("1400,00");
-  await expect(page.locator(".performance svg").last()).toBeVisible();
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await expect(page.locator(".performance-current")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -190,10 +275,12 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
     fullPage: true,
   });
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await expect(page.locator(".metric").first()).toContainText("1400,00");
   await page.emulateMedia({ media: "print" });
   await expect.poll(() => scheme(page)).toBe("light");
-  await expect(theme).toBeHidden();
-  await expect(page.locator(".metric").first()).toContainText("1400,00");
+  await expect(page.locator(".theme-selector")).toBeHidden();
+  await expect(page.locator(".theme-control").first()).toBeHidden();
   await page.screenshot({
     path: testInfo.outputPath("impressao-clara.png"),
     fullPage: true,

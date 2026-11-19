@@ -93,9 +93,16 @@ test("trocar carteira pelo seletor e abrir conta pela navegação móvel", async
     await expect(
       page.getByRole("heading", { name: "Definições da conta", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /^Ativar tema/ }),
-    ).toHaveCount(1);
+    await expect(page.getByRole("radiogroup", { name: "Tema" })).toHaveCount(1);
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(page.getByRole("radio", { name: "Sistema" })).toBeVisible();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
     await navigation
       .getByRole("button", { name: "Posições", exact: true })
       .click();
