@@ -1800,8 +1800,47 @@ ul.import-help {
 .theme-control[data-dark="true"] .theme-sun {
   display: flex;
 }
+.theme-selector {
+  display: flex;
+  flex: 0 0 auto;
+  border: 1px solid var(--input-border);
+  background: var(--subtle-surface);
+}
+.theme-option {
+  display: flex;
+  min-width: 82px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.theme-option + .theme-option {
+  border-left: 1px solid var(--input-border);
+}
+.theme-option:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+.theme-option[aria-checked="true"] {
+  color: var(--ink);
+  background: var(--surface);
+  font-weight: 700;
+}
+.theme-option .icon {
+  width: 16px;
+  height: 16px;
+}
 
 @media print {
+  .theme-selector {
+    display: none !important;
+  }
   :root {
     color-scheme: light !important;
   }
@@ -3667,11 +3706,6 @@ ul.import-help {
   .mobile-workspace-title small {
     color: #bcdfd3;
   }
-  .topbar .theme-control {
-    color: #ffffff;
-    background: #ffffff0a;
-    border-color: #ffffff24;
-  }
   .content {
     padding: 24px 16px;
   }
@@ -3933,6 +3967,13 @@ ul.import-help {
   }
   .settings-row {
     flex-wrap: wrap;
+  }
+  .settings-row > .theme-selector {
+    flex: 1 1 100%;
+  }
+  .theme-option {
+    min-width: 0;
+    flex: 1;
   }
 }
 @media screen and (max-width: 600px) {

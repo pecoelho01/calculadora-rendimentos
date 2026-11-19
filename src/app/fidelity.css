@@ -699,12 +699,6 @@
     z-index: 5;
     background: transparent;
   }
-  .topbar .theme-control {
-    display: inline-flex;
-    color: var(--ink);
-    background: transparent;
-    border: 0;
-  }
   .topbar-right {
     gap: 0;
   }
@@ -828,8 +822,7 @@
     color: #bcdfd3;
   }
   .app-shell:has(.view-overview) .mobile-workspace-bar > .icon-button,
-  .view-overview .topbar .data-actions > summary,
-  .view-overview .topbar .theme-control {
+  .view-overview .topbar .data-actions > summary {
     color: #ffffff;
   }
   .charts-grid {
