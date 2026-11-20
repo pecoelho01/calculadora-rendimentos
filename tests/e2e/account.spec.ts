@@ -31,14 +31,14 @@ const localPortfolio: Portfolio = {
 const localJson = JSON.stringify({ version: 1, portfolios: [localPortfolio] });
 const userA = "00000000-0000-4000-8000-000000000001";
 const userB = "00000000-0000-4000-8000-000000000002";
-function user(id = userA) {
+function user(id = userA, userMetadata: Record<string, unknown> = {}) {
   return {
     id,
     email: id === userA ? "ana@example.test" : "bruno@example.test",
     aud: "authenticated",
     role: "authenticated",
     app_metadata: { provider: "email", providers: ["email"] },
-    user_metadata: {},
+    user_metadata: userMetadata,
     identities: [],
     created_at: "2024-01-01T00:00:00Z",
     email_confirmed_at: "2024-01-01T00:00:00Z",
@@ -47,7 +47,11 @@ function user(id = userA) {
 function session(
   id = userA,
   lifetime = 3600,
-  options: { sessionId?: string; nonce?: string } = {},
+  options: {
+    sessionId?: string;
+    nonce?: string;
+    userMetadata?: Record<string, unknown>;
+  } = {},
 ) {
   const expiresAt = Math.floor(Date.now() / 1000) + lifetime;
   const base64 = (value: unknown) =>
@@ -58,7 +62,7 @@ function session(
     token_type: "bearer",
     expires_in: 3600,
     expires_at: expiresAt,
-    user: user(id),
+    user: user(id, options.userMetadata),
   };
 }
 function remote(name = "Carteira da Ana", id = "remote-a"): AccountSnapshot {
@@ -98,7 +102,11 @@ async function setup(
     releaseRefresh: () => {},
     failRefresh: false,
     delayAuthPath: "",
+    authBlocked: false,
     failNextLogout: false,
+    failNextUserUpdate: false,
+    completedUserUpdates: 0,
+    userMetadata: {} as Record<string, unknown>,
     releaseAuth: () => {},
     nextTokenSession: null as ReturnType<typeof session> | null,
     accountReads: 0,
@@ -141,7 +149,7 @@ async function setup(
   await page.addInitScript(
     ({ key, json, authKey, authSession }) => {
       localStorage.setItem(key, json);
-      if (authSession)
+      if (authSession && !localStorage.getItem(authKey))
         localStorage.setItem(authKey, JSON.stringify(authSession));
     },
     {
@@ -186,15 +194,26 @@ async function setup(
       });
       if (state.delayAuthPath && path.endsWith(state.delayAuthPath)) {
         state.delayAuthPath = "";
+        state.authBlocked = true;
         await new Promise<void>((resolve) => {
           state.releaseAuth = resolve;
         });
+        state.authBlocked = false;
       }
       if (path.endsWith("/logout") && state.failNextLogout) {
         state.failNextLogout = false;
         await route.fulfill({
           status: 500,
           json: { code: "unexpected_failure", message: "Logout failed" },
+          headers: { "Access-Control-Allow-Origin": "*" },
+        });
+        return;
+      }
+      if (path.endsWith("/user") && state.failNextUserUpdate) {
+        state.failNextUserUpdate = false;
+        await route.fulfill({
+          status: 500,
+          json: { message: "User update failed" },
           headers: { "Access-Control-Allow-Origin": "*" },
         });
         return;
@@ -284,18 +303,32 @@ async function setup(
           return;
         }
         pkceFlows.delete(String(body?.auth_code));
-        json = session(flow.id);
+        json = session(flow.id, 3600, { userMetadata: state.userMetadata });
       } else if (path.endsWith("/token")) {
         json =
           state.nextTokenSession ??
-          session(body?.email === "bruno@example.test" ? userB : userA);
+          session(body?.email === "bruno@example.test" ? userB : userA, 3600, {
+            userMetadata: state.userMetadata,
+          });
         state.nextTokenSession = null;
       } else if (path.endsWith("/signup")) json = user();
-      else if (path.endsWith("/user")) json = user();
+      else if (path.endsWith("/user")) {
+        const update = body?.data;
+        if (update && typeof update === "object") {
+          state.userMetadata = {
+            ...state.userMetadata,
+            ...(update as Record<string, unknown>),
+          };
+        }
+        json = user(userA, state.userMetadata);
+      }
       await route.fulfill({
         json,
         headers: { "Access-Control-Allow-Origin": "*" },
       });
+      if (path.endsWith("/user") && request.method() === "PUT") {
+        state.completedUserUpdates++;
+      }
     },
   );
   await page.route("**/api/account", async (route) => {
@@ -2316,7 +2349,14 @@ test("modo local continua utilizável se o navegador bloquear sessionStorage", a
 test("preservar tema entre entrada, conta, modo local e saída", async ({
   page,
 }, testInfo) => {
-  await setup(page);
+  const state = await setup(page);
+  state.userMetadata = {
+    rendimentosPreferences: {
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+    },
+  };
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   await page
@@ -2366,6 +2406,13 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
     "background-color",
     "rgb(255, 255, 255)",
   );
+  state.userMetadata = {
+    rendimentosPreferences: {
+      version: 1,
+      theme: "light",
+      chartPeriod: "Máximo",
+    },
+  };
   await login(page);
   await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS(
@@ -3094,4 +3141,231 @@ test("definições mostram falhas de recarga e confirmação de cópia local", a
   await expect(page.locator(".notice[role='status']")).toContainText(
     "Carteiras locais copiadas para a conta",
   );
+});
+
+test("preferências da conta guardam tema e período sem alterar preferências locais", async ({
+  page,
+}) => {
+  const state = await setup(page, true);
+  await page.addInitScript(() =>
+    localStorage.setItem("rendimentos-theme-v1", "light"),
+  );
+  await page.goto("/conta");
+  await expect(
+    page.getByRole("heading", { name: "Definições da conta" }),
+  ).toBeVisible();
+
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  await expect
+    .poll(() => state.userMetadata.rendimentosPreferences)
+    .toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+    });
+  await expect.poll(() => state.completedUserUpdates).toBe(1);
+  expect(
+    await page.evaluate(() => localStorage.getItem("rendimentos-theme-v1")),
+  ).toBe("light");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("rendimentos-account-theme-v1"),
+    ),
+  ).toBe("dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await page.getByLabel("Período predefinido do gráfico").selectOption("1A");
+  await expect
+    .poll(() => state.userMetadata.rendimentosPreferences)
+    .toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "1A",
+    });
+  await expect.poll(() => state.completedUserUpdates).toBe(2);
+  const storedAuth = await page.evaluate((key) => {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value).user?.user_metadata : null;
+  }, authKey);
+  expect(storedAuth).toEqual(state.userMetadata);
+  await page.reload();
+  await expect(page.getByLabel("Período predefinido do gráfico")).toHaveValue(
+    "1A",
+  );
+});
+
+test("falha ao guardar preferência repõe o valor confirmado e permite fechar aviso", async ({
+  page,
+}) => {
+  const state = await setup(page, true);
+  await page.goto("/conta");
+  await expect(
+    page.getByRole("heading", { name: "Definições da conta" }),
+  ).toBeVisible();
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  await expect
+    .poll(() => state.userMetadata.rendimentosPreferences)
+    .toEqual({ version: 1, theme: "dark", chartPeriod: "Máximo" });
+  await expect.poll(() => state.completedUserUpdates).toBe(1);
+  state.failNextUserUpdate = true;
+  await page.getByLabel("Período predefinido do gráfico").selectOption("1A");
+  await expect(page.locator(".notice[role='alert']")).toContainText(
+    "Não foi possível guardar",
+  );
+  await expect(page.getByRole("radio", { name: "Escuro" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.getByRole("button", { name: "Fechar aviso" }).click();
+  await expect(page.locator(".notice[role='alert']")).toHaveCount(0);
+});
+
+test("versão futura de preferências é só de leitura", async ({ page }) => {
+  const state = await setup(page);
+  state.userMetadata = {
+    rendimentosPreferences: { version: 2, theme: "dark", chartPeriod: "1A" },
+  };
+  await page.goto("/");
+  await login(page);
+  await openAccountSettings(page);
+  await expect(page.locator(".notice[role='status']")).toContainText(
+    "versão mais recente",
+  );
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  await expect(page.getByRole("radio", { name: "Sistema" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.getByLabel("Período predefinido do gráfico").selectOption("1A");
+  await expect(page.getByLabel("Período predefinido do gráfico")).toHaveValue(
+    "Máximo",
+  );
+  expect(
+    state.authRequests.filter((request) => request.path.endsWith("/user")),
+  ).toHaveLength(0);
+});
+
+test("pintura inicial usa a cache da conta antes da preferência local", async ({
+  page,
+}) => {
+  await setup(page, true);
+  await page.addInitScript((key) => {
+    const saved = JSON.parse(localStorage.getItem(key) ?? "{}");
+    saved.user.user_metadata = {
+      rendimentosPreferences: {
+        version: 1,
+        theme: "dark",
+        chartPeriod: "Máximo",
+      },
+    };
+    localStorage.setItem(key, JSON.stringify(saved));
+    localStorage.setItem("rendimentos-account-theme-v1", "dark");
+    localStorage.setItem("rendimentos-theme-v1", "light");
+    const observed: string[] = [];
+    (window as unknown as { observedThemes: string[] }).observedThemes =
+      observed;
+    // Init scripts run before <html> exists, so observe the document subtree.
+    // Record every intermediate value: reading the attribute inside the
+    // batched callback would only see the latest one and hide a flash.
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.target !== document.documentElement) continue;
+        observed.push(mutation.oldValue ?? "");
+      }
+      observed.push(document.documentElement?.dataset.theme ?? "");
+    }).observe(document, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-theme"],
+      attributeOldValue: true,
+    });
+  }, authKey);
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const observedThemes = await page.evaluate(
+    () => (window as unknown as { observedThemes: string[] }).observedThemes,
+  );
+  expect(observedThemes).not.toContain("light");
+});
+
+test("escolhas rápidas de tema guardam a última sem aviso", async ({
+  page,
+}) => {
+  const state = await setup(page, true);
+  await page.goto("/conta");
+  await expect(
+    page.getByRole("heading", { name: "Definições da conta" }),
+  ).toBeVisible();
+  state.delayAuthPath = "/user";
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  await expect.poll(() => state.authBlocked).toBe(true);
+  await page.getByRole("radio", { name: "Sistema" }).click();
+  await page.getByRole("radio", { name: "Claro" }).click();
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  state.releaseAuth();
+  await expect
+    .poll(() => state.userMetadata.rendimentosPreferences)
+    .toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+    });
+  await expect.poll(() => state.completedUserUpdates).toBe(2);
+  const preferenceWrites = state.authRequests
+    .filter((request) => request.path.endsWith("/user"))
+    .map((request) => request.body.data);
+  expect(preferenceWrites).toEqual([
+    {
+      rendimentosPreferences: {
+        version: 1,
+        theme: "dark",
+        chartPeriod: "Máximo",
+      },
+    },
+    {
+      rendimentosPreferences: {
+        version: 1,
+        theme: "dark",
+        chartPeriod: "Máximo",
+      },
+    },
+  ]);
+  await expect(page.getByRole("radio", { name: "Escuro" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(page.locator(".notice[role='alert']")).toHaveCount(0);
+});
+
+test("ignorar resposta pendente depois de mudar para modo local", async ({
+  page,
+}) => {
+  const state = await setup(page, true);
+  await page.addInitScript(() =>
+    localStorage.setItem("rendimentos-theme-v1", "light"),
+  );
+  await page.goto("/conta");
+  await expect(
+    page.getByRole("heading", { name: "Definições da conta" }),
+  ).toBeVisible();
+  state.delayAuthPath = "/user";
+  await page.getByRole("radio", { name: "Escuro" }).click();
+  await expect.poll(() => state.authBlocked).toBe(true);
+  await page
+    .locator(".account-actions")
+    .getByRole("button", { name: "Usar modo local", exact: true })
+    .click();
+  await expect(page.locator(".local-badge")).toContainText("Modo local");
+  state.releaseAuth();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("rendimentos-account-theme-v1")),
+    )
+    .toBeNull();
+  await expect.poll(() => state.completedUserUpdates).toBe(1);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(
+    state.authRequests.filter((request) => request.path.endsWith("/user")),
+  ).toHaveLength(1);
 });
