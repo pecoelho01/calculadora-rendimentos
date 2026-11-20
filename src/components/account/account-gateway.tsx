@@ -12,6 +12,7 @@ import { AuthForm, authFormTitles } from "./auth-form";
 import { useAccountSession } from "./use-account-session";
 import { useAuthActions } from "./use-auth-actions";
 import type { AccountIdentity } from "./account-types";
+import { useAccountPreferenceSync } from "./use-account-preference-sync";
 import "./account.css";
 
 export type { AccountIdentity } from "./account-types";
@@ -41,6 +42,12 @@ export function AccountGateway({ children }: AccountGatewayProps) {
   const welcomeHeading = useRef<HTMLHeadingElement>(null);
   const authHeading = useRef<HTMLHeadingElement>(null);
   const inlineAuth = !entered && form !== null && form !== "password";
+  const { preferenceError, dismissPreferenceError, unsupportedVersion } =
+    useAccountPreferenceSync({
+      session,
+      identity,
+      checking,
+    });
 
   useEffect(() => {
     if (!checking && !entered && !form)
@@ -53,11 +60,36 @@ export function AccountGateway({ children }: AccountGatewayProps) {
   }, [entered, form]);
 
   const feedback = (
-    <AccountFeedback
-      message={message}
-      error={error}
-      hasForm={form !== null}
-    />
+    <>
+      <AccountFeedback
+        message={message}
+        error={error}
+        hasForm={form !== null}
+      />
+      {preferenceError ? (
+        <p
+          role="alert"
+          className="notice"
+        >
+          {preferenceError}
+          <button
+            type="button"
+            onClick={dismissPreferenceError}
+          >
+            Fechar aviso
+          </button>
+        </p>
+      ) : null}
+      {unsupportedVersion ? (
+        <p
+          className="notice"
+          role="status"
+        >
+          As preferências da conta foram guardadas por uma versão mais recente
+          da aplicação. São usados os valores por omissão e não serão alteradas.
+        </p>
+      ) : null}
+    </>
   );
   const sidebarControls = (
     <SidebarAccountControls

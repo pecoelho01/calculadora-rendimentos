@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "../shared/icon";
+import { ChartPeriodSelector } from "../shared/chart-period-selector";
 import { ThemeSelector } from "../shared/theme-selector";
 
 type AccountSettingsProps = {
@@ -90,10 +91,25 @@ export function AccountSettings({
                 <strong>Aparência</strong>
                 <span>
                   Escolhe o tema claro, escuro ou segue o sistema do
-                  dispositivo.
+                  dispositivo.{" "}
+                  {isAccountMode
+                    ? "Guardado na tua conta."
+                    : "Guardado neste dispositivo."}
                 </span>
               </div>
               <ThemeSelector />
+            </div>
+            <div className="settings-row">
+              <div>
+                <strong>Período predefinido do gráfico</strong>
+                <span>
+                  Período apresentado ao abrir o gráfico de rentabilidade.{" "}
+                  {isAccountMode
+                    ? "Guardado na tua conta."
+                    : "Guardado neste dispositivo."}
+                </span>
+              </div>
+              <ChartPeriodSelector />
             </div>
             <div className="settings-row">
               <div>

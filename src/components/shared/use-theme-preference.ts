@@ -1,15 +1,22 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { parseTheme, THEME_KEY } from "@/lib/theme";
-
-export type ThemePreference = "light" | "dark" | "system";
+import {
+  ACCOUNT_THEME_CACHE_KEY,
+  parseTheme,
+  THEME_KEY,
+  type ThemePreference,
+} from "@/lib/theme";
+export type { ThemePreference } from "@/lib/theme";
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 let currentThemePreference: ThemePreference | null = null;
+let accountTheme: ThemePreference | null = null;
+let accountThemeWriter: ((theme: ThemePreference) => void) | null = null;
 const themeListeners = new Set<() => void>();
 
 function getThemePreference(): ThemePreference {
+  if (accountTheme !== null) return accountTheme;
   if (currentThemePreference !== null) return currentThemePreference;
 
   try {
@@ -26,6 +33,16 @@ function notifyThemeListeners(): void {
 }
 
 export function setThemePreference(nextTheme: ThemePreference): void {
+  if (accountThemeWriter) {
+    accountTheme = nextTheme;
+    document.documentElement.dataset.theme = nextTheme;
+    try {
+      window.localStorage.setItem(ACCOUNT_THEME_CACHE_KEY, nextTheme);
+    } catch {}
+    notifyThemeListeners();
+    accountThemeWriter(nextTheme);
+    return;
+  }
   currentThemePreference = nextTheme;
   document.documentElement.dataset.theme = nextTheme;
 
@@ -42,6 +59,32 @@ export function setThemePreference(nextTheme: ThemePreference): void {
   notifyThemeListeners();
 }
 
+export function setAccountThemeSource(
+  theme: ThemePreference,
+  writer: (theme: ThemePreference) => void,
+): void {
+  accountTheme = theme;
+  accountThemeWriter = writer;
+  try {
+    window.localStorage.setItem(ACCOUNT_THEME_CACHE_KEY, theme);
+  } catch {}
+  document.documentElement.dataset.theme = theme;
+  notifyThemeListeners();
+}
+
+export function clearAccountThemeSource(
+  expectedWriter?: (theme: ThemePreference) => void,
+): void {
+  if (expectedWriter && accountThemeWriter !== expectedWriter) return;
+  accountTheme = null;
+  accountThemeWriter = null;
+  try {
+    window.localStorage.removeItem(ACCOUNT_THEME_CACHE_KEY);
+  } catch {}
+  document.documentElement.dataset.theme = getThemePreference();
+  notifyThemeListeners();
+}
+
 function subscribeThemePreference(onChange: () => void) {
   themeListeners.add(onChange);
 
@@ -50,7 +93,9 @@ function subscribeThemePreference(onChange: () => void) {
     if (event.key !== THEME_KEY && event.key !== null) return;
 
     currentThemePreference = parseTheme(event.newValue);
-    document.documentElement.dataset.theme = currentThemePreference;
+    if (accountTheme === null) {
+      document.documentElement.dataset.theme = currentThemePreference;
+    }
     notifyThemeListeners();
   }
 
