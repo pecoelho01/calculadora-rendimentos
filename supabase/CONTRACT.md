@@ -118,3 +118,17 @@ para esconder uma migration não aplicada.
 O harness verifica upgrade sem alteração do estado, permissões dos aliases,
 leitura/escrita por ambas as versões, CAS, atomicidade, idempotência, isolamento e
 sessão revogada. A aplicação da 008 no Supabase real não foi feita nesta alteração.
+
+## Preferências da conta (metadados Auth, sem migration)
+
+As preferências de apresentação da conta ficam nos metadados do utilizador do Supabase Auth (`user_metadata`). Não usam tabelas, RPCs, `/api/account`, cópias de segurança nem o preflight do contrato da base de dados. Não exigem migration e não alteram `get_account_schema_contract()`.
+
+- Formato: `user_metadata.rendimentosPreferences = {version:1, theme, chartPeriod}`. `theme` é `light`, `dark` ou `system`; `chartPeriod` é um dos `performancePeriods` (`1D`, `5D`, `1M`, `6M`, `YTD`, `1A`, `Máximo`). Não se guardam outros campos nem dados de carteiras.
+- Escrita: o cliente do navegador chama `auth.updateUser({data:{rendimentosPreferences}})` com o objeto completo, sob o lock de Auth existente. O Auth substitui chaves de topo em `user_metadata`, por isso cada escrita envia sempre todos os campos. As outras chaves de `user_metadata` não são alteradas.
+- Leitura: o objeto vem da sessão (`session.user.user_metadata`) e é validado campo a campo. Objeto ausente e versões inválidas/desconhecidas resultam nos valores por omissão (`system` e `Máximo`) e permitem escrita. Apenas uma versão inteira superior a `1` é considerada mais recente: mostra um aviso, usa os valores por omissão e fica só de leitura, sem reescrita automática.
+- Os `user_metadata` são editáveis pelo próprio utilizador e seguem no JWT. Por isso, só guardam preferências visuais e nunca servem para autorização ou validação no servidor.
+- Separação de modos: com sessão e modo conta ativo, as preferências da conta prevalecem. Em modo local, prevalecem as chaves do navegador (`rendimentos-theme-v1` e `rendimentos-chart-period-v1`). Nenhum modo copia preferências para o outro, nem no início de sessão nem no fim.
+- Tema antes da pintura: para evitar um flash, o tema efetivo da conta é guardado numa cache de apresentação separada (`rendimentos-account-theme-v1`). O script inicial usa-o quando existe. Esta cache não é uma preferência local: é removida ao sair do modo conta, ao terminar a sessão ou quando a sessão falha.
+- Escritas: a fila mantém no máximo uma escrita em curso e a última escolha pendente; escolhas intermédias são substituídas. Apenas `AUTH_BUSY` (lock ocupado) tem retry limitado, com esperas de 40, 100 e 200 ms. Erros reais de Auth não são repetidos. Antes de cada tentativa e após cada espera, a fila confirma que o utilizador e o modo continuam ativos; dentro do lock, confirma também que a sessão atual pertence ao utilizador esperado antes de chamar `updateUser`. Nenhum pedido novo é enviado depois de mudar de utilizador ou de modo.
+- Falhas: a interface aplica a escolha de imediato. Se a escrita falhar, repõe o último valor confirmado da conta e mostra um aviso. Uma resposta que chegue depois de mudar de utilizador ou de modo é ignorada.
+- Outros separadores do mesmo navegador podem refletir a alteração logo através do `USER_UPDATED` propagado pelo AuthClient. Outros dispositivos recebem-na na próxima leitura ou renovação da sessão.
