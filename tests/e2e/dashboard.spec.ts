@@ -40,17 +40,10 @@ async function openListFilters(page: Page, kind: "posições" | "transações") 
 }
 async function choosePerformanceMode(
   page: Page,
-  mode: "Posições abertas" | "Rentabilidade TWR",
+  mode: "Posições atuais" | "Desempenho da carteira",
 ) {
   const target = page.getByRole("button", { name: mode, exact: true });
-  const menu = page.locator(".chart-methodology");
-  if (!(await target.isVisible())) await menu.locator("summary").click();
   await target.click();
-  if (
-    (await menu.count()) &&
-    (await menu.evaluate((element) => (element as HTMLDetailsElement).open))
-  )
-    await menu.locator("summary").click();
 }
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
@@ -853,15 +846,46 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
     });
   await confirmCsvReview(page);
   const current = page.locator(".performance-current");
+  const performanceCard = page.locator(".performance");
+  const modeSelector = performanceCard.locator(".performance-modes");
+  const panelHeading = performanceCard.locator(".panel-heading");
+  await expect(modeSelector).toBeVisible();
+  await expect(modeSelector).toHaveAttribute(
+    "aria-label",
+    "Métrica do gráfico",
+  );
+  const selectorPosition = await modeSelector.boundingBox();
+  const currentPosition = await current.boundingBox();
+  const panelHeadingPosition = await panelHeading.boundingBox();
+  expect(selectorPosition).not.toBeNull();
+  expect(currentPosition).not.toBeNull();
+  expect(panelHeadingPosition).not.toBeNull();
+  expect(
+    panelHeadingPosition!.y + panelHeadingPosition!.height,
+  ).toBeLessThanOrEqual(selectorPosition!.y);
+  expect(selectorPosition!.y + selectorPosition!.height).toBeLessThan(
+    currentPosition!.y,
+  );
+  const originalViewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 360, height: 800 });
+  for (const button of await modeSelector.getByRole("button").all()) {
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(
+    await performanceCard.evaluate(
+      (card) => card.scrollWidth <= card.clientWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize(originalViewport);
   await expect(
     page.getByRole("button", {
-      name: "Posições abertas",
+      name: "Posições atuais",
       exact: true,
       includeHidden: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(current).toContainText("+41,18%");
-  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await choosePerformanceMode(page, "Desempenho da carteira");
   await expect(current).toContainText("+45,45%");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
@@ -898,7 +922,7 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
   await expect(current).toBeVisible();
   await expect(chart.locator("svg")).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Tipo de rentabilidade" }),
+    page.getByRole("group", { name: "Métrica do gráfico" }),
   ).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   await page.getByRole("button", { name: "1M", exact: true }).click();
@@ -941,15 +965,15 @@ test("distinguir preço histórico zero de retorno atual zero", async ({
   await chart.focus();
   await chart.press("Home");
   await expect(page.locator(".chart-readout")).toContainText(
-    "Posições abertas -100%",
+    "Posições atuais -100%",
   );
   await chart.press("End");
   await expect(page.locator(".chart-readout")).toContainText(
-    "Posições abertas +0%",
+    "Posições atuais +0%",
   );
   await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText(
-    "Posições abertas -100%",
+    "Posições atuais -100%",
   );
 });
 
@@ -960,7 +984,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".performance-current")).toContainText(
     "Indisponível",
   );
-  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await choosePerformanceMode(page, "Desempenho da carteira");
   await expect(page.locator(".performance-current")).toContainText(
     "Indisponível",
   );
@@ -974,7 +998,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await confirmCsvReview(page);
   const current = page.locator(".performance-current");
   await expect(current).toContainText("+27,27%");
-  await choosePerformanceMode(page, "Posições abertas");
+  await choosePerformanceMode(page, "Posições atuais");
   await expect(current).toContainText("+23,53%");
   await expect(current).toContainText("custo FIFO");
   await expect(page.locator(".metric").nth(2)).toContainText("150,00");
@@ -989,13 +1013,13 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
     .locator(".performance")
     .screenshot({ path: testInfo.outputPath("fifo-posicoes-abertas.png") });
   await page.emulateMedia({ media: "print" });
-  await expect(current).toContainText("Rentabilidade das posições abertas");
+  await expect(current).toContainText("Ganho nas posições atuais");
   await expect(current).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Tipo de rentabilidade" }),
+    page.getByRole("group", { name: "Métrica do gráfico" }),
   ).toBeHidden();
   await page.emulateMedia({ media: "screen" });
-  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await choosePerformanceMode(page, "Desempenho da carteira");
   await expect(page.locator(".chart-readout")).toContainText(
     "Seleciona uma data",
   );
@@ -1013,7 +1037,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
       ),
     });
   await confirmCsvReview(page);
-  await choosePerformanceMode(page, "Posições abertas");
+  await choosePerformanceMode(page, "Posições atuais");
   await expect(current).toContainText("Indisponível");
   // Existing historical points remain available after the current position closes.
   await chart.focus();
@@ -1021,7 +1045,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".chart-readout")).toContainText("Indisponível");
   await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText("+23,53%");
-  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await choosePerformanceMode(page, "Desempenho da carteira");
   await expect(current).toContainText("+27,27%");
 });
 
@@ -1085,10 +1109,10 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
     "1A",
     "Máximo",
   ]);
-  for (const mode of ["Posições abertas", "Rentabilidade TWR"]) {
+  for (const mode of ["Posições atuais", "Desempenho da carteira"]) {
     await choosePerformanceMode(
       page,
-      mode as "Posições abertas" | "Rentabilidade TWR",
+      mode as "Posições atuais" | "Desempenho da carteira",
     );
     for (const [period, expected] of [
       ["1D", "+1,35%"],
@@ -1123,7 +1147,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
             () => document.documentElement.scrollWidth <= window.innerWidth,
           ),
         ).toBe(true);
-        if (mode === "Posições abertas") {
+        if (mode === "Posições atuais") {
           await page
             .locator(".performance")
             .screenshot({ path: testInfo.outputPath("rentabilidade-1d.png") });

@@ -738,10 +738,10 @@ html:has(.workspace-drawer:modal) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 24px 22px;
+  margin: 0 24px 16px;
 }
 .performance-modes button {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 0;
@@ -1673,12 +1673,15 @@ ul.import-help {
     flex: 1;
   }
   .performance-modes {
-    margin: 0 18px 20px;
+    margin: 0 18px 16px;
     gap: 6px;
   }
   .performance-modes button {
     flex: 1;
-    padding: 8px;
+    min-width: 0;
+    padding: 8px 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .performance-current {
     padding: 0 18px 18px;
@@ -3233,6 +3236,7 @@ ul.import-help {
     border-radius: 9px;
     min-height: 44px;
     font-size: 11px;
+    line-height: 1.25;
   }
   .performance .panel-heading {
     padding-block: 18px 12px;

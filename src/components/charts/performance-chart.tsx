@@ -59,15 +59,19 @@ export function PerformanceChart({
   const { data, roi: currentRoi, openRoi: currentOpenRoi } = performance;
   const [mode, setMode] = useState<"total" | "open">("open");
   const displayedRoi = mode === "total" ? currentRoi : currentOpenRoi;
-  const modeLabel = mode === "total" ? "Rentabilidade TWR" : "Posições abertas";
+  const performanceModeLabels: Record<"open" | "total", string> = {
+    open: "Posições atuais",
+    total: "Desempenho da carteira",
+  };
+  const modeLabel = performanceModeLabels[mode];
   const explanation =
     period === "Máximo"
       ? mode === "total"
-        ? "TWR desde a primeira compra"
-        : "Ganho não realizado sobre o custo FIFO das posições abertas"
+        ? "Desde a primeira compra, sem o efeito de quando compraste ou vendeste"
+        : "Ganho ainda não realizado no que tens agora, face ao custo FIFO"
       : mode === "total"
-        ? "Retorno TWR encadeado entre transações"
-        : "Ganho das posições abertas desde o início do período ou a aquisição";
+        ? "Quanto rendeu a carteira, sem o efeito de quando compraste ou vendeste"
+        : "Quanto ganhas no que tens desde o início do período (ou desde a compra, se mais recente)";
   const svgRef = useRef<SVGSVGElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const [chartWidth, setChartWidth] = useState(950);
@@ -211,13 +215,31 @@ export function PerformanceChart({
           </p>
         </div>
       </div>
+      <div
+        className="performance-modes no-print"
+        role="group"
+        aria-label="Métrica do gráfico"
+      >
+        {(["open", "total"] as const).map((option) => (
+          <button
+            key={option}
+            aria-pressed={mode === option}
+            onClick={() => {
+              setMode(option);
+              setSelection(null);
+            }}
+          >
+            {performanceModeLabels[option]}
+          </button>
+        ))}
+      </div>
       <div className="performance-current">
         <span>
           {mode === "total"
             ? period === "1D"
-              ? "Rentabilidade TWR da última observação"
-              : "Rentabilidade ponderada no tempo (TWR)"
-            : "Rentabilidade das posições abertas"}{" "}
+              ? "Desempenho da carteira (TWR) na última observação"
+              : "Desempenho da carteira (TWR)"
+            : "Ganho nas posições atuais"}{" "}
           · {period}
         </span>
         <strong
@@ -456,7 +478,7 @@ export function PerformanceChart({
                 ? "O máximo depende do histórico disponível."
                 : "As posições iniciais usam o último fecho anterior ao intervalo."}{" "}
               {mode === "total"
-                ? "Não é anualizado nem XIRR; difere da Rentabilidade total do resumo (ganho sobre todas as compras)."
+                ? "Não é anualizado nem XIRR; mede o desempenho da carteira ao longo do tempo, enquanto a Rentabilidade total do resumo mede o ganho sobre todas as compras."
                 : "Este retorno não é TWR nem anualizado."}{" "}
               {period === "1D"
                 ? "Falhas superiores a 15 minutos aparecem como interrupções."
@@ -501,24 +523,6 @@ export function PerformanceChart({
               }}
             >
               {p}
-            </button>
-          ))}
-        </div>
-        <div
-          className="performance-modes no-print"
-          role="group"
-          aria-label="Tipo de rentabilidade"
-        >
-          {(["open", "total"] as const).map((option) => (
-            <button
-              key={option}
-              aria-pressed={mode === option}
-              onClick={() => {
-                setMode(option);
-                setSelection(null);
-              }}
-            >
-              {option === "total" ? "Rentabilidade TWR" : "Posições abertas"}
             </button>
           ))}
         </div>
