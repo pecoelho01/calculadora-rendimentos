@@ -36,8 +36,8 @@ O projeto usa Prettier com configuração partilhada em `config/prettier.config.
 Indicar explicitamente os ficheiros a formatar ou verificar:
 
 ```bash
-npm run format -- src/components/exemplo.tsx
-npm run format:check -- src/components/exemplo.tsx
+npm run format -- src/components/icon.tsx
+npm run format:check -- src/components/icon.tsx
 ```
 
 Substituir o caminho ilustrativo pelos ficheiros do pedido. A configuração não reformata automaticamente o código existente. A reorganização e a formatação global ficam dependentes de um pedido explícito; não são necessárias para adotar as regras em novas alterações.
@@ -62,13 +62,13 @@ Substituir o caminho ilustrativo pelos ficheiros do pedido. A configuração nã
 - Sidebar recolhível e ajustável no desktop por arrasto ou pelas setas, Home e End ao focar a borda direita. No telemóvel, uma barra inferior fixa dá acesso à visão geral, posições, transações e conta; o menu lateral mantém carteiras, notas e acesso à sessão. O seletor de carteira no conteúdo mostra o nome e a moeda e permite trocar de carteira sem abrir o menu. A barra respeita a área segura do dispositivo e fica oculta na impressão.
 - Renomeação de carteiras pelo botão direito, Shift+F10 ou botão de edição, preservando transações e moeda. A largura e abertura da sidebar mantêm-se durante a sessão da página.
 
-Ao abrir a aplicação sem sessão, escolhe «Iniciar sessão», «Criar conta» ou «Continuar sem sessão». O dashboard só abre depois dessa escolha ou da recuperação de uma sessão válida. A escolha local mantém-se ao recarregar a mesma aba (se o navegador permitir `sessionStorage`); uma nova aba apresenta novamente a entrada. Uma sessão de conta válida abre automaticamente a conta ao recarregar. Terminar sessão regressa ao ecrã de escolha. No modo local sem sessão, a sidebar permite iniciar sessão ou criar conta. Com sessão iniciada, «Definições da conta» abre a página `/conta`, onde podes consultar o email, alternar entre modo local e conta e terminar sessão. A sidebar também permite «Sair da conta» diretamente, mesmo com o modo local ativo. A página de conta inclui a aparência, exportação de backup JSON e, no modo conta, recarga e cópia explícita das carteiras locais. Os formulários abrem a toda a altura em ecrãs pequenos; posições e transações usam cartões com detalhes expansíveis.
+Ao abrir a aplicação sem sessão, escolhe «Iniciar sessão», «Criar conta» ou «Continuar sem sessão». O dashboard só abre depois dessa escolha ou da recuperação de uma sessão válida. A escolha local mantém-se ao recarregar a mesma aba (se o navegador permitir `sessionStorage`); uma nova aba apresenta novamente a entrada. Uma sessão de conta válida abre automaticamente a conta ao recarregar. Terminar sessão regressa ao ecrã de escolha. A entrada fica em `/`; um link aberto antes de escolher (por exemplo `/carteira/<id>/posicoes`) passa por `/` e volta a abrir depois da escolha. Com a escolha feita, `/` segue para a última carteira aberta em `/carteira/<id>/geral`. No modo local sem sessão, a sidebar permite iniciar sessão ou criar conta. Com sessão iniciada, «Definições da conta» abre a página `/definicoes` (o endereço antigo `/conta` redireciona para lá), onde podes consultar o email, alternar entre modo local e conta e terminar sessão. A sidebar também permite «Sair da conta» diretamente, mesmo com o modo local ativo. A página de conta inclui a aparência, exportação de backup JSON e, no modo conta, recarga e cópia explícita das carteiras locais. Os formulários abrem a toda a altura em ecrãs pequenos; posições e transações usam cartões com detalhes expansíveis.
 
 A aplicação inicia vazia. «Explorar uma carteira de exemplo» cria uma carteira USD com transações fictícias, mas procura preços reais; não apresenta cotações simuladas.
 
 ## Dados e privacidade
 
-Podes continuar sem sessão: as carteiras desse modo são guardadas em `localStorage`. Limpar os dados do navegador remove-as; exportar uma cópia JSON regularmente. Na conta, a base de dados Supabase é a fonte de verdade e permite abrir as carteiras noutros dispositivos. Os modos local e conta são separados, incluindo ao sair ou trocar de utilizador; não há sincronização implícita nem fallback de uma gravação remota falhada para o navegador.
+Podes continuar sem sessão: as carteiras desse modo são guardadas em `localStorage`. Limpar os dados do navegador remove-as; exportar uma cópia JSON regularmente. A última carteira aberta é lembrada em `rendimentos.last-portfolio.v1`, separadamente por modo local e conta; guarda apenas o identificador interno da carteira. Na conta, a base de dados Supabase é a fonte de verdade e permite abrir as carteiras noutros dispositivos. Os modos local e conta são separados, incluindo ao sair ou trocar de utilizador; não há sincronização implícita nem fallback de uma gravação remota falhada para o navegador.
 
 A importação CSV acrescenta transações à carteira selecionada; importar o mesmo ficheiro duas vezes duplica as transações. O restauro JSON substitui as carteiras do modo ativo após confirmação. Na conta, o lote inteiro é atómico: se houver conflito numa revisão, nenhuma alteração é aplicada. O aviso pede para recarregar os dados antes de repetir; uma falha de rede pode ter ocorrido depois do commit, pelo que deves recarregar e verificar antes de repetir uma importação CSV.
 
@@ -220,13 +220,18 @@ src/server/market/                       # Controller, service e adaptador Yahoo
 src/server/geography/                    # Controller, service e adaptador geográfico
 src/server/shared/                       # Auth, cliente Supabase por pedido e leitura HTTP limitada
 supabase/                                # Contrato, migrations SQL e políticas RLS
-src/components/dashboard/                # Dashboard e estrutura de navegação
-src/components/account/                  # Entrada, autenticação e estilos da conta
-src/components/tables/                   # Listas, ordenação partilhada e estilos
-src/components/charts/                   # Gráficos e obtenção de geografia
-src/components/orders/                   # Formulário e campos das transações
-src/components/csv/                      # Interface de revisão CSV
-src/components/shared/                   # Diálogos, ícones e controlo de tema
+src/app/(workspace)/                     # Rotas da aplicação; cada pasta corresponde a um caminho do URL
+src/app/(workspace)/page.tsx             # /: página de entrada (sessão, conta ou modo local)
+src/app/(workspace)/_components/         # Barra lateral, provider das carteiras, diálogos globais e sessão
+src/app/(workspace)/carteira/            # /carteira: abre a última carteira ou o estado vazio
+src/app/(workspace)/carteira/[id]/       # Layout e componentes da carteira aberta
+src/app/(workspace)/carteira/[id]/_charts/     # Gráficos da visão geral e geografia dos ativos
+src/app/(workspace)/carteira/[id]/geral/       # /carteira/<id>/geral
+src/app/(workspace)/carteira/[id]/posicoes/    # /carteira/<id>/posicoes
+src/app/(workspace)/carteira/[id]/transacoes/  # /carteira/<id>/transacoes
+src/app/(workspace)/notas/               # /notas: metodologia dos cálculos
+src/app/(workspace)/definicoes/          # /definicoes: definições da conta
+src/components/                          # Diálogo, ícones, tema e ordenação de tabelas partilhados
 src/lib/account/                         # Conta local e workspace partilhado
 src/lib/auth/                            # Sessão e integração Supabase no browser
 src/lib/csv/                             # Importação/exportação e revisão CSV
