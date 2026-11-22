@@ -246,6 +246,31 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
 });
 test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await openLocal(page);
+  if ((page.viewportSize()?.width ?? 1440) > 800) {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const allocationContent = page.locator(".allocation-content");
+    const allocationFooter = page.locator(".allocation-footer");
+    const distributionTabs = page.getByRole("group", {
+      name: "Tipo de distribuição",
+    });
+
+    for (const tabName of ["ETFs", "Geografia"]) {
+      await distributionTabs.getByRole("button", { name: tabName }).click();
+      const contentBounds = await allocationContent.boundingBox();
+      const footerBounds = await allocationFooter.boundingBox();
+
+      expect(contentBounds).not.toBeNull();
+      expect(footerBounds).not.toBeNull();
+      expect(contentBounds!.y + contentBounds!.height).toBeLessThanOrEqual(
+        footerBounds!.y,
+      );
+      expect(
+        await allocationContent.evaluate(
+          (element) => element.scrollHeight <= element.clientHeight,
+        ),
+      ).toBe(true);
+    }
+  }
   await navigateTo(page, /^Posições/);
   await expect(
     page.getByRole("heading", { name: "Ainda não tens posições" }),
@@ -1593,6 +1618,75 @@ test("gaveta móvel contém o foco, fecha pelo fundo e adapta-se ao desktop", as
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
+test("sidebar com dez carteiras mantém navegação, lista e rodapé alcançáveis", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile",
+    "Verificação exclusiva do desktop.",
+  );
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "rendimentos.portfolios.v1",
+      JSON.stringify({
+        version: 1,
+        portfolios: Array.from({ length: 10 }, (_, index) => ({
+          id: `portfolio-${index}`,
+          name: `Carteira ${index + 1} com um nome mais longo`,
+          currency: "EUR",
+          orders: [],
+        })),
+      }),
+    );
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openLocal(page);
+  await openSidebar(page);
+
+  const content = page.locator(".sidebar-content");
+  const portfolios = page.locator(".sidebar-portfolios");
+  const navigation = page.getByRole("navigation", {
+    name: "Navegação principal",
+  });
+  const creditLink = page.locator(
+    '.sidebar-bottom a:has-text("Feito por Pedro")',
+  );
+
+  for (const height of [800, 600, 480]) {
+    await page.setViewportSize({ width: 1280, height });
+    expect(
+      await content.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await portfolios.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await portfolios.locator(".portfolio-link").last().scrollIntoViewIfNeeded();
+    await expect(portfolios.locator(".portfolio-link").last()).toBeInViewport();
+    // With the list scrolled, the heading must sit flush with the list's top
+    // edge, leaving no strip where scrolled rows could show above it.
+    const headingTop = await page
+      .locator(".side-heading")
+      .evaluate((element) => element.getBoundingClientRect().top);
+    const listTop = await portfolios.evaluate(
+      (element) => element.getBoundingClientRect().top + element.clientTop,
+    );
+    expect(Math.abs(headingTop - listTop)).toBeLessThanOrEqual(1);
+    await creditLink.scrollIntoViewIfNeeded();
+    await expect(creditLink).toBeInViewport();
+    await navigation.scrollIntoViewIfNeeded();
+    await expect(navigation).toBeInViewport({ ratio: 1 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
 test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({
   page,
 }, testInfo) => {
@@ -1611,39 +1705,73 @@ test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({
     );
   });
   await page.setViewportSize({
-    width: testInfo.project.name === "mobile" ? 390 : 1440,
+    width: testInfo.project.name === "mobile" ? 390 : 1280,
     height: 600,
   });
   await openLocal(page);
   await openSidebar(page);
   const content = page.locator(".sidebar-content");
-  expect(
-    await content.evaluate(
-      (element) => element.scrollHeight > element.clientHeight,
-    ),
-  ).toBe(true);
-  const navBottom = await page
-    .getByRole("navigation", { name: "Navegação principal" })
-    .evaluate((element) => element.getBoundingClientRect().bottom);
-  const portfoliosTop = await page
-    .locator(".sidebar-portfolios")
-    .evaluate((element) => element.getBoundingClientRect().top);
-  expect(portfoliosTop).toBeGreaterThanOrEqual(navBottom);
+  const portfolios = page.locator(".sidebar-portfolios");
   const last = page.locator(".portfolio-link").last();
-  await last.scrollIntoViewIfNeeded();
-  await expect(last).toBeInViewport();
+
+  if (testInfo.project.name === "mobile") {
+    expect(
+      await content.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
+    await expect(
+      page.locator('.sidebar-bottom a:has-text("Feito por Pedro")'),
+    ).toBeInViewport();
+  } else {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
+    await page.setViewportSize({ width: 1280, height: 600 });
+    expect(
+      await portfolios.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await expect(page.locator(".side-heading")).toHaveCSS("position", "sticky");
+    expect(
+      await portfolios.evaluate(
+        (element) => getComputedStyle(element).paddingTop,
+      ),
+    ).toBe("0px");
+  }
+
   await last.click();
   await expect(selectedPortfolio(page)).toContainText("Carteira 30");
   await openSidebar(page);
-  await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
-  const lastBottom = await last.evaluate(
-    (element) => element.getBoundingClientRect().bottom,
-  );
-  expect(
+  if (testInfo.project.name === "desktop") {
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await page.setViewportSize({ width: 1280, height: 480 });
+    await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
+    await expect(
+      page.locator('.sidebar-bottom a:has-text("Feito por Pedro")'),
+    ).toBeInViewport();
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
     await page
-      .locator(".sidebar-bottom")
-      .evaluate((element) => element.getBoundingClientRect().top),
-  ).toBeGreaterThanOrEqual(lastBottom);
+      .getByRole("navigation", { name: "Navegação principal" })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

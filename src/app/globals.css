@@ -1420,6 +1420,34 @@ ul.import-help {
   }
 }
 @media screen and (min-width: 801px) {
+  .sidebar-content {
+    overflow-y: auto;
+  }
+  .sidebar-portfolios {
+    flex: 1 1 auto;
+    min-height: 112px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--input-border) transparent;
+  }
+  .side-heading {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+  }
+  .sidebar-bottom {
+    flex-shrink: 0;
+  }
+  .allocation-content .allocation-empty {
+    min-height: 0;
+    gap: 12px;
+    padding: 12px;
+  }
+  .allocation-content .geographic-view .allocation-empty .empty-ring {
+    width: 96px;
+    height: 96px;
+  }
   .sidebar-closed .workspace-drawer {
     width: 72px;
   }
@@ -1454,6 +1482,14 @@ ul.import-help {
   }
 }
 @media screen and (max-width: 800px) {
+  .sidebar-content {
+    overflow-y: auto;
+  }
+  .sidebar-portfolios {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
   .app-shell {
     display: block;
   }
@@ -2076,6 +2112,8 @@ ul.import-help {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
 .allocation-content [hidden] {
   display: none;
@@ -3659,6 +3697,14 @@ ul.import-help {
     }
   }
 }
+/* The portfolio list scrolls on desktop, so its top spacing is a margin:
+   padding would leave a strip above the sticky heading for rows to show. */
+@media screen and (min-width: 801px) {
+  .sidebar-portfolios {
+    margin-top: 48px;
+    padding-top: 0;
+  }
+}
 @media screen and (max-width: 1100px) {
   .content {
     padding-inline: 24px;
@@ -4029,6 +4075,36 @@ ul.import-help {
   .form-grid input,
   .form-grid select {
     font-size: 16px;
+  }
+}
+
+@media screen and (min-width: 801px) and (max-height: 640px) {
+  .sidebar-header {
+    margin-bottom: 12px;
+  }
+  .sidebar-content > nav > .nav-item {
+    min-height: 40px;
+    margin-block: 0;
+  }
+  .sidebar-portfolios {
+    margin-top: 24px;
+    padding-top: 0;
+  }
+  .sidebar-bottom {
+    padding-top: 8px;
+  }
+  .sidebar-bottom .local-badge {
+    padding-top: 6px;
+  }
+  .sidebar-content .sidebar-bottom > .nav-item {
+    min-height: 40px;
+    margin-top: 6px;
+  }
+  .sidebar-content .sidebar-account {
+    padding-top: 8px;
+  }
+  .sidebar-bottom > a:last-child {
+    margin-top: 6px;
   }
 }
 @media print {
