@@ -23,6 +23,13 @@ export async function openSidebar(page: Page) {
 }
 
 export async function navigateTo(page: Page, name: string | RegExp) {
+  const routePattern =
+    name === "Posições"
+      ? /\/carteira\/[^/?]+\/posicoes(?:\?.*)?$/
+      : name === "Transações"
+        ? /\/carteira\/[^/?]+\/transacoes(?:\?.*)?$/
+        : null;
+
   if ((page.viewportSize()?.width ?? 1440) <= 800) {
     if (
       await page
@@ -35,9 +42,10 @@ export async function navigateTo(page: Page, name: string | RegExp) {
     }
     const mobileTarget = page
       .getByRole("navigation", { name: "Navegação móvel" })
-      .getByRole("button", { name, exact: typeof name === "string" });
+      .getByRole("link", { name, exact: typeof name === "string" });
     if (await mobileTarget.count()) {
       await mobileTarget.click();
+      if (routePattern) await expect(page).toHaveURL(routePattern);
       await expect(page.locator("#workspace-drawer")).not.toHaveAttribute(
         "open",
       );
@@ -47,8 +55,9 @@ export async function navigateTo(page: Page, name: string | RegExp) {
   await openSidebar(page);
   await page
     .getByRole("navigation", { name: "Navegação principal" })
-    .getByRole("button", { name, exact: typeof name === "string" })
+    .getByRole("link", { name, exact: typeof name === "string" })
     .click();
+  if (routePattern) await expect(page).toHaveURL(routePattern);
   if ((page.viewportSize()?.width ?? 1440) <= 800)
     await expect(page.locator("#workspace-drawer")).not.toHaveAttribute("open");
 }

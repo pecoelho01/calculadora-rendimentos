@@ -376,7 +376,7 @@ async function openAccountSettings(page: Page) {
   // The loading screen also uses .entry-page; wait before deciding to skip navigation.
   await expect(page.locator('.entry-page[aria-busy="true"]')).toBeHidden();
   if (
-    new URL(page.url()).pathname === "/conta" ||
+    new URL(page.url()).pathname === "/definicoes" ||
     (await page.locator(".entry-page").count())
   )
     return;
@@ -384,7 +384,7 @@ async function openAccountSettings(page: Page) {
   await page
     .getByRole("link", { name: "Definições da conta", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page).toHaveURL(/\/definicoes$/);
   await expect(
     page.getByRole("heading", { name: "Definições da conta", exact: true }),
   ).toBeVisible();
@@ -399,7 +399,9 @@ async function accountAction(page: Page, name: string) {
     await page
       .getByRole("link", { name: "Voltar às carteiras", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(
+      /\/carteira(\/[^/?]+\/(geral|posicoes|transacoes))?$/,
+    );
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
 }
@@ -474,11 +476,13 @@ async function login(
     .click();
   if (waitForCompletion) {
     await expect(dialog).toBeHidden();
-    if (new URL(page.url()).pathname === "/conta") {
+    if (new URL(page.url()).pathname === "/definicoes") {
       await page
         .getByRole("link", { name: "Voltar às carteiras", exact: true })
         .click();
-      await expect(page).toHaveURL(/\/$/);
+      await expect(page).toHaveURL(
+        /\/carteira(\/[^/?]+\/(geral|posicoes|transacoes))?$/,
+      );
     }
   }
 }
@@ -1683,7 +1687,7 @@ test("abrir definições aguarda o restauro inicial da sessão", async ({
     ).sessionRestoreAudit.release(),
   );
   await navigation;
-  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page).toHaveURL(/\/definicoes$/);
   await expect(
     page.getByRole("button", {
       name: "Copiar carteiras locais para a conta",
@@ -2405,7 +2409,7 @@ test("sidebar local permite registo e login sem duplicar controlos no dashboard"
   await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
   await login(page);
   await openAccountSettings(page);
-  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page).toHaveURL(/\/definicoes$/);
   await expect(
     page.getByText("ana@example.test", { exact: true }),
   ).toBeVisible();
@@ -2427,7 +2431,9 @@ test("sidebar local permite registo e login sem duplicar controlos no dashboard"
   await page
     .getByRole("link", { name: "Voltar às carteiras", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(
+    /\/carteira(\/[^/?]+\/(geral|posicoes|transacoes))?$/,
+  );
   await expect(
     selectedPortfolio(page).getByText(localPortfolio.name, { exact: true }),
   ).toBeVisible();
@@ -2488,7 +2494,7 @@ test("acesso direto às definições sem sessão permite continuar local e volta
     page.getByText(/Consulta o teu email para confirmar a conta/),
   ).toBeVisible();
   await navigateTo(page, "Posições");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/posicoes$/);
   await expect(
     page.getByRole("heading", { name: "Posições", exact: true }),
   ).toBeVisible();
@@ -2636,7 +2642,7 @@ test("recuperação local permite iniciar sessão sem repor dados corrompidos", 
   ).toBeVisible();
   await assertNoOverflow(page);
   await page.getByRole("link", { name: "Aceder à conta", exact: true }).click();
-  await expect(page).toHaveURL(/\/conta$/);
+  await expect(page).toHaveURL(/\/definicoes$/);
   await expect(
     page.getByRole("heading", { name: "Definições da conta", exact: true }),
   ).toBeVisible();
@@ -2882,6 +2888,10 @@ test("CAPTCHA mantém o nonce do documento após navegar para as definições da
   expect(
     state.authRequests.filter((request) => request.grant === "password"),
   ).toHaveLength(1);
+  // After a logout the entry page starts over instead of returning to the
+  // settings page of the previous session.
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/geral$/);
+  await openAccountSettings(page);
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Definições da conta", exact: true }),

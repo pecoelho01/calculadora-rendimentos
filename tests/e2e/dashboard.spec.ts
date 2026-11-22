@@ -271,7 +271,7 @@ test("consultar e descarregar o exemplo antes de escolher o CSV", async ({
     "2 transações importadas",
   );
   await page
-    .getByRole("button", { name: "Transações", exact: true })
+    .getByRole("link", { name: "Transações", exact: true })
     .first()
     .click();
   await expect(page.locator("tbody tr")).toHaveCount(2);
@@ -323,7 +323,7 @@ test("importar, calcular, persistir, filtrar e imprimir", async ({
   await position.getByLabel("Ver detalhes de TEST", { exact: true }).click();
   await expect(position.locator(".position-details")).toContainText("+30%");
   await page
-    .getByRole("button", { name: "Transações", exact: true })
+    .getByRole("link", { name: "Transações", exact: true })
     .first()
     .click();
   await expect(page.locator("tbody tr")).toHaveCount(3);
@@ -412,7 +412,7 @@ test("ganhos de compras fechadas e vendas permanecem sem cotação atual", async
     });
   await confirmCsvReview(page);
   await page
-    .getByRole("button", { name: "Transações", exact: true })
+    .getByRole("link", { name: "Transações", exact: true })
     .first()
     .click();
   const closed = page
@@ -1344,7 +1344,7 @@ test("recolher navegação mantém atalhos no desktop e devolve foco no telemóv
     await expect(reopen).toHaveAttribute("aria-expanded", "false");
     await page
       .getByRole("navigation", { name: "Navegação principal" })
-      .getByRole("button", { name: "Transações", exact: true })
+      .getByRole("link", { name: "Transações", exact: true })
       .click();
     await expect(
       page.getByRole("heading", { name: "Transações", level: 1, exact: true }),
@@ -1387,13 +1387,17 @@ test("barra inferior permite navegar e mantém o conteúdo acessível no telemó
     return;
   }
   await expect(navigation).toBeVisible();
-  await expect(navigation.getByRole("button")).toHaveCount(3);
+  await expect(
+    navigation.getByRole("link", {
+      name: /^(Posições|Transações|Visão geral)$/,
+    }),
+  ).toHaveCount(3);
   for (const [name, heading] of [
     ["Posições", "Posições"],
     ["Transações", "Transações"],
     ["Visão geral", "Visão Geral"],
   ]) {
-    const target = navigation.getByRole("button", { name, exact: true });
+    const target = navigation.getByRole("link", { name, exact: true });
     await target.focus();
     await page.keyboard.press("Enter");
     await expect(target).toHaveAttribute("aria-current", "page");
@@ -1413,14 +1417,12 @@ test("barra inferior permite navegar e mantém o conteúdo acessível no telemó
     (await lastAction.boundingBox())!.y +
       (await lastAction.boundingBox())!.height,
   ).toBeLessThanOrEqual((await navigation.boundingBox())!.y);
-  await navigation
-    .getByRole("button", { name: "Posições", exact: true })
-    .click();
+  await navigation.getByRole("link", { name: "Posições", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await navigateTo(page, "Notas explicativas");
   await expect(navigation.locator('[aria-current="page"]')).toHaveCount(0);
   await navigation
-    .getByRole("button", { name: "Transações", exact: true })
+    .getByRole("link", { name: "Transações", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Transações", level: 1, exact: true }),
@@ -1438,7 +1440,7 @@ test("barra inferior permite navegar e mantém o conteúdo acessível no telemó
   await expect(
     page
       .getByRole("navigation", { name: "Navegação principal" })
-      .getByRole("button", { name: "Transações", exact: true }),
+      .getByRole("link", { name: "Transações", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
