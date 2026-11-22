@@ -16,7 +16,6 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 - `src/server/`: controllers HTTP, services de casos de uso, repository de conta e adaptadores externos.
 - `public/`: modelos CSV para download; manter sincronizados com os CSV de teste em `tests/fixtures/csv/`.
 - `tests/unit/`, `tests/integration/` e `tests/e2e/`: testes determinísticos, integrações e fluxos Playwright; `tests/helpers/` e `tests/fixtures/` guardam recursos partilhados.
-- `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.
 - `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 26 LTS e npm.
 
 Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito e respeitar a separação entre interface, cálculos, armazenamento e integração externa.
