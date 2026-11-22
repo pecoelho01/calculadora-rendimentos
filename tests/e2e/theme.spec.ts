@@ -16,6 +16,9 @@ async function openSettings(
       .getByRole("button", { name: "Continuar sem sessão", exact: true })
       .click();
   }
+  // The entry page redirects to the portfolio; a click before that finishes
+  // could be replaced by the redirect.
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/geral/);
   if ((page.viewportSize()?.width ?? 1440) <= 800) {
     await page.getByRole("link", { name: "Conta", exact: true }).click();
   } else {
