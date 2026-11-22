@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { themeScript } from "@/lib/theme";
-import { ThemeSync } from "@/components/shared/theme-sync";
+import { ApplySavedTheme } from "@/components/theme/apply-saved-theme";
 import "./globals.css";
 import "./fidelity.css";
-import "@/components/tables/portfolio-lists.css";
+import "./(workspace)/portfolio-lists.css";
 export const viewport: Viewport = {
   viewportFit: "cover",
 };
@@ -33,7 +33,7 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <ThemeSync />
+        <ApplySavedTheme />
         {children}
         {process.env.VERCEL === "1" ? <SpeedInsights /> : null}
       </body>
