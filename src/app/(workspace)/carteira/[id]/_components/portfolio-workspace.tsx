@@ -19,7 +19,6 @@ import { MarketNotices } from "./market-notices";
 import { NewOrderDialog } from "./new-order-dialog";
 import { PortfolioDataMenu } from "./portfolio-data-menu";
 import { PortfolioHeader, portfolioSectionDetails } from "./portfolio-header";
-import { PortfolioTabs } from "./portfolio-tabs";
 import { PortfolioToolbar } from "./portfolio-toolbar";
 import { PortfolioViewProvider } from "./portfolio-view-context";
 import { usePortfolioRouteSelection } from "./use-portfolio-route-selection";
@@ -112,7 +111,6 @@ function OpenPortfolio({
         {accountFeedback}
         <AccountStorageBar />
         <PortfolioHeader section={section} />
-        <PortfolioTabs section={section} />
         {files.inputs}
         <MessageNotice />
         <MarketNotices

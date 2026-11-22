@@ -413,6 +413,9 @@ html:has(.workspace-drawer:modal) {
   color: var(--muted);
   margin: 12px 8px 0;
 }
+.sidebar-bottom > .nav-item {
+  margin-inline: 0;
+}
 .sidebar-bottom > a .icon {
   width: 13px;
   height: 13px;

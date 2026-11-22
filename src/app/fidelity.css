@@ -639,29 +639,6 @@
   }
 }
 
-.portfolio-tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  margin: 0 0 18px;
-  border-bottom: 1px solid var(--border);
-}
-.portfolio-tabs a {
-  flex: 0 0 auto;
-  padding: 10px 14px;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-}
-.portfolio-tabs a[aria-current="page"] {
-  color: var(--text);
-  border-color: var(--accent);
-}
-@media print {
-  .portfolio-tabs {
-    display: none;
-  }
-}
 @media screen and (min-width: 801px) {
   .portfolio-toolbar-list {
     display: none;

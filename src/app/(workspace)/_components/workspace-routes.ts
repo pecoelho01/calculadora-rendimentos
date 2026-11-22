@@ -13,12 +13,6 @@ export const NOTES_PATH = "/notas";
 /** Query parameter that keeps a link opened before choosing a storage mode. */
 export const RETURN_PARAM = "voltar";
 
-export const portfolioSections: PortfolioSection[] = [
-  "overview",
-  "positions",
-  "transactions",
-];
-
 const sectionSegments: Record<PortfolioSection, string> = {
   overview: "/geral",
   positions: "/posicoes",

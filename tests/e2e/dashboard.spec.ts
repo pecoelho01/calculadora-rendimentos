@@ -1705,6 +1705,13 @@ test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o con
   await expect(handle).toHaveAttribute("aria-valuenow", "224");
   await handle.press("ArrowLeft");
   await expect(handle).toHaveAttribute("aria-valuenow", "224");
+  // The sidebar scrolls internally, so a horizontal overflow there does not
+  // widen the document and must be checked on the scroll container itself.
+  expect(
+    await page
+      .locator(".sidebar-content")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(handle).toBeHidden();
   await expect(sidebar).toBeHidden();
