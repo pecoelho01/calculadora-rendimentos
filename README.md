@@ -231,7 +231,7 @@ src/app/(workspace)/carteira/[id]/posicoes/    # /carteira/<id>/posicoes
 src/app/(workspace)/carteira/[id]/transacoes/  # /carteira/<id>/transacoes
 src/app/(workspace)/notas/               # /notas: metodologia dos cálculos
 src/app/(workspace)/definicoes/          # /definicoes: definições da conta
-src/components/                          # Diálogo, ícones, tema e ordenação de tabelas partilhados
+src/components/                          # Diálogo, ícones, tema, período do gráfico e ordenação de tabelas partilhados
 src/lib/account/                         # Conta local e workspace partilhado
 src/lib/auth/                            # Sessão e integração Supabase no browser
 src/lib/csv/                             # Importação/exportação e revisão CSV
