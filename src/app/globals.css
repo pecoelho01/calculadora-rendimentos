@@ -1836,6 +1836,15 @@ ul.import-help {
   width: 16px;
   height: 16px;
 }
+.chart-period-preference select {
+  min-height: 44px;
+  min-width: 88px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
 
 @media print {
   .theme-selector {
@@ -3968,8 +3977,12 @@ ul.import-help {
   .settings-row {
     flex-wrap: wrap;
   }
-  .settings-row > .theme-selector {
+  .settings-row > .theme-selector,
+  .settings-row > .chart-period-preference {
     flex: 1 1 100%;
+  }
+  .chart-period-preference select {
+    width: 100%;
   }
   .theme-option {
     min-width: 0;

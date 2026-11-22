@@ -118,6 +118,71 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
     "A minha carteira",
   );
 });
+
+test("guardar e aplicar o período predefinido do gráfico", async ({
+  page,
+}, testInfo) => {
+  await openLocal(page);
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "portfolio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  await confirmCsvReview(page);
+
+  if (testInfo.project.name === "mobile") {
+    await page
+      .getByRole("navigation", { name: "Navegação móvel" })
+      .getByRole("link", { name: "Conta", exact: true })
+      .click();
+  } else {
+    await page
+      .getByRole("link", { name: "Definições da conta", exact: true })
+      .click();
+  }
+  const preference = page.getByLabel("Período predefinido do gráfico");
+  await preference.selectOption("1A");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("rendimentos-chart-period-v1")),
+    )
+    .toBe("1A");
+  if (testInfo.project.name === "mobile") {
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+
+  await page.goto("/");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "1A", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  // Os botões do gráfico mudam só a vista atual, não o período predefinido.
+  await page.getByRole("button", { name: "1M", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "1M", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("rendimentos-chart-period-v1"),
+    ),
+  ).toBe("1A");
+
+  await page.evaluate(() =>
+    localStorage.setItem("rendimentos-chart-period-v1", "max"),
+  );
+  await page.goto("/");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Máximo", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
 test("manter pesquisas independentes e permitir limpar resultados vazios", async ({
   page,
 }, testInfo) => {

@@ -16,6 +16,7 @@ import {
   type PerformancePeriod,
 } from "@/lib/portfolio/portfolio";
 import { Icon } from "@/components/icon";
+import { useChartPeriodPreference } from "@/components/chart-period/use-chart-period-preference";
 import type { Currency, MarketData, Order } from "@/lib/types";
 const percent = (value: number | null) =>
   value === null
@@ -46,7 +47,10 @@ export function PortfolioValueChart({
     data: Point[];
     index: number;
   } | null>(null);
-  const [period, setPeriod] = useState<PerformancePeriod>("Máximo");
+  const preferredPeriod = useChartPeriodPreference();
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<PerformancePeriod | null>(null);
+  const period = selectedPeriod ?? preferredPeriod;
   const endDate = new Date().toISOString().slice(0, 10);
   const performance = useMemo(
     () => calculatePerformance(orders, market, currency, period, endDate),
@@ -492,7 +496,7 @@ export function PortfolioValueChart({
               key={p}
               aria-pressed={p === period}
               onClick={() => {
-                setPeriod(p);
+                setSelectedPeriod(p);
                 setSelection(null);
               }}
             >

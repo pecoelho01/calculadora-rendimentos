@@ -19,6 +19,7 @@ import { LoginForm, loginFormTitles } from "./login-form";
 import { useAccountSession } from "./use-account-session";
 import { useLoginActions } from "./use-login-actions";
 import type { AccountIdentity } from "./session-types";
+import { useAccountPreferenceSync } from "./use-account-preference-sync";
 import "./session.css";
 
 export type { AccountIdentity } from "./session-types";
@@ -94,6 +95,12 @@ export function SessionGate({ children }: { children: ReactNode }) {
   const authHeading = useRef<HTMLHeadingElement>(null);
   const inlineAuth = !entered && form !== null && form !== "password";
   const { isEntryPage } = useEntryPageRedirect(checking, entered);
+  const { preferenceError, dismissPreferenceError, unsupportedVersion } =
+    useAccountPreferenceSync({
+      session,
+      identity,
+      checking,
+    });
 
   useEffect(() => {
     if (!checking && !entered && !form)
@@ -106,11 +113,36 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }, [entered, form]);
 
   const feedback = (
-    <AccountFeedbackMessage
-      message={message}
-      error={error}
-      hasForm={form !== null}
-    />
+    <>
+      <AccountFeedbackMessage
+        message={message}
+        error={error}
+        hasForm={form !== null}
+      />
+      {preferenceError ? (
+        <p
+          role="alert"
+          className="notice"
+        >
+          {preferenceError}
+          <button
+            type="button"
+            onClick={dismissPreferenceError}
+          >
+            Fechar aviso
+          </button>
+        </p>
+      ) : null}
+      {unsupportedVersion ? (
+        <p
+          className="notice"
+          role="status"
+        >
+          As preferências da conta foram guardadas por uma versão mais recente
+          da aplicação. São usados os valores por omissão e não serão alteradas.
+        </p>
+      ) : null}
+    </>
   );
   const sidebarControls = (
     <SidebarAccountMenu
