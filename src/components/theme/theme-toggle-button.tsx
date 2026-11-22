@@ -1,9 +1,9 @@
 "use client";
 
-import { Icon } from "./icon";
+import { Icon } from "@/components/icon";
 import { useThemePreference } from "./use-theme-preference";
 
-export function ThemeControl() {
+export function ThemeToggleButton() {
   const { theme, systemIsDark, chooseTheme } = useThemePreference();
   const dark = theme === "dark" || (theme === "system" && systemIsDark);
   const label = dark ? "Ativar tema claro" : "Ativar tema escuro";

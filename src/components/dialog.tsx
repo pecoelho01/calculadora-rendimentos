@@ -29,13 +29,26 @@ export function Dialog({
     };
   }, []);
   return (
-    <dialog ref={ref} className={className} onCancel={(event) => {
-      event.preventDefault();
-      if (!closeDisabled) onClose();
-    }} aria-labelledby="dialog-title">
+    <dialog
+      ref={ref}
+      className={className}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!closeDisabled) onClose();
+      }}
+      aria-labelledby="dialog-title"
+    >
       <div className="dialog-heading">
-        <div>{eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}<h2 id="dialog-title">{title}</h2></div>
-        <button className="icon-button" aria-label="Fechar" disabled={closeDisabled} onClick={onClose}>
+        <div>
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <h2 id="dialog-title">{title}</h2>
+        </div>
+        <button
+          className="icon-button"
+          aria-label="Fechar"
+          disabled={closeDisabled}
+          onClick={onClose}
+        >
           <Icon name="close" />
         </button>
       </div>

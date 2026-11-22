@@ -2,7 +2,7 @@
 
 import { useThemePreference } from "./use-theme-preference";
 
-export function ThemeSync() {
+export function ApplySavedTheme() {
   useThemePreference();
 
   return null;

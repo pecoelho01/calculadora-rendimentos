@@ -1,6 +1,6 @@
 "use client";
 
-import { Icon } from "./icon";
+import { Icon } from "@/components/icon";
 import {
   useThemePreference,
   type ThemePreference,
@@ -17,7 +17,7 @@ const themeOptions: {
   { value: "system", label: "Sistema", icon: "system" },
 ];
 
-export function ThemeSelector() {
+export function ThemePicker() {
   const { theme, chooseTheme } = useThemePreference();
 
   function handleKeyDown(

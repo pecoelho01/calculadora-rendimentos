@@ -7,7 +7,7 @@ type SortableHeadingProps<Sort extends string> = {
   sorting: Pick<TableSort<Sort>, "sort" | "direction" | "changeSort">;
 };
 
-export function SortableHeading<Sort extends string>({
+export function SortableColumnHeading<Sort extends string>({
   sortKey,
   label,
   className,
