@@ -56,6 +56,11 @@ export function MethodologyNotes({ isAccountMode }: MethodologyNotesProps) {
         <div className="formula">
           ROI total = Ganho total ÷ Compras acumuladas × 100
         </div>
+        <p>
+          Na tabela de posições, o período é independente do gráfico; as
+          posições abertas usam o custo FIFO dos lotes ainda detidos no início
+          do intervalo ou o preço de compra dos lotes adquiridos durante ele.
+        </p>
         <details className="notes-disclosure">
           <summary id="posicoes-abertas">
             Rentabilidade das posições abertas
