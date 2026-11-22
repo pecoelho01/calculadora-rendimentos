@@ -1,18 +1,8 @@
 import type { ReactNode } from "react";
-import { Icon } from "../shared/icon";
-import type { AuthFormKind } from "./account-types";
+import { Icon } from "@/components/icon";
+import type { SidebarAccountMenuProps } from "./sidebar-account-menu";
 
-type FeedbackProps = { message: string; error: string; hasForm: boolean };
-
-type SidebarAccountControlsProps = {
-  hasSession: boolean;
-  configured: boolean;
-  busy: boolean;
-  onLogout: () => Promise<void>;
-  onOpenForm: (kind: AuthFormKind) => void;
-};
-
-type AccountControlsProps = SidebarAccountControlsProps & {
+type StorageModeSwitchProps = SidebarAccountMenuProps & {
   entered: boolean;
   checking: boolean;
   email?: string;
@@ -22,79 +12,7 @@ type AccountControlsProps = SidebarAccountControlsProps & {
   feedback: ReactNode;
 };
 
-export function AccountFeedback({ message, error, hasForm }: FeedbackProps) {
-  return (
-    <>
-      {message && (
-        <p
-          className="account-feedback"
-          role="status"
-        >
-          {message}
-        </p>
-      )}
-      {error && !hasForm && (
-        <p
-          className="account-feedback form-error"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-    </>
-  );
-}
-
-export function SidebarAccountControls({
-  hasSession,
-  configured,
-  busy,
-  onLogout,
-  onOpenForm,
-}: SidebarAccountControlsProps) {
-  return hasSession ? (
-    <>
-      <button
-        className="nav-item"
-        disabled={busy}
-        onClick={() => void onLogout()}
-      >
-        <Icon name="logout" />
-        <span className="nav-label">Sair da conta</span>
-      </button>
-    </>
-  ) : (
-    <section
-      className="sidebar-account"
-      aria-label="Acesso à conta"
-    >
-      {configured ? (
-        <>
-          <button
-            className="button primary"
-            disabled={busy}
-            onClick={() => onOpenForm("login")}
-          >
-            Iniciar sessão
-          </button>
-          <button
-            className="button secondary"
-            disabled={busy}
-            onClick={() => onOpenForm("register")}
-          >
-            Criar conta
-          </button>
-        </>
-      ) : (
-        <p className="subtle">
-          As contas estão indisponíveis. Podes continuar no modo local.
-        </p>
-      )}
-    </section>
-  );
-}
-
-export function AccountControls({
+export function StorageModeSwitch({
   entered,
   checking,
   configured,
@@ -107,7 +25,7 @@ export function AccountControls({
   onOpenForm,
   onContinueLocal,
   feedback,
-}: AccountControlsProps) {
+}: StorageModeSwitchProps) {
   let description =
     "Com conta, acedes às carteiras noutros dispositivos. Sem sessão, ficam neste navegador.";
   if (hasSession) description = email ?? "";

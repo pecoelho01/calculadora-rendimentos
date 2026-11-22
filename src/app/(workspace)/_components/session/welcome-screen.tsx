@@ -1,8 +1,8 @@
 import type { ReactNode, RefObject } from "react";
-import { Icon } from "../shared/icon";
-import { ThemeControl } from "../shared/theme-control";
+import { Icon } from "@/components/icon";
+import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
 
-type AccountEntryProps = {
+type WelcomeScreenProps = {
   checking: boolean;
   inlineAuth: boolean;
   hasForm: boolean;
@@ -13,7 +13,7 @@ type AccountEntryProps = {
   onCloseAuth: () => void;
 };
 
-export function AccountEntry({
+export function WelcomeScreen({
   checking,
   inlineAuth,
   hasForm,
@@ -22,7 +22,7 @@ export function AccountEntry({
   authForm,
   welcomeHeading,
   onCloseAuth,
-}: AccountEntryProps) {
+}: WelcomeScreenProps) {
   if (checking) {
     return (
       <main
@@ -51,7 +51,7 @@ export function AccountEntry({
             <span>
               rendimentos<span className="brand-dot">.</span>
             </span>
-            <ThemeControl />
+            <ThemeToggleButton />
           </div>
           <div className="entry-hero">
             <p className="eyebrow">Os teus investimentos, com clareza</p>
@@ -146,7 +146,7 @@ export function AccountEntry({
                   <span aria-hidden="true">←</span>
                 </button>
                 <div className="auth-mobile-theme">
-                  <ThemeControl />
+                  <ThemeToggleButton />
                 </div>
               </div>
               {authForm}

@@ -19,7 +19,7 @@ import type {
   AccountIdentity,
   AuthViewState,
   AuthRuntime,
-} from "./account-types";
+} from "./session-types";
 
 const LOCAL_ENTRY_KEY = "rendimentos.entry.local.v1";
 

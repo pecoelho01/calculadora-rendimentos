@@ -1,9 +1,9 @@
 import type { FormEvent, RefObject } from "react";
-import { AuthCaptcha } from "./auth-captcha";
-import { Icon } from "../shared/icon";
-import type { AuthFormKind, AuthViewState } from "./account-types";
+import { LoginCaptcha } from "./login-captcha";
+import { Icon } from "@/components/icon";
+import type { AuthFormKind, AuthViewState } from "./session-types";
 
-export const authFormTitles: Record<AuthFormKind, string> = {
+export const loginFormTitles: Record<AuthFormKind, string> = {
   login: "Iniciar sessão",
   register: "Criar conta",
   recover: "Recuperar acesso",
@@ -52,7 +52,7 @@ type AuthFormProps = {
   onCaptchaToken: (token: string) => void;
 };
 
-export function AuthForm({
+export function LoginForm({
   view,
   inlineAuth,
   entered,
@@ -84,7 +84,7 @@ export function AuthForm({
           ref={headingRef}
           tabIndex={-1}
         >
-          {authFormTitles[form]}
+          {loginFormTitles[form]}
         </h1>
       ) : null}
       <p className="form-note">{content.note}</p>
@@ -217,7 +217,7 @@ export function AuthForm({
         </p>
       )}
       {form !== "password" && captcha.siteKey && (
-        <AuthCaptcha
+        <LoginCaptcha
           key={`${form}:${captcha.attempt}`}
           siteKey={captcha.siteKey}
           onToken={onCaptchaToken}

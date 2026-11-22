@@ -9,7 +9,7 @@ import {
   runBrowserAuthMutation,
 } from "@/lib/auth/browser-auth";
 import { matchesRecoverySession } from "@/lib/auth/recovery-session";
-import type { AuthFormKind } from "./account-types";
+import type { AuthFormKind } from "./session-types";
 import type { AccountSessionController } from "./use-account-session";
 
 const CAPTCHA_SITE_KEY =
@@ -37,7 +37,7 @@ function submissionError(failure: unknown, form: AuthFormKind): string {
   return submissionErrors[form];
 }
 
-export function useAuthActions(controller: AccountSessionController) {
+export function useLoginActions(controller: AccountSessionController) {
   const { authView, updateAuthView } = controller;
   const { form, needsReauthentication } = authView;
   const {
