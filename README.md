@@ -166,7 +166,7 @@ Estas integrações públicas não oficiais não precisam de chave de API. Os ca
 
 O Next.js tem suporte nativo na [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). Não é preciso `vercel.json` para os defaults desta aplicação. A integração Git constrói cada push; os Deployment Checks da Vercel devem bloquear a atribuição dos domínios de produção até passarem `Quality, tests and build`, `SQL migrations and isolation`, `Dependency audit`, `CodeQL JavaScript/TypeScript` e `SonarCloud Code Analysis`. O primeiro agrega qualidade e as três suites E2E. Não usar Force Promote para contornar falhas. O registo da configuração e o procedimento de release estão em [.github/CODE_QUALITY.md](.github/CODE_QUALITY.md#publicação-e-rollback).
 
-O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. Os ficheiros Streamlit passam da raiz para `legacy/streamlit/`. Antes do merge para `main`, confirmar a branch e o entrypoint do serviço Streamlit existente: se acompanhar `main` e procurar `app.py` na raiz, a atualização automática pode falhar. A continuidade desse serviço exige configuração externa própria; este PR não a altera. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
+O código está preparado para deploy; não liga automaticamente uma conta Vercel, não publica nem altera o domínio existente. Dados locais não são transferidos entre domínios; usar exportação/restauro JSON para mudar de origem.
 
 ## Configurar a conta opcional (Supabase)
 
@@ -243,7 +243,6 @@ src/lib/storage.ts                       # Formato local versionado e validaçã
 config/                                  # ESLint, Playwright e Prettier
 scripts/                                 # Verificações e automações
 public/                                  # CSV para download
-legacy/streamlit/                        # Referência Python anterior, fora da aplicação ativa
 tests/unit/                              # Testes determinísticos
 tests/integration/                       # Testes de API, conta, release e scripts
 tests/e2e/                               # Fluxos Playwright

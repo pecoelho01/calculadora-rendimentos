@@ -1,5 +1,0 @@
-streamlit
-yfinance>=0.2.54
-pandas
-plotly.express
-fpdf2
