@@ -6,6 +6,18 @@ const config: NextConfig = {
   experimental: {
     agentUpgrade: "security",
   },
+  async redirects() {
+    return [
+      // `/conta` was published before the routes were reorganised.
+      { source: "/conta", destination: "/definicoes", permanent: false },
+      // Short portfolio links open the overview section.
+      {
+        source: "/carteira/:id",
+        destination: "/carteira/:id/geral",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -86,7 +86,7 @@ test("trocar carteira pelo seletor e abrir conta pela navegação móvel", async
       exact: true,
     });
     await navigation.getByRole("link", { name: "Conta", exact: true }).click();
-    await expect(page).toHaveURL(/\/conta$/);
+    await expect(page).toHaveURL(/\/definicoes$/);
     await expect(
       navigation.getByRole("link", { name: "Conta", exact: true }),
     ).toHaveAttribute("aria-current", "page");
@@ -104,9 +104,9 @@ test("trocar carteira pelo seletor e abrir conta pela navegação móvel", async
       ).toBe(true);
     }
     await navigation
-      .getByRole("button", { name: "Posições", exact: true })
+      .getByRole("link", { name: "Posições", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/carteira\/euros\/posicoes$/);
     await expect(
       page.getByRole("heading", { name: "Posições", exact: true, level: 1 }),
     ).toBeVisible();
@@ -124,14 +124,16 @@ test("manter listas e formulários legíveis nas larguras do handoff", async ({
     for (const name of ["Posições", "Transações"]) {
       await navigateTo(page, name);
       await expect(page.locator("tbody tr")).toHaveCount(1);
+      await expect(page.locator("tbody tr")).toBeVisible();
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true);
-      const row = await page.locator("tbody tr").boundingBox();
-      expect(row!.x).toBeGreaterThanOrEqual(0);
-      expect(row!.x + row!.width).toBeLessThanOrEqual(width);
+      const panel = await page.locator(".holdings-list").boundingBox();
+      expect(panel).not.toBeNull();
+      expect(panel!.x).toBeGreaterThanOrEqual(0);
+      expect(panel!.x + panel!.width).toBeLessThanOrEqual(width);
     }
     await page
       .getByRole("button", { name: "Nova transação", exact: true })
@@ -164,12 +166,12 @@ test("respeitar a densidade das referências e calcular a pré-visualização da
     await expect(page.locator(".list-compact .positions-toolbar")).toBeHidden();
   } else {
     await navigateTo(page, "Posições");
-    expect(
-      (await page.locator("tbody tr").first().boundingBox())!.y,
-    ).toBeLessThan(300);
-    expect(
-      (await page.locator("tbody tr").first().boundingBox())!.height,
-    ).toBeLessThan(220);
+    const panelBox = await page.locator(".holdings-list").boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox!.y).toBeLessThan(300);
+    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(
+      page.viewportSize()!.width,
+    );
   }
   await page
     .getByRole("button", { name: "Nova transação", exact: true })

@@ -4,7 +4,7 @@ test("documentos têm nonce novo, hidratação funcional e bloqueiam scripts sem
   page,
   request,
 }) => {
-  for (const path of ["/", "/conta"]) {
+  for (const path of ["/", "/definicoes"]) {
     const first = await request.get(path, {
       headers: {
         "x-nonce": "attacker",

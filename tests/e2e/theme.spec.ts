@@ -1,4 +1,5 @@
 import { confirmCsvReview } from "../helpers/csv-helpers";
+import { navigateTo } from "../helpers/sidebar-helpers";
 import { test, expect } from "@playwright/test";
 
 const themeKey = "rendimentos-theme-v1";
@@ -15,6 +16,9 @@ async function openSettings(
       .getByRole("button", { name: "Continuar sem sessão", exact: true })
       .click();
   }
+  // The entry page redirects to the portfolio; a click before that finishes
+  // could be replaced by the redirect.
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/geral/);
   if ((page.viewportSize()?.width ?? 1440) <= 800) {
     await page.getByRole("link", { name: "Conta", exact: true }).click();
   } else {
@@ -276,7 +280,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
   await openSettings(page);
   await page.getByText("Escuro", { exact: true }).click();
   await expect.poll(() => scheme(page)).toBe("dark");
-  await page.getByRole("button", { name: "Posições", exact: true }).click();
+  await navigateTo(page, "Posições");
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -288,7 +292,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
     });
   await confirmCsvReview(page);
   await expect(page.locator(".metric").first()).toContainText("1400,00");
-  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, "Visão geral");
   await expect(page.locator(".performance-current")).toBeVisible();
   expect(
     await page.evaluate(
@@ -316,7 +320,7 @@ test("apresentar dados e diálogos em escuro e imprimir em claro", async ({
     fullPage: true,
   });
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await navigateTo(page, "Visão geral");
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   await page.emulateMedia({ media: "print" });
   await expect.poll(() => scheme(page)).toBe("light");

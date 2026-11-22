@@ -5,7 +5,8 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 ## Contexto do projeto
 
 - `src/app/`: Next.js App Router, layout, navegação e estilos em `globals.css`.
-- `src/components/`: interface React, dashboard, diálogos e gráficos.
+- `src/app/(workspace)/`: rotas da interface; cada pasta corresponde a um caminho do URL e guarda em `_components/` (ou `_charts/`) os componentes usados só nessa parte do site.
+- `src/components/`: componentes React partilhados por várias rotas (diálogo, ícones, tema, período do gráfico, ordenação de tabelas).
 - `src/lib/portfolio/portfolio.ts`: cálculos puros e reconstrução histórica; nunca duplicar fórmulas na UI ou no relatório.
 - `src/lib/validation.ts`: validação partilhada de números, datas, tickers, ordens e carteiras.
 - `src/lib/csv/csv.ts`: contrato de importação/exportação CSV.
