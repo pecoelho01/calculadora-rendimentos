@@ -487,6 +487,55 @@ function previousCalendarDay(date: string): string {
   return previous.toISOString().slice(0, 10);
 }
 
+function tickersHeldDuringPeriod(orders: Order[], start: string): Set<string> {
+  const holdings = new Map<string, bigint>();
+  const tickers = new Set<string>();
+
+  for (const order of orders) {
+    if (order.date >= start) {
+      for (const [ticker, units] of holdings) {
+        if (units > 0n) tickers.add(ticker);
+      }
+    }
+
+    const orderUnits = shareUnits(order.shares);
+    const positionUnits = holdings.get(order.ticker) ?? 0n;
+    const nextUnits =
+      positionUnits + (order.type === "buy" ? orderUnits : -orderUnits);
+    holdings.set(order.ticker, nextUnits);
+
+    if (order.date >= start && nextUnits > 0n) tickers.add(order.ticker);
+  }
+
+  for (const [ticker, units] of holdings) {
+    if (units > 0n) tickers.add(ticker);
+  }
+
+  return tickers;
+}
+
+function zeroCloseDates(
+  market: MarketData,
+  orders: Order[],
+  start: string,
+  end: string,
+): string[] {
+  const heldTickers = tickersHeldDuringPeriod(orders, start);
+  const dates = new Set<string>();
+  for (const ticker of heldTickers) {
+    const asset = market[ticker];
+    if (!asset) continue;
+
+    for (const point of asset.history) {
+      const isZeroCloseInPeriod =
+        point.close === 0 && point.date >= start && point.date <= end;
+      if (isZeroCloseInPeriod) dates.add(point.date);
+    }
+  }
+
+  return [...dates];
+}
+
 function calculateIntradayTwrReturn(
   openingValue: number | null,
   flows: DailyFlows,
@@ -624,19 +673,42 @@ function closeSaleSubperiod(options: {
   options.state.baseHasUnits = closingValue.hasUnits;
 }
 
+function applyZeroValueLoss(options: {
+  date: string;
+  start: string;
+  end: string;
+  state: TwrLinkState;
+  valueAt(date: string): TwrPointInput;
+}) {
+  if (options.date < options.start || options.date >= options.end) return;
+
+  const closingValue = options.valueAt(options.date);
+  if (closingValue.hasUnits && closingValue.value === 0) {
+    // Zero determines the linked result even after an unknown factor.
+    options.state.factor = 0;
+  }
+}
+
 function linkTimeWeightedReturns(options: {
+  start: string;
   end: string;
   boundaryValue: number | null;
   boundaryHasUnits: boolean;
   flows: Map<string, DailyFlows>;
+  zeroValueDates: Set<string>;
   points: TwrPointInput[];
   valueAt(date: string): TwrPointInput;
 }): (number | null)[] {
   const pointDates = new Set(options.points.map((point) => point.date));
   const flowDates = [...options.flows.keys()];
-  const dates = [...new Set([...pointDates, ...flowDates])].sort(
-    (left, right) => left.localeCompare(right),
-  );
+  const dates = [
+    ...new Set([
+      ...pointDates,
+      ...flowDates,
+      ...flowDates.map(previousCalendarDay),
+      ...options.zeroValueDates,
+    ]),
+  ].sort((left, right) => left.localeCompare(right));
   const state: TwrLinkState = {
     factor: 1,
     exposed: options.boundaryHasUnits,
@@ -650,6 +722,16 @@ function linkTimeWeightedReturns(options: {
   for (const date of dates) {
     const dailyFlows = options.flows.get(date);
     beginFlowSubperiod({ date, dailyFlows, state, valueAt: options.valueAt });
+
+    if (date < options.end) {
+      applyZeroValueLoss({
+        date,
+        start: options.start,
+        end: options.end,
+        state,
+        valueAt: options.valueAt,
+      });
+    }
 
     assignTimeWeightedPointReturns({
       date,
@@ -686,9 +768,16 @@ function calculateLinkedPerformancePoints(options: {
       ([date]) => date >= options.start && date <= options.end,
     ),
   );
+  const candidateZeroDates = zeroCloseDates(
+    options.market,
+    options.applicable,
+    options.start,
+    options.end,
+  ).filter((date) => date < options.end);
   const requiredDates = new Set<string>([
     options.boundary,
     ...options.sampledPoints.map((point) => point.date),
+    ...candidateZeroDates,
     ...(options.hasCurrentPoint ? [options.end] : []),
     ...flowsInPeriod.keys(),
     ...[...flowsInPeriod.keys()].map(previousCalendarDay),
@@ -696,7 +785,9 @@ function calculateLinkedPerformancePoints(options: {
       (date) => date < options.end && (flowsInPeriod.get(date)?.sales ?? 0) > 0,
     ),
   ]);
-  const valuationDates = [...requiredDates].sort();
+  const valuationDates = [...requiredDates].sort((left, right) =>
+    left.localeCompare(right),
+  );
   const historicalMarkets = historicalMarketsAt(options.market, valuationDates);
   const holdingsCursor = createHoldingsCursor(options.applicable);
   const historicalValueCache = new Map<string, TwrPointInput>();
@@ -721,10 +812,12 @@ function calculateLinkedPerformancePoints(options: {
   ];
   const boundaryValue = historicalValueCache.get(options.boundary)!;
   const linkedRois = linkTimeWeightedReturns({
+    start: options.start,
     end: options.end,
     boundaryValue: boundaryValue.value,
     boundaryHasUnits: boundaryValue.hasUnits,
     flows: flowsInPeriod,
+    zeroValueDates: new Set(candidateZeroDates),
     points: pointInputs,
     valueAt(date) {
       const value = historicalValueCache.get(date);

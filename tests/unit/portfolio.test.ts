@@ -745,7 +745,7 @@ test("TWR encadeia vários preços históricos e usa Máximo desde a primeira co
   almost(maximum.roi, 50);
 });
 
-test("TWR distingue lacunas de pontos de preços ausentes em âncoras e preços zero", () => {
+test("TWR mantém perda após fecho zero e distingue lacunas e âncoras ausentes", () => {
   const market = intervalMarket(150);
   market.TEST.history = [
     { date: "2024-04-29", close: 120 },
@@ -813,7 +813,246 @@ test("TWR distingue lacunas de pontos de preços ausentes em âncoras e preços 
     zeroPoint.data.find((point) => point.date === "2024-01-12")!.roi,
     -100,
   );
-  almost(zeroPoint.roi, 0);
+  almost(zeroPoint.roi, -100);
+});
+
+test("TWR mantém −100% após qualquer fecho diário de valor zero", () => {
+  const market = intervalMarket(100);
+  market.TEST.history = [
+    { date: "2023-12-31", close: 100 },
+    { date: "2024-01-01", close: 100 },
+    { date: "2024-01-02", close: 0 },
+    { date: "2024-01-03", close: 100 },
+  ];
+  const performance = calculatePerformance(
+    [buy(1, 100), buy(1, 100, "2024-01-02")],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(
+    performance.data.find((point) => point.date === "2024-01-02")!.roi,
+    -100,
+  );
+  almost(
+    performance.data.find((point) => point.date === "2024-01-03")!.roi,
+    -100,
+  );
+  almost(performance.roi, -100);
+});
+
+test("TWR não aplica fecho zero quando não há unidades nem há moeda compatível", () => {
+  const market = intervalMarket(100);
+  market.TEST.history = [
+    { date: "2023-12-31", close: 100 },
+    { date: "2024-01-01", close: 100 },
+    { date: "2024-01-02", close: 100 },
+    { date: "2024-01-03", close: 0 },
+    { date: "2024-01-04", close: 100 },
+  ];
+  const noUnits = calculatePerformance(
+    [buy(1, 100), sell(1, 100, "2024-01-02"), buy(1, 100, "2024-01-04")],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(noUnits.roi, 0);
+
+  const twoTickers = {
+    ...market,
+    OTHER: {
+      ...quote(100).TEST,
+      history: [
+        { date: "2024-01-01", close: 100 },
+        { date: "2024-01-03", close: 100 },
+      ],
+    },
+  };
+  const mixedValues = calculatePerformance(
+    [buy(1, 100), { ...buy(1, 100), ticker: "OTHER" }],
+    twoTickers,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(
+    mixedValues.data.find((point) => point.date === "2024-01-03")!.roi,
+    -50,
+  );
+
+  const missingQuote = calculatePerformance(
+    [buy(1, 100), { ...buy(1, 100), ticker: "OTHER" }],
+    {
+      ...twoTickers,
+      OTHER: { ...twoTickers.OTHER, history: [] },
+    },
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(missingQuote.roi, 0);
+
+  const incompatibleZero = calculatePerformance(
+    [buy(1, 100), { ...buy(1, 100), ticker: "OTHER" }],
+    {
+      TEST: {
+        ...quote(100, "USD").TEST,
+        history: [
+          { date: "2023-12-31", close: 100 },
+          { date: "2024-01-02", close: 0 },
+        ],
+      },
+      OTHER: {
+        ...quote(100).TEST,
+        history: [
+          { date: "2023-12-31", close: 100 },
+          { date: "2024-01-02", close: 100 },
+        ],
+      },
+    },
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  assert.equal(incompatibleZero.roi, null);
+});
+
+test("TWR aplica fecho zero transportado depois da venda total de outro ativo", () => {
+  const market: MarketData = {
+    TEST: {
+      ...quote(100).TEST,
+      history: [
+        { date: "2023-12-31", close: 100 },
+        { date: "2024-01-01", close: 100 },
+        { date: "2024-01-02", close: 0 },
+      ],
+    },
+    OTHER: {
+      ...quote(100).TEST,
+      history: [
+        { date: "2023-12-31", close: 100 },
+        { date: "2024-01-01", close: 100 },
+        { date: "2024-01-02", close: 100 },
+        { date: "2024-01-03", close: 100 },
+        { date: "2024-01-04", close: 100 },
+      ],
+    },
+  };
+  const performance = calculatePerformance(
+    [
+      buy(1, 100),
+      { ...buy(1, 100), ticker: "OTHER" },
+      { ...sell(1, 100, "2024-01-03"), ticker: "OTHER" },
+    ],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+
+  almost(
+    performance.data.find((point) => point.date === "2024-01-03")!.roi,
+    -100,
+  );
+  almost(
+    performance.data.find((point) => point.date === "2024-01-04")!.roi,
+    -100,
+  );
+  almost(performance.data.find((point) => point.current)!.roi, -100);
+  almost(performance.roi, -100);
+});
+
+test("TWR só aplica fecho zero com unidades no fecho", () => {
+  const market = intervalMarket(100);
+  market.TEST.history = [
+    { date: "2023-12-31", close: 100 },
+    { date: "2024-01-01", close: 100 },
+    { date: "2024-01-02", close: 0 },
+    { date: "2024-01-03", close: 100 },
+  ];
+  const fullySold = calculatePerformance(
+    [buy(2, 100), sell(2, 100, "2024-01-02")],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(fullySold.roi, 0);
+
+  const partiallySold = calculatePerformance(
+    [buy(2, 100), sell(1, 100, "2024-01-02")],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  almost(
+    partiallySold.data.find((point) => point.date === "2024-01-02")!.roi,
+    -100,
+  );
+  almost(partiallySold.roi, -100);
+});
+
+test("TWR ignora fecho zero no fim quando a cotação atual é positiva", () => {
+  const market = intervalMarket(100);
+  market.TEST.history = [
+    { date: "2023-12-31", close: 100 },
+    { date: "2024-01-01", close: 100 },
+    { date: "2024-01-03", close: 0 },
+  ];
+  const performance = calculatePerformance(
+    [buy(1, 100)],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-03",
+  );
+  almost(performance.roi, 0);
+});
+
+test("TWR recupera −100% após uma âncora indisponível e um fecho zero", () => {
+  const market = intervalMarket(100);
+  market.TEST.history = [{ date: "2024-01-02", close: 0 }];
+  const performance = calculatePerformance(
+    [buy(1, 100)],
+    market,
+    "EUR",
+    "5D",
+    "2024-01-05",
+  );
+  assert.equal(
+    performance.data.find((point) => point.date === "2023-12-31")!.roi,
+    null,
+  );
+  almost(
+    performance.data.find((point) => point.date === "2024-01-02")!.roi,
+    -100,
+  );
+  almost(performance.roi, -100);
+});
+
+test("TWR diário não aplica fechos diários anteriores à série intradiária 1D", () => {
+  const market: MarketData = {
+    TEST: {
+      ...quote(110).TEST,
+      history: [
+        { date: "2024-01-01", close: 0 },
+        { date: "2024-01-02", close: 100 },
+      ],
+      intraday: [{ date: "2024-01-03T10:00:00Z", close: 110 }],
+    },
+  };
+  const performance = calculatePerformance(
+    [buy(1, 100, "2024-01-01")],
+    market,
+    "EUR",
+    "1D",
+    "2024-01-03",
+    "2024-01-03T10:00:00Z",
+  );
+  almost(performance.roi, 10);
 });
 
 test("bases ausentes não usam preços futuros e só bloqueiam os lotes antigos necessários", () => {
