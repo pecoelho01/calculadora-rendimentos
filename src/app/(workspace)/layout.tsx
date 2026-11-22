@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
-import { AccountDashboard } from "@/components/account/account-dashboard";
+import { PortfoliosProvider } from "./_components/portfolios-provider";
+import { SessionGate } from "./_components/session/session-gate";
+import { WorkspaceLayout } from "./_components/workspace-layout";
 
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
-  return <AccountDashboard>{children}</AccountDashboard>;
+export default function WorkspaceRouteLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <SessionGate>
+      <PortfoliosProvider>
+        <WorkspaceLayout>{children}</WorkspaceLayout>
+      </PortfoliosProvider>
+    </SessionGate>
+  );
 }

@@ -13,9 +13,6 @@ build/
 venv/
 env/
 
-# Streamlit
-.streamlit/secrets.toml
-
 # Editores e SO
 .DS_Store
 .idea/

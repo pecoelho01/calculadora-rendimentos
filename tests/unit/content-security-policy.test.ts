@@ -74,7 +74,7 @@ test("proxy gera nonces por pedido e substitui CSP e nonce enviados pelo cliente
 test("CSP cobre também documentos 404 sem interferir nas APIs e nos modelos CSV", () => {
   for (const url of [
     "/",
-    "/conta",
+    "/definicoes",
     "/apiculture",
     "/missing.csv",
     "/nested/icon.svg",

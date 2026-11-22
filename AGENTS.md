@@ -5,7 +5,8 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 ## Contexto do projeto
 
 - `src/app/`: Next.js App Router, layout, navegação e estilos em `globals.css`.
-- `src/components/`: interface React, dashboard, diálogos e gráficos.
+- `src/app/(workspace)/`: rotas da interface; cada pasta corresponde a um caminho do URL e guarda em `_components/` (ou `_charts/`) os componentes usados só nessa parte do site.
+- `src/components/`: componentes React partilhados por várias rotas (diálogo, ícones, tema, período do gráfico, ordenação de tabelas).
 - `src/lib/portfolio/portfolio.ts`: cálculos puros e reconstrução histórica; nunca duplicar fórmulas na UI ou no relatório.
 - `src/lib/validation.ts`: validação partilhada de números, datas, tickers, ordens e carteiras.
 - `src/lib/csv/csv.ts`: contrato de importação/exportação CSV.
@@ -15,7 +16,6 @@ Este ficheiro define as regras do repositório e o routing de agentes, seguindo 
 - `src/server/`: controllers HTTP, services de casos de uso, repository de conta e adaptadores externos.
 - `public/`: modelos CSV para download; manter sincronizados com os CSV de teste em `tests/fixtures/csv/`.
 - `tests/unit/`, `tests/integration/` e `tests/e2e/`: testes determinísticos, integrações e fluxos Playwright; `tests/helpers/` e `tests/fixtures/` guardam recursos partilhados.
-- `legacy/streamlit/`: referência da implementação Python anterior, fora do build e do deploy ativos.
 - `package.json` e `package-lock.json`: dependências e comandos. Usar Node.js 26 LTS e npm.
 
 Manter o texto apresentado ao utilizador em português. Usar TypeScript estrito e respeitar a separação entre interface, cálculos, armazenamento e integração externa.

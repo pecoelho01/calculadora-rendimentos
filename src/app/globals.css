@@ -1472,7 +1472,7 @@ ul.import-help {
     background: var(--surface);
     border-top: 1px solid var(--line);
   }
-  .mobile-navigation button {
+  .mobile-navigation :is(button, a) {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1485,10 +1485,10 @@ ul.import-help {
     font-size: 12px;
     font-weight: 600;
   }
-  .mobile-navigation button:hover {
+  .mobile-navigation :is(button, a):hover {
     background: var(--surface-hover);
   }
-  .mobile-navigation button[aria-current="page"] {
+  .mobile-navigation :is(button, a)[aria-current="page"] {
     color: var(--on-active);
     background: var(--active);
   }
