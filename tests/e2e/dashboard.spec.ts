@@ -14,6 +14,9 @@ const assets = {
     name: "Teste",
     asOf: "2026-10-29T16:00:00Z",
     history: [
+      { date: "2024-01-01", close: 100 },
+      { date: "2024-01-02", close: 120 },
+      { date: "2024-01-03", close: 130 },
       { date: "2024-01-05", close: 100 },
       { date: "2024-01-12", close: 140 },
     ],
@@ -37,7 +40,7 @@ async function openListFilters(page: Page, kind: "posições" | "transações") 
 }
 async function choosePerformanceMode(
   page: Page,
-  mode: "Posições abertas" | "Rentabilidade total",
+  mode: "Posições abertas" | "Rentabilidade TWR",
 ) {
   const target = page.getByRole("button", { name: mode, exact: true });
   const menu = page.locator(".chart-methodology");
@@ -858,8 +861,8 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
     }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(current).toContainText("+41,18%");
-  await choosePerformanceMode(page, "Rentabilidade total");
-  await expect(current).toContainText("+38,64%");
+  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await expect(current).toContainText("+45,45%");
   const chart = page.getByRole("slider", { name: "Data da rentabilidade" });
   const readout = page.locator(".chart-readout");
   await chart.scrollIntoViewIfNeeded();
@@ -874,15 +877,18 @@ test("explorar rentabilidade por rato, toque e teclado sem confundir o históric
     await page.touchscreen.tap(last.x, last.y);
   else await page.mouse.move(last.x, last.y);
   await expect(readout).toContainText("Atual");
-  await expect(readout).toContainText("+38,64%");
+  await expect(readout).toContainText("+45,45%");
   await expect(readout).not.toContainText("S&P 500");
   await chart.focus();
   await chart.press("Home");
   await expect(readout).toContainText("05/01/2024");
-  await expect(readout).toContainText("-2,27%");
+  await expect(readout).toContainText("-9,09%");
   await expect(chart).not.toHaveAttribute("aria-valuetext", /S&P 500/);
   await chart.press("ArrowRight");
-  await expect(chart).toHaveAttribute("aria-valuetext", /12\/01\/2024.*\+25%/);
+  await expect(chart).toHaveAttribute(
+    "aria-valuetext",
+    /12\/01\/2024.*\+27,27%/,
+  );
   await page
     .locator(".performance")
     .screenshot({ path: testInfo.outputPath("grafico-interativo.png") });
@@ -954,8 +960,10 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".performance-current")).toContainText(
     "Indisponível",
   );
-  await choosePerformanceMode(page, "Rentabilidade total");
-  await expect(page.locator(".performance-current")).toContainText("+0%");
+  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await expect(page.locator(".performance-current")).toContainText(
+    "Indisponível",
+  );
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -965,7 +973,7 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
     });
   await confirmCsvReview(page);
   const current = page.locator(".performance-current");
-  await expect(current).toContainText("+25%");
+  await expect(current).toContainText("+27,27%");
   await choosePerformanceMode(page, "Posições abertas");
   await expect(current).toContainText("+23,53%");
   await expect(current).toContainText("custo FIFO");
@@ -987,14 +995,14 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
     page.getByRole("group", { name: "Tipo de rentabilidade" }),
   ).toBeHidden();
   await page.emulateMedia({ media: "screen" });
-  await choosePerformanceMode(page, "Rentabilidade total");
+  await choosePerformanceMode(page, "Rentabilidade TWR");
   await expect(page.locator(".chart-readout")).toContainText(
     "Seleciona uma data",
   );
   await chart.focus();
   await chart.press("Home");
-  await expect(page.locator(".chart-readout")).toContainText("-2,27%");
-  await expect(current).toContainText("+25%");
+  await expect(page.locator(".chart-readout")).toContainText("-9,09%");
+  await expect(current).toContainText("+27,27%");
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -1013,8 +1021,8 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
   await expect(page.locator(".chart-readout")).toContainText("Indisponível");
   await chart.press("ArrowLeft");
   await expect(page.locator(".chart-readout")).toContainText("+23,53%");
-  await choosePerformanceMode(page, "Rentabilidade total");
-  await expect(current).toContainText("+25%");
+  await choosePerformanceMode(page, "Rentabilidade TWR");
+  await expect(current).toContainText("+27,27%");
 });
 
 test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
@@ -1077,10 +1085,10 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
     "1A",
     "Máximo",
   ]);
-  for (const mode of ["Posições abertas", "Rentabilidade total"]) {
+  for (const mode of ["Posições abertas", "Rentabilidade TWR"]) {
     await choosePerformanceMode(
       page,
-      mode as "Posições abertas" | "Rentabilidade total",
+      mode as "Posições abertas" | "Rentabilidade TWR",
     );
     for (const [period, expected] of [
       ["1D", "+1,35%"],

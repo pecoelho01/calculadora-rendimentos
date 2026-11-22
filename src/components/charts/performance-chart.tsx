@@ -59,15 +59,14 @@ export function PerformanceChart({
   const { data, roi: currentRoi, openRoi: currentOpenRoi } = performance;
   const [mode, setMode] = useState<"total" | "open">("open");
   const displayedRoi = mode === "total" ? currentRoi : currentOpenRoi;
-  const modeLabel =
-    mode === "total" ? "Rentabilidade total" : "Posições abertas";
+  const modeLabel = mode === "total" ? "Rentabilidade TWR" : "Posições abertas";
   const explanation =
     period === "Máximo"
       ? mode === "total"
-        ? "ROI acumulado: ganho total sobre todas as compras"
+        ? "TWR desde a primeira compra"
         : "Ganho não realizado sobre o custo FIFO das posições abertas"
       : mode === "total"
-        ? "Ganho do período sobre o valor inicial e as compras do intervalo"
+        ? "Retorno TWR encadeado entre transações"
         : "Ganho das posições abertas desde o início do período ou a aquisição";
   const svgRef = useRef<SVGSVGElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -216,8 +215,8 @@ export function PerformanceChart({
         <span>
           {mode === "total"
             ? period === "1D"
-              ? "Rentabilidade total da última observação"
-              : "Rentabilidade total atual"
+              ? "Rentabilidade TWR da última observação"
+              : "Rentabilidade ponderada no tempo (TWR)"
             : "Rentabilidade das posições abertas"}{" "}
           · {period}
         </span>
@@ -433,7 +432,8 @@ export function PerformanceChart({
             </svg>
           </div>
           <p className="chart-limitations">
-            Retorno simples · Sem dividendos, comissões ou câmbio.
+            {mode === "total" ? "TWR" : "Retorno simples"} · Sem dividendos,
+            comissões ou câmbio.
             {period === "1D"
               ? ` Observações de 5 min · Horas em UTC. Falhas curtas usam a última cotação válida por até ${INTRADAY_MAX_AGE_MINUTES} min, com valores assinalados como estimados.`
               : ""}
@@ -450,14 +450,14 @@ export function PerformanceChart({
             </summary>
             <p className="fine-print">
               {mode === "total"
-                ? period === "Máximo"
-                  ? "Inclui ganhos realizados e não realizados sobre todas as compras."
-                  : "Inclui ganhos realizados e não realizados apenas no período selecionado."
+                ? "Encadeia os retornos entre transações, neutralizando o efeito do montante das compras e vendas."
                 : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
               {period === "Máximo"
-                ? "A carteira mantém os custos originais das compras."
-                : "As posições iniciais usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
-              Este retorno não é TWR nem anualizado.
+                ? "O máximo depende do histórico disponível."
+                : "As posições iniciais usam o último fecho anterior ao intervalo."}{" "}
+              {mode === "total"
+                ? "Não é anualizado nem XIRR; difere da Rentabilidade total do resumo (ganho sobre todas as compras)."
+                : "Este retorno não é TWR nem anualizado."}{" "}
               {period === "1D"
                 ? "Falhas superiores a 15 minutos aparecem como interrupções."
                 : "As falhas de preços aparecem como interrupções."}
@@ -518,7 +518,7 @@ export function PerformanceChart({
                 setSelection(null);
               }}
             >
-              {option === "total" ? "Rentabilidade total" : "Posições abertas"}
+              {option === "total" ? "Rentabilidade TWR" : "Posições abertas"}
             </button>
           ))}
         </div>
