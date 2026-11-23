@@ -2323,6 +2323,13 @@ ul.import-help {
   gap: 16px;
   padding: 4px 24px 0;
 }
+.position-period-note {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
 :is(.position-filters, .transaction-filters) {
   display: flex;
   gap: 4px;
@@ -3898,6 +3905,15 @@ ul.import-help {
   .positions-table .position-gain > :is(.gain-amount, .gain-percent) {
     grid-column: 2;
     text-align: right;
+  }
+  .positions-table .position-gain > .position-period-note {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 0;
+    text-align: right;
+  }
+  .positions-table .position-gain-realized > .position-period-note {
+    display: none;
   }
   .position-details {
     margin-top: 0;
