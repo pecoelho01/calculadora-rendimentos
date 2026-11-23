@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { navigateTo } from "../helpers/sidebar-helpers";
+import { navigateTo } from "../../../helpers/sidebar-helpers";
 
 const portfolios = [
   {

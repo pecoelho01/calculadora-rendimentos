@@ -2,7 +2,7 @@ import {
   openSidebar,
   navigateTo,
   selectedPortfolio,
-} from "../helpers/sidebar-helpers";
+} from "../../../helpers/sidebar-helpers";
 import { test, expect } from "@playwright/test";
 const asset = (price: number) => ({
   price,
