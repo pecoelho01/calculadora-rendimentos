@@ -186,24 +186,22 @@ function PositionsToolbar({
   return (
     <div className="positions-toolbar no-print">
       {!compact ? (
-        <label className="position-period">
-          <span className="visually-hidden">Período da rentabilidade</span>
-          <select
-            value={period}
-            onChange={(event) =>
-              onPeriodChange(event.target.value as PerformancePeriod)
-            }
-          >
-            {performancePeriods.map((performancePeriod) => (
-              <option
-                key={performancePeriod}
-                value={performancePeriod}
-              >
-                {performancePeriod}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div
+          className="segments position-period"
+          role="group"
+          aria-label="Período da rentabilidade"
+        >
+          {performancePeriods.map((performancePeriod) => (
+            <button
+              key={performancePeriod}
+              type="button"
+              aria-pressed={period === performancePeriod}
+              onClick={() => onPeriodChange(performancePeriod)}
+            >
+              {performancePeriod}
+            </button>
+          ))}
+        </div>
       ) : null}
       <details
         className="list-filter-menu"

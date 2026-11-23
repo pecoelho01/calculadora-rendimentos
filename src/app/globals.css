@@ -2323,16 +2323,6 @@ ul.import-help {
   gap: 16px;
   padding: 4px 24px 0;
 }
-.position-period select {
-  min-height: 44px;
-  max-width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--input-border);
-  border-radius: 0;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-}
 .position-period-note {
   display: block;
   margin-top: 3px;

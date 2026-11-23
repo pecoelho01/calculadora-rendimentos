@@ -49,6 +49,9 @@ async function choosePerformanceMode(
   )
     await menu.locator("summary").click();
 }
+function positionPeriodGroup(page: Page) {
+  return page.getByRole("group", { name: "Período da rentabilidade" });
+}
 const csv =
   "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
@@ -1217,7 +1220,7 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
 });
 
 async function verifyPositionPeriodValues(page: Page) {
-  const periodSelect = page.getByLabel("Período da rentabilidade");
+  const periodGroup = positionPeriodGroup(page);
   for (const [period, expectedPercent, expectedGain] of [
     ["1D", "+1,35%", "+2,00 €"],
     ["5D", "+7,14%", "+10,00 €"],
@@ -1227,7 +1230,12 @@ async function verifyPositionPeriodValues(page: Page) {
     ["1A", "+42,86%", "+45,00 €"],
     ["Máximo", "+50%", "+50,00 €"],
   ]) {
-    await periodSelect.selectOption(period);
+    const periodButton = periodGroup.getByRole("button", {
+      name: period,
+      exact: true,
+    });
+    await periodButton.click();
+    await expect(periodButton).toHaveAttribute("aria-pressed", "true");
     if (period !== "Máximo")
       await expect(page.locator(".positions-table thead")).toContainText(
         `Rentabilidade (${period})`,
@@ -1286,8 +1294,12 @@ test("período da tabela é independente, aplica-se às posições abertas e ada
     page.getByRole("button", { name: "6M", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await navigateTo(page, /^Posições/);
-  const periodSelect = page.getByLabel("Período da rentabilidade");
-  await expect(periodSelect).toHaveValue("Máximo");
+  const periodGroup = positionPeriodGroup(page);
+  const maximumPeriodButton = periodGroup.getByRole("button", {
+    name: "Máximo",
+    exact: true,
+  });
+  await expect(maximumPeriodButton).toHaveAttribute("aria-pressed", "true");
   const chartPeriodPreference = await page.evaluate(() =>
     localStorage.getItem("rendimentos-chart-period-v1"),
   );
@@ -1297,8 +1309,12 @@ test("período da tabela é independente, aplica-se às posições abertas e ada
       localStorage.getItem("rendimentos-chart-period-v1"),
     ),
   ).toBe(chartPeriodPreference);
-  await periodSelect.selectOption("1A");
-  await expect(periodSelect).toHaveValue("1A");
+  const oneYearPeriodButton = periodGroup.getByRole("button", {
+    name: "1A",
+    exact: true,
+  });
+  await oneYearPeriodButton.click();
+  await expect(oneYearPeriodButton).toHaveAttribute("aria-pressed", "true");
   if ((page.viewportSize()?.width ?? 1440) <= 800)
     await page.locator(".list-filter-menu summary").click();
   await page.locator(".position-filters button").nth(2).click();
@@ -1319,7 +1335,7 @@ test("período da tabela é independente, aplica-se às posições abertas e ada
   ).toBe(chartPeriodPreference);
   await page.setViewportSize({ width: 390, height: 844 });
   await navigateTo(page, /^Posições/);
-  await expect(page.getByLabel("Período da rentabilidade")).toBeVisible();
+  await expect(positionPeriodGroup(page)).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
