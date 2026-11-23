@@ -18,6 +18,10 @@ import {
   setAccountChartPeriodSource,
 } from "@/components/chart-period/use-chart-period-preference";
 import {
+  clearAccountPositionsPeriodSource,
+  setAccountPositionsPeriodSource,
+} from "@/components/positions-period/use-positions-period-preference";
+import {
   clearAccountThemeSource,
   setAccountThemeSource,
 } from "@/components/theme/use-theme-preference";
@@ -39,6 +43,7 @@ type PreferenceQueue = {
   unsupportedVersion: boolean;
   writeTheme: (theme: AccountPreferences["theme"]) => void;
   writePeriod: (period: AccountPreferences["chartPeriod"]) => void;
+  writePositionsPeriod: (period: AccountPreferences["positionsPeriod"]) => void;
   apply: (preferences: AccountPreferences) => void;
 };
 
@@ -64,6 +69,10 @@ function configurePreferenceQueue(
     queue.optimistic = preferences;
     setAccountThemeSource(preferences.theme, queue.writeTheme);
     setAccountChartPeriodSource(preferences.chartPeriod, queue.writePeriod);
+    setAccountPositionsPeriodSource(
+      preferences.positionsPeriod,
+      queue.writePositionsPeriod,
+    );
   }
 
   async function drainWrites() {
@@ -115,6 +124,9 @@ function configurePreferenceQueue(
   };
   queue.writePeriod = function writePeriod(chartPeriod) {
     queueWrite({ ...queue.optimistic, chartPeriod });
+  };
+  queue.writePositionsPeriod = function writePositionsPeriod(positionsPeriod) {
+    queueWrite({ ...queue.optimistic, positionsPeriod });
   };
   queue.apply = apply;
   apply(queue.confirmed);
@@ -196,6 +208,7 @@ export function useAccountPreferenceSync({
       if (checking) return;
       clearAccountThemeSource();
       clearAccountChartPeriodSource();
+      clearAccountPositionsPeriodSource();
       return;
     }
 
@@ -214,6 +227,7 @@ export function useAccountPreferenceSync({
       ),
       writeTheme: () => {},
       writePeriod: () => {},
+      writePositionsPeriod: () => {},
       apply: () => {},
     };
     queueRef.current = queue;
@@ -228,6 +242,7 @@ export function useAccountPreferenceSync({
       if (queueRef.current === queue) queueRef.current = null;
       clearAccountThemeSource(queue.writeTheme);
       clearAccountChartPeriodSource(queue.writePeriod);
+      clearAccountPositionsPeriodSource(queue.writePositionsPeriod);
     };
   }, [accountModeActive, accountUserId, checking]);
 

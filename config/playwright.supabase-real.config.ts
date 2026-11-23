@@ -11,7 +11,7 @@ if (!outputDir) throw new Error("PLAYWRIGHT_OUTPUT_DIR é obrigatória.");
 
 export default defineConfig({
   testDir: "../tests/e2e",
-  testMatch: "**/supabase-real.spec.ts",
+  testMatch: "**/supabase-real/*.spec.ts",
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,

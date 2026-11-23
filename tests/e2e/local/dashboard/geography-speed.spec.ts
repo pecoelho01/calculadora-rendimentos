@@ -2,7 +2,7 @@ import {
   openSidebar,
   navigateTo,
   selectedPortfolio,
-} from "../helpers/sidebar-helpers";
+} from "../../../helpers/sidebar-helpers";
 import { test, expect } from "@playwright/test";
 const asset = (price: number) => ({
   price,
@@ -189,15 +189,17 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toBe(1);
 });
-test("validar pedidos geográficos antes de consultar fontes", async ({
-  request,
-}) => {
-  for (const query of [
-    "",
-    "tickers=bad%2Fsymbol",
-    `tickers=${Array.from({ length: 21 }, (_, i) => `T${i}`).join(",")}`,
-  ]) {
-    const response = await request.get(`/api/geography?${query}`);
-    expect(response.status()).toBe(400);
-  }
-});
+test(
+  "validar pedidos geográficos antes de consultar fontes",
+  { tag: "@desktop-only" },
+  async ({ request }) => {
+    for (const query of [
+      "",
+      "tickers=bad%2Fsymbol",
+      `tickers=${Array.from({ length: 21 }, (_, i) => `T${i}`).join(",")}`,
+    ]) {
+      const response = await request.get(`/api/geography?${query}`);
+      expect(response.status()).toBe(400);
+    }
+  },
+);

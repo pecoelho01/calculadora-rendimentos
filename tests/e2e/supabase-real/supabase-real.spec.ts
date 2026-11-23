@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { waitForSignupVerification } from "../helpers/mailpit";
+import { waitForSignupVerification } from "../../helpers/mailpit";
 
 const supabaseUrl = requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
 const publishableKey = requiredEnvironment(

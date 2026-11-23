@@ -59,16 +59,19 @@ export function PortfolioValueChart({
   const { data, roi: currentRoi, openRoi: currentOpenRoi } = performance;
   const [mode, setMode] = useState<"total" | "open">("open");
   const displayedRoi = mode === "total" ? currentRoi : currentOpenRoi;
-  const modeLabel =
-    mode === "total" ? "Rentabilidade total" : "Posições abertas";
+  const performanceModeLabels: Record<"open" | "total", string> = {
+    open: "Posições atuais",
+    total: "Desempenho da carteira",
+  };
+  const modeLabel = performanceModeLabels[mode];
   const explanation =
     period === "Máximo"
       ? mode === "total"
-        ? "ROI acumulado: ganho total sobre todas as compras"
-        : "Ganho não realizado sobre o custo FIFO das posições abertas"
+        ? "Desde a primeira compra, sem o efeito de quando compraste ou vendeste"
+        : "Ganho ainda não realizado no que tens agora, face ao custo FIFO"
       : mode === "total"
-        ? "Ganho do período sobre o valor inicial e as compras do intervalo"
-        : "Ganho das posições abertas desde o início do período ou a aquisição";
+        ? "Quanto rendeu a carteira, sem o efeito de quando compraste ou vendeste"
+        : "Quanto ganhas no que tens desde o início do período (ou desde a compra, se mais recente)";
   const svgRef = useRef<SVGSVGElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const [chartWidth, setChartWidth] = useState(950);
@@ -212,13 +215,31 @@ export function PortfolioValueChart({
           </p>
         </div>
       </div>
+      <div
+        className="performance-modes no-print"
+        role="group"
+        aria-label="Métrica do gráfico"
+      >
+        {(["open", "total"] as const).map((option) => (
+          <button
+            key={option}
+            aria-pressed={mode === option}
+            onClick={() => {
+              setMode(option);
+              setSelection(null);
+            }}
+          >
+            {performanceModeLabels[option]}
+          </button>
+        ))}
+      </div>
       <div className="performance-current">
         <span>
           {mode === "total"
             ? period === "1D"
-              ? "Rentabilidade total da última observação"
-              : "Rentabilidade total atual"
-            : "Rentabilidade das posições abertas"}{" "}
+              ? "Desempenho da carteira (TWR) na última observação"
+              : "Desempenho da carteira (TWR)"
+            : "Ganho nas posições atuais"}{" "}
           · {period}
         </span>
         <strong
@@ -433,7 +454,8 @@ export function PortfolioValueChart({
             </svg>
           </div>
           <p className="chart-limitations">
-            Retorno simples · Sem dividendos, comissões ou câmbio.
+            {mode === "total" ? "TWR" : "Retorno simples"} · Sem dividendos,
+            comissões ou câmbio.
             {period === "1D"
               ? ` Observações de 5 min · Horas em UTC. Falhas curtas usam a última cotação válida por até ${INTRADAY_MAX_AGE_MINUTES} min, com valores assinalados como estimados.`
               : ""}
@@ -450,14 +472,14 @@ export function PortfolioValueChart({
             </summary>
             <p className="fine-print">
               {mode === "total"
-                ? period === "Máximo"
-                  ? "Inclui ganhos realizados e não realizados sobre todas as compras."
-                  : "Inclui ganhos realizados e não realizados apenas no período selecionado."
+                ? "Encadeia os retornos entre transações, neutralizando o efeito do montante das compras e vendas."
                 : "Considera as posições que estavam abertas em cada data, com custo FIFO; vendas podem alterar a percentagem."}{" "}
               {period === "Máximo"
-                ? "A carteira mantém os custos originais das compras."
-                : "As posições iniciais usam o último fecho anterior ao intervalo. As compras do período entram integralmente na base, independentemente da sua data."}{" "}
-              Este retorno não é TWR nem anualizado.
+                ? "O máximo depende do histórico disponível."
+                : "As posições iniciais usam o último fecho anterior ao intervalo."}{" "}
+              {mode === "total"
+                ? "Não é anualizado nem XIRR; mede o desempenho da carteira ao longo do tempo, enquanto a Rentabilidade total do resumo mede o ganho sobre todas as compras."
+                : "Este retorno não é TWR nem anualizado."}{" "}
               {period === "1D"
                 ? "Falhas superiores a 15 minutos aparecem como interrupções."
                 : "As falhas de preços aparecem como interrupções."}
@@ -501,24 +523,6 @@ export function PortfolioValueChart({
               }}
             >
               {p}
-            </button>
-          ))}
-        </div>
-        <div
-          className="performance-modes no-print"
-          role="group"
-          aria-label="Tipo de rentabilidade"
-        >
-          {(["open", "total"] as const).map((option) => (
-            <button
-              key={option}
-              aria-pressed={mode === option}
-              onClick={() => {
-                setMode(option);
-                setSelection(null);
-              }}
-            >
-              {option === "total" ? "Rentabilidade total" : "Posições abertas"}
             </button>
           ))}
         </div>
