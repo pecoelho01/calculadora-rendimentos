@@ -1,33 +1,15 @@
 import { confirmCsvReview } from "../helpers/csv-helpers";
+import { openSidebar, selectedPortfolio } from "../helpers/sidebar-helpers";
 import {
-  openSidebar,
+  assets,
+  csv,
+  mockMarketAndGeography,
   navigateTo,
-  selectedPortfolio,
-} from "../helpers/sidebar-helpers";
+  openLocal,
+  positionPeriodGroup,
+} from "../helpers/dashboard-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-const assets = {
-  TEST: {
-    price: 140,
-    previousClose: 130,
-    currency: "EUR",
-    name: "Teste",
-    asOf: "2026-10-29T16:00:00Z",
-    history: [
-      { date: "2024-01-01", close: 100 },
-      { date: "2024-01-02", close: 120 },
-      { date: "2024-01-03", close: 130 },
-      { date: "2024-01-05", close: 100 },
-      { date: "2024-01-12", close: 140 },
-    ],
-  },
-};
-async function openLocal(page: Page) {
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Continuar sem sessão", exact: true })
-    .click();
-}
 async function openListFilters(page: Page, kind: "posições" | "transações") {
   if ((page.viewportSize()?.width ?? 1440) > 800) return;
   const summary = page.getByLabel(`Filtrar ${kind}`, { exact: true });
@@ -45,15 +27,8 @@ async function choosePerformanceMode(
   const target = page.getByRole("button", { name: mode, exact: true });
   await target.click();
 }
-const csv =
-  "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/geography?*", (route) =>
-    route.fulfill({ json: { geographies: {} } }),
-  );
-  await page.route("**/api/market?*", (route) =>
-    route.fulfill({ json: { assets } }),
-  );
+  await mockMarketAndGeography(page);
 });
 test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   await openLocal(page);
@@ -67,6 +42,9 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   await confirmCsvReview(page);
   await expect(page.locator(".metric")).toHaveCount(4);
   await expect(page.locator(".metric").first()).toContainText("2100,00");
+  await expect(
+    page.locator(".list-compact").getByLabel("Período da rentabilidade"),
+  ).toHaveCount(0);
 
   for (const tab of ["Posições", "Transações"]) {
     await navigateTo(page, new RegExp(`^${tab}`));
@@ -115,70 +93,6 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   );
 });
 
-test("guardar e aplicar o período predefinido do gráfico", async ({
-  page,
-}, testInfo) => {
-  await openLocal(page);
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "portfolio.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
-  await confirmCsvReview(page);
-
-  if (testInfo.project.name === "mobile") {
-    await page
-      .getByRole("navigation", { name: "Navegação móvel" })
-      .getByRole("link", { name: "Conta", exact: true })
-      .click();
-  } else {
-    await page
-      .getByRole("link", { name: "Definições da conta", exact: true })
-      .click();
-  }
-  const preference = page.getByLabel("Período predefinido do gráfico");
-  await preference.selectOption("1A");
-  await expect
-    .poll(() =>
-      page.evaluate(() => localStorage.getItem("rendimentos-chart-period-v1")),
-    )
-    .toBe("1A");
-  if (testInfo.project.name === "mobile") {
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-  }
-
-  await page.goto("/");
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "1A", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-
-  // Os botões do gráfico mudam só a vista atual, não o período predefinido.
-  await page.getByRole("button", { name: "1M", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "1M", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-  expect(
-    await page.evaluate(() =>
-      localStorage.getItem("rendimentos-chart-period-v1"),
-    ),
-  ).toBe("1A");
-
-  await page.evaluate(() =>
-    localStorage.setItem("rendimentos-chart-period-v1", "max"),
-  );
-  await page.goto("/");
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Máximo", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-});
 test("manter pesquisas independentes e permitir limpar resultados vazios", async ({
   page,
 }, testInfo) => {
@@ -242,6 +156,31 @@ test("manter pesquisas independentes e permitir limpar resultados vazios", async
 });
 test("distinguir carteira vazia de posições fechadas", async ({ page }) => {
   await openLocal(page);
+  if ((page.viewportSize()?.width ?? 1440) > 800) {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const allocationContent = page.locator(".allocation-content");
+    const allocationFooter = page.locator(".allocation-footer");
+    const distributionTabs = page.getByRole("group", {
+      name: "Tipo de distribuição",
+    });
+
+    for (const tabName of ["ETFs", "Geografia"]) {
+      await distributionTabs.getByRole("button", { name: tabName }).click();
+      const contentBounds = await allocationContent.boundingBox();
+      const footerBounds = await allocationFooter.boundingBox();
+
+      expect(contentBounds).not.toBeNull();
+      expect(footerBounds).not.toBeNull();
+      expect(contentBounds!.y + contentBounds!.height).toBeLessThanOrEqual(
+        footerBounds!.y,
+      );
+      expect(
+        await allocationContent.evaluate(
+          (element) => element.scrollHeight <= element.clientHeight,
+        ),
+      ).toBe(true);
+    }
+  }
   await navigateTo(page, /^Posições/);
   await expect(
     page.getByRole("heading", { name: "Ainda não tens posições" }),
@@ -1220,6 +1159,130 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   ).toBe(true);
 });
 
+async function verifyPositionPeriodValues(page: Page) {
+  const periodGroup = positionPeriodGroup(page);
+  for (const [period, expectedPercent, expectedGain] of [
+    ["1D", "+1,35%", "+2,00 €"],
+    ["5D", "+7,14%", "+10,00 €"],
+    ["1M", "+15,38%", "+20,00 €"],
+    ["6M", "+25%", "+30,00 €"],
+    ["YTD", "+36,36%", "+40,00 €"],
+    ["1A", "+42,86%", "+45,00 €"],
+    ["Máximo", "+50%", "+50,00 €"],
+  ]) {
+    const periodButton = periodGroup.getByRole("button", {
+      name: period,
+      exact: true,
+    });
+    await periodButton.click();
+    await expect(periodButton).toHaveAttribute("aria-pressed", "true");
+    if (period !== "Máximo")
+      await expect(page.locator(".positions-table thead")).toContainText(
+        `Rentabilidade (${period})`,
+      );
+    await expect(page.locator(".position-gain strong")).toHaveText(
+      expectedPercent,
+    );
+    await expect(page.locator(".position-profit strong")).toHaveText(
+      expectedGain,
+    );
+  }
+}
+
+test("período da tabela é independente, aplica-se às posições abertas e adapta-se a telemóvel", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
+  const history = [
+    { date: "2025-01-03", close: 100 },
+    { date: "2025-10-29", close: 105 },
+    { date: "2025-12-31", close: 110 },
+    { date: "2026-04-29", close: 120 },
+    { date: "2026-09-29", close: 130 },
+    { date: "2026-10-23", close: 140 },
+    { date: "2026-10-26", close: 142 },
+    { date: "2026-10-27", close: 144 },
+    { date: "2026-10-28", close: 146 },
+    { date: "2026-10-29", close: 148 },
+  ];
+  await page.route("**/api/market?*", (route) =>
+    route.fulfill({
+      json: {
+        assets: {
+          TEST: { ...assets.TEST, price: 150, history },
+          CLOSED: { ...assets.TEST, price: 150, history },
+        },
+      },
+    }),
+  );
+  await openLocal(page);
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "periodos-posicoes.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(
+        "date,ticker,pricebuy,shares,type\n2025-01-01,TEST,100,1,buy\n2025-01-01,CLOSED,100,1,buy\n2025-01-02,CLOSED,130,1,sell",
+      ),
+    });
+  await confirmCsvReview(page);
+  await page.evaluate(() =>
+    localStorage.setItem("rendimentos-chart-period-v1", "6M"),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "6M", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await navigateTo(page, /^Posições/);
+  const periodGroup = positionPeriodGroup(page);
+  const maximumPeriodButton = periodGroup.getByRole("button", {
+    name: "Máximo",
+    exact: true,
+  });
+  await expect(maximumPeriodButton).toHaveAttribute("aria-pressed", "true");
+  const chartPeriodPreference = await page.evaluate(() =>
+    localStorage.getItem("rendimentos-chart-period-v1"),
+  );
+  await verifyPositionPeriodValues(page);
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("rendimentos-chart-period-v1"),
+    ),
+  ).toBe(chartPeriodPreference);
+  const oneYearPeriodButton = periodGroup.getByRole("button", {
+    name: "1A",
+    exact: true,
+  });
+  await oneYearPeriodButton.click();
+  await expect(oneYearPeriodButton).toHaveAttribute("aria-pressed", "true");
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await page.locator(".list-filter-menu summary").click();
+  await page.locator(".position-filters button").nth(2).click();
+  await expect(page.locator(".position-closed .position-gain")).toContainText(
+    "Realizado",
+  );
+  await expect(
+    page.locator(".position-closed .position-gain strong"),
+  ).toHaveText("+30%");
+  await navigateTo(page, /^Visão geral/);
+  await expect(
+    page.getByRole("button", { name: "6M", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("rendimentos-chart-period-v1"),
+    ),
+  ).toBe(chartPeriodPreference);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await navigateTo(page, /^Posições/);
+  await expect(positionPeriodGroup(page)).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
 test("1D preenche falhas curtas, identifica estimativas e mantém interrupções longas", async ({
   page,
 }, testInfo) => {
@@ -1625,6 +1688,75 @@ test("gaveta móvel contém o foco, fecha pelo fundo e adapta-se ao desktop", as
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
+test("sidebar com dez carteiras mantém navegação, lista e rodapé alcançáveis", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile",
+    "Verificação exclusiva do desktop.",
+  );
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "rendimentos.portfolios.v1",
+      JSON.stringify({
+        version: 1,
+        portfolios: Array.from({ length: 10 }, (_, index) => ({
+          id: `portfolio-${index}`,
+          name: `Carteira ${index + 1} com um nome mais longo`,
+          currency: "EUR",
+          orders: [],
+        })),
+      }),
+    );
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openLocal(page);
+  await openSidebar(page);
+
+  const content = page.locator(".sidebar-content");
+  const portfolios = page.locator(".sidebar-portfolios");
+  const navigation = page.getByRole("navigation", {
+    name: "Navegação principal",
+  });
+  const creditLink = page.locator(
+    '.sidebar-bottom a:has-text("Feito por Pedro")',
+  );
+
+  for (const height of [800, 600, 480]) {
+    await page.setViewportSize({ width: 1280, height });
+    expect(
+      await content.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await portfolios.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await portfolios.locator(".portfolio-link").last().scrollIntoViewIfNeeded();
+    await expect(portfolios.locator(".portfolio-link").last()).toBeInViewport();
+    // With the list scrolled, the heading must sit flush with the list's top
+    // edge, leaving no strip where scrolled rows could show above it.
+    const headingTop = await page
+      .locator(".side-heading")
+      .evaluate((element) => element.getBoundingClientRect().top);
+    const listTop = await portfolios.evaluate(
+      (element) => element.getBoundingClientRect().top + element.clientTop,
+    );
+    expect(Math.abs(headingTop - listTop)).toBeLessThanOrEqual(1);
+    await creditLink.scrollIntoViewIfNeeded();
+    await expect(creditLink).toBeInViewport();
+    await navigation.scrollIntoViewIfNeeded();
+    await expect(navigation).toBeInViewport({ ratio: 1 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
 test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({
   page,
 }, testInfo) => {
@@ -1643,39 +1775,73 @@ test("percorrer muitas carteiras sem sobrepor navegação e rodapé", async ({
     );
   });
   await page.setViewportSize({
-    width: testInfo.project.name === "mobile" ? 390 : 1440,
+    width: testInfo.project.name === "mobile" ? 390 : 1280,
     height: 600,
   });
   await openLocal(page);
   await openSidebar(page);
   const content = page.locator(".sidebar-content");
-  expect(
-    await content.evaluate(
-      (element) => element.scrollHeight > element.clientHeight,
-    ),
-  ).toBe(true);
-  const navBottom = await page
-    .getByRole("navigation", { name: "Navegação principal" })
-    .evaluate((element) => element.getBoundingClientRect().bottom);
-  const portfoliosTop = await page
-    .locator(".sidebar-portfolios")
-    .evaluate((element) => element.getBoundingClientRect().top);
-  expect(portfoliosTop).toBeGreaterThanOrEqual(navBottom);
+  const portfolios = page.locator(".sidebar-portfolios");
   const last = page.locator(".portfolio-link").last();
-  await last.scrollIntoViewIfNeeded();
-  await expect(last).toBeInViewport();
+
+  if (testInfo.project.name === "mobile") {
+    expect(
+      await content.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
+    await expect(
+      page.locator('.sidebar-bottom a:has-text("Feito por Pedro")'),
+    ).toBeInViewport();
+  } else {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
+    await page.setViewportSize({ width: 1280, height: 600 });
+    expect(
+      await portfolios.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await expect(page.locator(".side-heading")).toHaveCSS("position", "sticky");
+    expect(
+      await portfolios.evaluate(
+        (element) => getComputedStyle(element).paddingTop,
+      ),
+    ).toBe("0px");
+  }
+
   await last.click();
   await expect(selectedPortfolio(page)).toContainText("Carteira 30");
   await openSidebar(page);
-  await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
-  const lastBottom = await last.evaluate(
-    (element) => element.getBoundingClientRect().bottom,
-  );
-  expect(
+  if (testInfo.project.name === "desktop") {
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+    await page.setViewportSize({ width: 1280, height: 480 });
+    await page.locator(".sidebar-bottom").scrollIntoViewIfNeeded();
+    await expect(
+      page.locator('.sidebar-bottom a:has-text("Feito por Pedro")'),
+    ).toBeInViewport();
+    await expect(page.locator(".sidebar-bottom")).toBeInViewport({ ratio: 1 });
     await page
-      .locator(".sidebar-bottom")
-      .evaluate((element) => element.getBoundingClientRect().top),
-  ).toBeGreaterThanOrEqual(lastBottom);
+      .getByRole("navigation", { name: "Navegação principal" })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole("navigation", { name: "Navegação principal" }),
+    ).toBeInViewport({ ratio: 1 });
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -1737,6 +1903,13 @@ test("dimensionar sidebar por arrasto e teclado respeita limites e mantém o con
   await expect(handle).toHaveAttribute("aria-valuenow", "224");
   await handle.press("ArrowLeft");
   await expect(handle).toHaveAttribute("aria-valuenow", "224");
+  // The sidebar scrolls internally, so a horizontal overflow there does not
+  // widen the document and must be checked on the scroll container itself.
+  expect(
+    await page
+      .locator(".sidebar-content")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(handle).toBeHidden();
   await expect(sidebar).toBeHidden();

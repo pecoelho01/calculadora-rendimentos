@@ -31,6 +31,17 @@ export type OrderGain = {
   shares: number;
 };
 
+type FifoLot = {
+  units: bigint;
+  originalUnits: bigint;
+  realized: number;
+  price: number;
+  date: string;
+  orderId: string;
+};
+
+type FifoInventory = { units: bigint; lots: FifoLot[]; head: number };
+
 export function geographicAllocation(
   positions: Position[],
   market: MarketData,
@@ -107,21 +118,7 @@ function calculateSnapshot(
   validateOrders(orders);
   const byTicker = new Map<string, Position>();
   const orderGains = new Map<string, OrderGain>();
-  const inventory = new Map<
-    string,
-    {
-      units: bigint;
-      lots: {
-        units: bigint;
-        originalUnits: bigint;
-        realized: number;
-        price: number;
-        date: string;
-        orderId: string;
-      }[];
-      head: number;
-    }
-  >();
+  const inventory = new Map<string, FifoInventory>();
   for (const o of chronological(orders)) {
     const p = byTicker.get(o.ticker) ?? {
       ticker: o.ticker,
@@ -399,6 +396,115 @@ function marketAt(market: MarketData, date: string): MarketData {
       { ...asset, price: priceAt(asset.history, date) },
     ]),
   );
+}
+
+type PeriodWindow = {
+  requestedStart: string | null;
+  start: string;
+  boundary: string;
+};
+
+function periodWindow(
+  applicable: Order[],
+  period: PerformancePeriod,
+  end: string,
+): PeriodWindow {
+  const requestedStart = performanceStart(period, end);
+  const first = applicable[0]?.date;
+  const start =
+    requestedStart && first
+      ? requestedStart > first
+        ? requestedStart
+        : first
+      : (requestedStart ?? first ?? end);
+  return {
+    requestedStart,
+    start,
+    boundary: previousCalendarDay(start),
+  };
+}
+
+function addOpeningLotsCost(
+  runningCost: number,
+  stock: FifoInventory,
+  openingPrice: number | null,
+  start: string,
+): number | null {
+  let cost = runningCost;
+  for (const lot of stock.lots.slice(stock.head)) {
+    const price = lot.date < start ? openingPrice : lot.price;
+    if (price === null) return null;
+    cost += (Number(lot.units) / 1e8) * price;
+  }
+  return cost;
+}
+
+function simpleReturn(
+  finalValue: number | null,
+  cost: number | null,
+): { gain: number | null; percent: number | null } {
+  const gain = finalValue !== null && cost !== null ? finalValue - cost : null;
+  return {
+    gain,
+    percent:
+      gain !== null && cost !== null && cost > 0 ? (gain / cost) * 100 : null,
+  };
+}
+
+export type PositionPeriodReturn = {
+  gain: number | null;
+  percent: number | null;
+};
+
+export function calculatePositionPeriodReturns({
+  orders,
+  market,
+  currency,
+  period,
+  end,
+}: {
+  orders: Order[];
+  market: MarketData;
+  currency: Currency;
+  period: PerformancePeriod;
+  end: string;
+}): Map<string, PositionPeriodReturn> {
+  const applicable = chronological(orders.filter((order) => order.date <= end));
+  const snapshot = calculateSnapshot(applicable, market, currency);
+  const returns = new Map<string, PositionPeriodReturn>();
+
+  if (period === "Máximo") {
+    for (const position of snapshot.summary.positions) {
+      if (position.shares <= 0) continue;
+      returns.set(position.ticker, {
+        gain: position.unrealized,
+        percent: position.unrealizedPercent,
+      });
+    }
+
+    return returns;
+  }
+
+  const window = periodWindow(applicable, period, end);
+
+  for (const position of snapshot.summary.positions) {
+    if (position.shares <= 0) continue;
+
+    const openingPrice = priceAt(
+      market[position.ticker]?.history ?? [],
+      window.boundary,
+    );
+    const stock = snapshot.inventory.get(position.ticker)!;
+    const openingCost = addOpeningLotsCost(
+      0,
+      stock,
+      openingPrice,
+      window.start,
+    );
+    returns.set(position.ticker, simpleReturn(position.value, openingCost));
+  }
+
+  return returns;
 }
 
 function historicalMarketsAt(
@@ -845,15 +951,12 @@ export function calculatePerformance(
 ) {
   const applicable = chronological(orders.filter((o) => o.date <= end));
   const current = calculateSnapshot(applicable, market, currency);
-  const requestedStart = performanceStart(period, end);
+  const { requestedStart, start, boundary } = periodWindow(
+    applicable,
+    period,
+    end,
+  );
   const first = applicable[0]?.date;
-  const start =
-    requestedStart && first
-      ? requestedStart > first
-        ? requestedStart
-        : first
-      : (requestedStart ?? first ?? end);
-  const boundary = previousCalendarDay(start);
   const flows = groupFlowsByDate(applicable);
 
   const openingMarket = marketAt(market, boundary);
@@ -876,21 +979,17 @@ export function calculatePerformance(
         );
     let openCost: number | null = 0;
     for (const [ticker, stock] of snapshot.inventory) {
-      for (const lot of stock.lots.slice(stock.head)) {
-        const price =
-          lot.date < start ? (openingMarket[ticker]?.price ?? null) : lot.price;
-        if (price === null) {
-          openCost = null;
-          break;
-        }
-        openCost += (Number(lot.units) / 1e8) * price;
-      }
+      openCost = addOpeningLotsCost(
+        openCost,
+        stock,
+        openingMarket[ticker]?.price ?? null,
+        start,
+      );
       if (openCost === null) break;
     }
+    const openReturn = simpleReturn(snapshot.summary.value, openCost);
     const openRoi =
-      snapshot.summary.value !== null && openCost !== null && openCost > 0
-        ? ((snapshot.summary.value - openCost) / openCost) * 100
-        : null;
+      openCost !== null && openCost > 0 ? openReturn.percent : null;
     return {
       date,
       roi: null,
