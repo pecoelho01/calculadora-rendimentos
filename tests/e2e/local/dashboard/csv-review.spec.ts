@@ -77,164 +77,174 @@ test("rever e cancelar não grava nem consulta o mercado", async ({
   expect(await stored(page)).toBe(before);
 });
 
-test("corrigir todos os campos e validar vendas antes de importar atomicamente", async ({
-  page,
-}) => {
-  const before = await stored(page);
-  await choose(
-    page,
-    header +
-      "2024-01-01,TEST,Original,100,10,buy\n2024-01-02,TEST,Original,0,99,unknown",
-  );
-  const dialog = reviewDialog(page);
-  const confirm = dialog.getByRole("button", {
-    name: "Confirmar importação",
-    exact: true,
-  });
-  await expect(confirm).toBeDisabled();
-  expect(await stored(page)).toBe(before);
-  await dialog.getByLabel("Ticker da linha 2", { exact: true }).fill("aaa");
-  await dialog
-    .getByLabel("Nome da linha 2", { exact: true })
-    .fill("Nome editado");
-  await dialog
-    .getByLabel("Preço (EUR) da linha 2", { exact: true })
-    .fill("100,25");
-  await dialog.getByLabel("Quantidade da linha 2", { exact: true }).fill("8");
-  await dialog
-    .getByLabel("Data da linha 3", { exact: true })
-    .fill("2024-01-01");
-  await dialog.getByLabel("Ticker da linha 3", { exact: true }).fill("AAA");
-  await dialog
-    .getByLabel("Operação da linha 3", { exact: true })
-    .selectOption("sell");
-  await dialog
-    .getByLabel("Preço (EUR) da linha 3", { exact: true })
-    .fill("120");
-  await expect(dialog.getByRole("alert")).toContainText("venda superior");
-  await expect(confirm).toBeDisabled();
-  expect(await stored(page)).toBe(before);
-  await dialog.getByLabel("Quantidade da linha 3", { exact: true }).fill("2");
-  await expect(confirm).toBeEnabled();
-  await confirm.click();
-  await expect(dialog).toBeHidden();
-  const result = await orders(page);
-  expect(result).toHaveLength(2);
-  expect(result[0]).toMatchObject({
-    date: "2024-01-01",
-    ticker: "AAA",
-    name: "Nome editado",
-    pricebuy: 100.25,
-    shares: 8,
-    type: "buy",
-  });
-  expect(result[1]).toMatchObject({
-    date: "2024-01-01",
-    ticker: "AAA",
-    pricebuy: 120,
-    shares: 2,
-    type: "sell",
-  });
-});
+test(
+  "corrigir todos os campos e validar vendas antes de importar atomicamente",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const before = await stored(page);
+    await choose(
+      page,
+      header +
+        "2024-01-01,TEST,Original,100,10,buy\n2024-01-02,TEST,Original,0,99,unknown",
+    );
+    const dialog = reviewDialog(page);
+    const confirm = dialog.getByRole("button", {
+      name: "Confirmar importação",
+      exact: true,
+    });
+    await expect(confirm).toBeDisabled();
+    expect(await stored(page)).toBe(before);
+    await dialog.getByLabel("Ticker da linha 2", { exact: true }).fill("aaa");
+    await dialog
+      .getByLabel("Nome da linha 2", { exact: true })
+      .fill("Nome editado");
+    await dialog
+      .getByLabel("Preço (EUR) da linha 2", { exact: true })
+      .fill("100,25");
+    await dialog.getByLabel("Quantidade da linha 2", { exact: true }).fill("8");
+    await dialog
+      .getByLabel("Data da linha 3", { exact: true })
+      .fill("2024-01-01");
+    await dialog.getByLabel("Ticker da linha 3", { exact: true }).fill("AAA");
+    await dialog
+      .getByLabel("Operação da linha 3", { exact: true })
+      .selectOption("sell");
+    await dialog
+      .getByLabel("Preço (EUR) da linha 3", { exact: true })
+      .fill("120");
+    await expect(dialog.getByRole("alert")).toContainText("venda superior");
+    await expect(confirm).toBeDisabled();
+    expect(await stored(page)).toBe(before);
+    await dialog.getByLabel("Quantidade da linha 3", { exact: true }).fill("2");
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+    await expect(dialog).toBeHidden();
+    const result = await orders(page);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      date: "2024-01-01",
+      ticker: "AAA",
+      name: "Nome editado",
+      pricebuy: 100.25,
+      shares: 8,
+      type: "buy",
+    });
+    expect(result[1]).toMatchObject({
+      date: "2024-01-01",
+      ticker: "AAA",
+      pricebuy: 120,
+      shares: 2,
+      type: "sell",
+    });
+  },
+);
 
-test("duplicados existentes e internos exigem decisão e atualizam ao editar ou excluir", async ({
-  page,
-}) => {
-  await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
-  await confirmCsvReview(page);
-  await expect(reviewDialog(page)).toBeHidden();
-  const before = await stored(page);
-  await choose(
-    page,
-    header +
-      "2024-01-01,TEST,Outro nome,100,10,buy\n2024-01-02,TEST,Teste,100,5,buy\n2024-01-02,TEST,Teste,100,5,buy",
-  );
-  const dialog = reviewDialog(page);
-  const confirm = dialog.getByRole("button", {
-    name: "Confirmar importação",
-    exact: true,
-  });
-  await expect(dialog).toContainText("3 possíveis duplicados");
-  await expect(dialog).toContainText("Já existe na carteira.");
-  await expect(confirm).toBeDisabled();
-  expect(await stored(page)).toBe(before);
-  await dialog.getByLabel("Incluir linha 2", { exact: true }).uncheck();
-  await expect(dialog).toContainText("2 possíveis duplicados");
-  await dialog.getByLabel("Quantidade da linha 4", { exact: true }).fill("6");
-  await expect(
-    dialog.getByRole("checkbox", { name: /Confirmo que/ }),
-  ).toHaveCount(0);
-  await expect(confirm).toBeEnabled();
-  await confirm.click();
-  await expect(dialog).toBeHidden();
-  expect(await orders(page)).toHaveLength(3);
-  await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
-  await expect(confirm).toBeDisabled();
-  await dialog.getByRole("checkbox", { name: /Confirmo que/ }).check();
-  await confirm.click();
-  await expect(dialog).toBeHidden();
-  expect(await orders(page)).toHaveLength(4);
-});
+test(
+  "duplicados existentes e internos exigem decisão e atualizam ao editar ou excluir",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
+    await confirmCsvReview(page);
+    await expect(reviewDialog(page)).toBeHidden();
+    const before = await stored(page);
+    await choose(
+      page,
+      header +
+        "2024-01-01,TEST,Outro nome,100,10,buy\n2024-01-02,TEST,Teste,100,5,buy\n2024-01-02,TEST,Teste,100,5,buy",
+    );
+    const dialog = reviewDialog(page);
+    const confirm = dialog.getByRole("button", {
+      name: "Confirmar importação",
+      exact: true,
+    });
+    await expect(dialog).toContainText("3 possíveis duplicados");
+    await expect(dialog).toContainText("Já existe na carteira.");
+    await expect(confirm).toBeDisabled();
+    expect(await stored(page)).toBe(before);
+    await dialog.getByLabel("Incluir linha 2", { exact: true }).uncheck();
+    await expect(dialog).toContainText("2 possíveis duplicados");
+    await dialog.getByLabel("Quantidade da linha 4", { exact: true }).fill("6");
+    await expect(
+      dialog.getByRole("checkbox", { name: /Confirmo que/ }),
+    ).toHaveCount(0);
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+    await expect(dialog).toBeHidden();
+    expect(await orders(page)).toHaveLength(3);
+    await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
+    await expect(confirm).toBeDisabled();
+    await dialog.getByRole("checkbox", { name: /Confirmo que/ }).check();
+    await confirm.click();
+    await expect(dialog).toBeHidden();
+    expect(await orders(page)).toHaveLength(4);
+  },
+);
 
-test("paginar conserva edições e exclusões e encontra erros fora da primeira página", async ({
-  page,
-}) => {
-  const lines = Array.from(
-    { length: 26 },
-    (_, i) => `2024-01-01,TEST,Ativo ${i},${i + 1},1,buy`,
-  );
-  lines[25] = "2024-01-01,TEST,Corrigir,0,1,buy";
-  await choose(page, header + lines.join("\n"));
-  const dialog = reviewDialog(page);
-  await expect(dialog.locator("tbody tr")).toHaveCount(25);
-  await dialog
-    .getByLabel("Nome da linha 2", { exact: true })
-    .fill("Edição preservada");
-  await dialog.getByLabel("Incluir linha 3", { exact: true }).uncheck();
-  await dialog
-    .getByRole("button", { name: "Ver primeiro erro", exact: true })
-    .click();
-  await expect(dialog.locator("tbody tr")).toHaveCount(1);
-  await dialog
-    .getByLabel("Preço (EUR) da linha 27", { exact: true })
-    .fill("26");
-  await dialog.getByRole("button", { name: "Anterior", exact: true }).click();
-  await expect(
-    dialog.getByLabel("Nome da linha 2", { exact: true }),
-  ).toHaveValue("Edição preservada");
-  await expect(
-    dialog.getByLabel("Incluir linha 3", { exact: true }),
-  ).not.toBeChecked();
-  await confirmCsvReview(page);
-  await expect(dialog).toBeHidden();
-  expect(await orders(page)).toHaveLength(25);
-});
+test(
+  "paginar conserva edições e exclusões e encontra erros fora da primeira página",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const lines = Array.from(
+      { length: 26 },
+      (_, i) => `2024-01-01,TEST,Ativo ${i},${i + 1},1,buy`,
+    );
+    lines[25] = "2024-01-01,TEST,Corrigir,0,1,buy";
+    await choose(page, header + lines.join("\n"));
+    const dialog = reviewDialog(page);
+    await expect(dialog.locator("tbody tr")).toHaveCount(25);
+    await dialog
+      .getByLabel("Nome da linha 2", { exact: true })
+      .fill("Edição preservada");
+    await dialog.getByLabel("Incluir linha 3", { exact: true }).uncheck();
+    await dialog
+      .getByRole("button", { name: "Ver primeiro erro", exact: true })
+      .click();
+    await expect(dialog.locator("tbody tr")).toHaveCount(1);
+    await dialog
+      .getByLabel("Preço (EUR) da linha 27", { exact: true })
+      .fill("26");
+    await dialog.getByRole("button", { name: "Anterior", exact: true }).click();
+    await expect(
+      dialog.getByLabel("Nome da linha 2", { exact: true }),
+    ).toHaveValue("Edição preservada");
+    await expect(
+      dialog.getByLabel("Incluir linha 3", { exact: true }),
+    ).not.toBeChecked();
+    await confirmCsvReview(page);
+    await expect(dialog).toBeHidden();
+    expect(await orders(page)).toHaveLength(25);
+  },
+);
 
-test("falha de gravação conserva o editor e as edições", async ({ page }) => {
-  const before = await stored(page);
-  await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
-  const dialog = reviewDialog(page);
-  await dialog
-    .getByLabel("Nome da linha 2", { exact: true })
-    .fill("Preservar edição");
-  await page.evaluate((key) => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (name, value) {
-      if (name === key) throw new Error("blocked");
-      original.call(this, name, value);
-    };
-  }, storageKey);
-  await dialog
-    .getByRole("button", { name: "Confirmar importação", exact: true })
-    .click();
-  await expect(dialog.getByRole("alert")).toContainText(
-    "As edições foram mantidas",
-  );
-  await expect(
-    dialog.getByLabel("Nome da linha 2", { exact: true }),
-  ).toHaveValue("Preservar edição");
-  expect(await stored(page)).toBe(before);
-});
+test(
+  "falha de gravação conserva o editor e as edições",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const before = await stored(page);
+    await choose(page, header + "2024-01-01,TEST,Teste,100,10,buy");
+    const dialog = reviewDialog(page);
+    await dialog
+      .getByLabel("Nome da linha 2", { exact: true })
+      .fill("Preservar edição");
+    await page.evaluate((key) => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (name, value) {
+        if (name === key) throw new Error("blocked");
+        original.call(this, name, value);
+      };
+    }, storageKey);
+    await dialog
+      .getByRole("button", { name: "Confirmar importação", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "As edições foram mantidas",
+    );
+    await expect(
+      dialog.getByLabel("Nome da linha 2", { exact: true }),
+    ).toHaveValue("Preservar edição");
+    expect(await stored(page)).toBe(before);
+  },
+);
 
 test("destino fica fixo mesmo que a seleção mude durante a leitura do ficheiro", async ({
   page,
