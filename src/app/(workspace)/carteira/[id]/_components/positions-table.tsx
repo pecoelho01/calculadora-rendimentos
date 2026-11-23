@@ -10,6 +10,7 @@ import type { Currency, MarketData, Order } from "@/lib/types";
 import { Icon } from "@/components/icon";
 import { useTableSort } from "@/components/sortable-table/use-table-sort";
 import { SortableColumnHeading } from "@/components/sortable-table/sortable-column-heading";
+import { usePositionsPeriodPreference } from "@/components/positions-period/use-positions-period-preference";
 
 type Filter = "open" | "closed" | "all";
 type Sort = "value" | "return" | "asset";
@@ -267,7 +268,12 @@ function usePositionPeriodReturns({
   currency: Currency;
   compact: boolean;
 }) {
-  const [period, setPeriod] = useState<PerformancePeriod>("Máximo");
+  const preferredPeriod = usePositionsPeriodPreference();
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<PerformancePeriod | null>(null);
+  // A escolha nos botões vale só para esta vista; sem escolha, segue a
+  // preferência das Definições, tal como o gráfico.
+  const period = selectedPeriod ?? preferredPeriod;
   const endDate = new Date().toISOString().slice(0, 10);
   const periodReturns = useMemo(
     () =>
@@ -283,7 +289,7 @@ function usePositionPeriodReturns({
     [orders, market, currency, compact, period, endDate],
   );
 
-  return { period, setPeriod, periodReturns };
+  return { period, setPeriod: setSelectedPeriod, periodReturns };
 }
 
 function positionColumnHeadings(filter: Filter, period: PerformancePeriod) {

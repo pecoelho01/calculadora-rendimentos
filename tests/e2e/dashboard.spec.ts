@@ -1343,6 +1343,75 @@ test("período da tabela é independente, aplica-se às posições abertas e ada
   ).toBe(true);
 });
 
+test("preferência das posições é independente do gráfico e das escolhas locais", async ({
+  page,
+}, testInfo) => {
+  await openLocal(page);
+  await page
+    .getByLabel("Importar ficheiro CSV", { exact: true })
+    .setInputFiles({
+      name: "portfolio.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+  await confirmCsvReview(page);
+
+  if (testInfo.project.name === "mobile") {
+    await page
+      .getByRole("navigation", { name: "Navegação móvel" })
+      .getByRole("link", { name: "Conta", exact: true })
+      .click();
+  } else {
+    await page
+      .getByRole("link", { name: "Definições da conta", exact: true })
+      .click();
+  }
+
+  await page.getByLabel("Período predefinido das posições").selectOption("1A");
+  await page.getByLabel("Período predefinido do gráfico").selectOption("6M");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("rendimentos-positions-period-v1"),
+      ),
+    )
+    .toBe("1A");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  await navigateTo(page, /^Posições/);
+  const positionPeriods = positionPeriodGroup(page);
+  const preferredPositionPeriod = positionPeriods.getByRole("button", {
+    name: "1A",
+    exact: true,
+  });
+  await expect(preferredPositionPeriod).toHaveAttribute("aria-pressed", "true");
+
+  await positionPeriods
+    .getByRole("button", { name: "Máximo", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("rendimentos-positions-period-v1"),
+      ),
+    )
+    .toBe("1A");
+
+  await navigateTo(page, /^Visão geral/);
+  await expect(
+    page.getByRole("button", { name: "6M", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
 test("1D preenche falhas curtas, identifica estimativas e mantém interrupções longas", async ({
   page,
 }, testInfo) => {
