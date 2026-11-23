@@ -99,6 +99,9 @@ test("preferência das posições é independente do gráfico e das escolhas loc
   await expect(
     page.getByRole("button", { name: "6M", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+  // A tabela compacta da visão geral não tem seletor de período: não pode
+  // rotular a rentabilidade desde a aquisição com o período da preferência.
+  await expect(page.locator(".list-compact")).not.toContainText("(1A)");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

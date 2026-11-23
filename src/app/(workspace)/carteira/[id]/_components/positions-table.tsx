@@ -272,12 +272,13 @@ function usePositionPeriodReturns({
   const [selectedPeriod, setSelectedPeriod] =
     useState<PerformancePeriod | null>(null);
   // A escolha nos botões vale só para esta vista; sem escolha, segue a
-  // preferência das Definições, tal como o gráfico.
-  const period = selectedPeriod ?? preferredPeriod;
+  // preferência das Definições, tal como o gráfico. A tabela compacta da visão
+  // geral não tem seletor e mostra sempre a rentabilidade desde a aquisição.
+  const period = compact ? "Máximo" : (selectedPeriod ?? preferredPeriod);
   const endDate = new Date().toISOString().slice(0, 10);
   const periodReturns = useMemo(
     () =>
-      compact || period === "Máximo"
+      period === "Máximo"
         ? null
         : calculatePositionPeriodReturns({
             orders,
@@ -286,7 +287,7 @@ function usePositionPeriodReturns({
             period,
             end: endDate,
           }),
-    [orders, market, currency, compact, period, endDate],
+    [orders, market, currency, period, endDate],
   );
 
   return { period, setPeriod: setSelectedPeriod, periodReturns };
