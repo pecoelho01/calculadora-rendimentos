@@ -60,6 +60,7 @@ test.beforeEach(async ({ page }) => {
   await page
     .getByRole("button", { name: "Continuar sem sessão", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/geral(?:\?.*)?$/);
 });
 
 test("trocar carteira pelo seletor e abrir conta pela navegação móvel", async ({
