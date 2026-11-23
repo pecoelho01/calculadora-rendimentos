@@ -17,59 +17,66 @@ test.beforeEach(async ({ page }) => {
   await mockMarketAndGeography(page);
 });
 
-test("alteração noutro separador impede sobrescrita", async ({
-  page,
-  context,
-}) => {
-  await openLocal(page);
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "p.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
-  await confirmCsvReview(page);
-  await expect(page.locator("tbody tr")).toHaveCount(1);
-  const second = await context.newPage();
-  await second.route("**/api/geography?*", (route) =>
-    route.fulfill({ json: { geographies: {} } }),
-  );
-  await second.route("**/api/market?*", (route) =>
-    route.fulfill({ json: { assets } }),
-  );
-  await openLocal(second);
-  await expect(second.locator("tbody tr")).toHaveCount(1);
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "p2.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("date,ticker,pricebuy,shares\n2024-01-04,TEST,100,1"),
-    });
-  await confirmCsvReview(page);
-  await expect(page.getByRole("status")).toContainText("1 transação importada");
-  await second
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "p3.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("date,ticker,pricebuy,shares\n2024-01-05,TEST,100,2"),
-    });
-  await confirmCsvReview(second);
-  await expect(
-    second
-      .getByRole("dialog", { name: "Rever importação CSV" })
-      .getByRole("alert"),
-  ).toContainText("Não foi possível guardar");
-  await second.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(second.getByRole("status")).toContainText("noutro separador");
-  const stored = await second.evaluate(() =>
-    JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!),
-  );
-  expect(stored.portfolios[0].orders).toHaveLength(4);
-  await second.close();
-});
+test(
+  "alteração noutro separador impede sobrescrita",
+  { tag: "@desktop-only" },
+  async ({ page, context }) => {
+    await openLocal(page);
+    await page
+      .getByLabel("Importar ficheiro CSV", { exact: true })
+      .setInputFiles({
+        name: "p.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(csv),
+      });
+    await confirmCsvReview(page);
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    const second = await context.newPage();
+    await second.route("**/api/geography?*", (route) =>
+      route.fulfill({ json: { geographies: {} } }),
+    );
+    await second.route("**/api/market?*", (route) =>
+      route.fulfill({ json: { assets } }),
+    );
+    await openLocal(second);
+    await expect(second.locator("tbody tr")).toHaveCount(1);
+    await page
+      .getByLabel("Importar ficheiro CSV", { exact: true })
+      .setInputFiles({
+        name: "p2.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(
+          "date,ticker,pricebuy,shares\n2024-01-04,TEST,100,1",
+        ),
+      });
+    await confirmCsvReview(page);
+    await expect(page.getByRole("status")).toContainText(
+      "1 transação importada",
+    );
+    await second
+      .getByLabel("Importar ficheiro CSV", { exact: true })
+      .setInputFiles({
+        name: "p3.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(
+          "date,ticker,pricebuy,shares\n2024-01-05,TEST,100,2",
+        ),
+      });
+    await confirmCsvReview(second);
+    await expect(
+      second
+        .getByRole("dialog", { name: "Rever importação CSV" })
+        .getByRole("alert"),
+    ).toContainText("Não foi possível guardar");
+    await second.getByRole("button", { name: "Cancelar", exact: true }).click();
+    await expect(second.getByRole("status")).toContainText("noutro separador");
+    const stored = await second.evaluate(() =>
+      JSON.parse(localStorage.getItem("rendimentos.portfolios.v1")!),
+    );
+    expect(stored.portfolios[0].orders).toHaveLength(4);
+    await second.close();
+  },
+);
 
 test("restaurar backup JSON e assinalar cotações noutra moeda", async ({
   page,
@@ -183,44 +190,46 @@ test("armazenamento corrompido preserva dados até reposição explícita", asyn
   ).toContain("Carteira após recuperação");
 });
 
-test("reposição de armazenamento corrompido preserva alterações noutro separador", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await page.evaluate(() =>
-    localStorage.setItem("rendimentos.portfolios.v1", "original-corrompido"),
-  );
-  await page
-    .getByRole("button", { name: "Continuar sem sessão", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Recuperar carteiras", exact: true }),
-  ).toBeVisible();
-  const replacement = JSON.stringify({
-    version: 1,
-    portfolios: [
-      {
-        id: "recuperada-noutro-separador",
-        name: "Dados mais recentes",
-        currency: "EUR",
-        orders: [],
-      },
-    ],
-  });
-  await page.evaluate(
-    (value) => localStorage.setItem("rendimentos.portfolios.v1", value),
-    replacement,
-  );
-  page.once("dialog", (dialog) => dialog.accept());
-  await page
-    .getByRole("button", { name: "Repor armazenamento", exact: true })
-    .click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "alterado noutro separador",
-  );
-  expect(
+test(
+  "reposição de armazenamento corrompido preserva alterações noutro separador",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    await page.goto("/");
     await page.evaluate(() =>
-      localStorage.getItem("rendimentos.portfolios.v1"),
-    ),
-  ).toBe(replacement);
-});
+      localStorage.setItem("rendimentos.portfolios.v1", "original-corrompido"),
+    );
+    await page
+      .getByRole("button", { name: "Continuar sem sessão", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Recuperar carteiras", exact: true }),
+    ).toBeVisible();
+    const replacement = JSON.stringify({
+      version: 1,
+      portfolios: [
+        {
+          id: "recuperada-noutro-separador",
+          name: "Dados mais recentes",
+          currency: "EUR",
+          orders: [],
+        },
+      ],
+    });
+    await page.evaluate(
+      (value) => localStorage.setItem("rendimentos.portfolios.v1", value),
+      replacement,
+    );
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .getByRole("button", { name: "Repor armazenamento", exact: true })
+      .click();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
+      "alterado noutro separador",
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("rendimentos.portfolios.v1"),
+      ),
+    ).toBe(replacement);
+  },
+);

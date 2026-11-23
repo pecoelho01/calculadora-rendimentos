@@ -137,74 +137,84 @@ test("alteração de palavra-passe pede código quando Auth exige reautenticaç�
   ).toEqual([undefined, "000000", "123456"]);
 });
 
-test("falha ao enviar código permite reenviar sem perder recuperação", async ({
-  page,
-}) => {
-  const state = await setup(page);
-  const dialog = await openRecovery(page);
-  state.requireReauthentication = true;
-  state.failReauthenticationSend = true;
-  await dialog
-    .getByLabel("Nova palavra-passe", { exact: true })
-    .fill("reauth-password-test");
-  await dialog
-    .getByRole("button", { name: "Guardar palavra-passe", exact: true })
-    .click();
-  await expect(
-    dialog.getByText(/Não foi possível enviar o código/),
-  ).toBeVisible();
-  state.failReauthenticationSend = false;
-  await dialog
-    .getByRole("button", { name: "Enviar novo código", exact: true })
-    .click();
-  await expect(dialog.getByText(/Enviámos um novo código/)).toBeVisible();
-  await expect(
-    dialog.getByLabel("Nova palavra-passe", { exact: true }),
-  ).toHaveValue("reauth-password-test");
-  await publishAuthSession(
-    page,
-    session(userA, 3600, { sessionId: "33333333-3333-4333-8333-333333333333" }),
-    "SIGNED_IN",
-  );
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
-});
+test(
+  "falha ao enviar código permite reenviar sem perder recuperação",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const state = await setup(page);
+    const dialog = await openRecovery(page);
+    state.requireReauthentication = true;
+    state.failReauthenticationSend = true;
+    await dialog
+      .getByLabel("Nova palavra-passe", { exact: true })
+      .fill("reauth-password-test");
+    await dialog
+      .getByRole("button", { name: "Guardar palavra-passe", exact: true })
+      .click();
+    await expect(
+      dialog.getByText(/Não foi possível enviar o código/),
+    ).toBeVisible();
+    state.failReauthenticationSend = false;
+    await dialog
+      .getByRole("button", { name: "Enviar novo código", exact: true })
+      .click();
+    await expect(dialog.getByText(/Enviámos um novo código/)).toBeVisible();
+    await expect(
+      dialog.getByLabel("Nova palavra-passe", { exact: true }),
+    ).toHaveValue("reauth-password-test");
+    await publishAuthSession(
+      page,
+      session(userA, 3600, {
+        sessionId: "33333333-3333-4333-8333-333333333333",
+      }),
+      "SIGNED_IN",
+    );
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+  },
+);
 
-test("mudar de sessão durante envio de reautenticação descarta a conclusão antiga", async ({
-  page,
-}) => {
-  const state = await setup(page);
-  const dialog = await openRecovery(page);
-  state.requireReauthentication = true;
-  state.delayAuthPath = "/reauthenticate";
-  await dialog
-    .getByLabel("Nova palavra-passe", { exact: true })
-    .fill("discarded-reauth-password-test");
-  await dialog
-    .getByRole("button", { name: "Guardar palavra-passe", exact: true })
-    .click();
-  await expect
-    .poll(() =>
-      state.authRequests.some((request) =>
-        request.path.endsWith("/reauthenticate"),
+test(
+  "mudar de sessão durante envio de reautenticação descarta a conclusão antiga",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const state = await setup(page);
+    const dialog = await openRecovery(page);
+    state.requireReauthentication = true;
+    state.delayAuthPath = "/reauthenticate";
+    await dialog
+      .getByLabel("Nova palavra-passe", { exact: true })
+      .fill("discarded-reauth-password-test");
+    await dialog
+      .getByRole("button", { name: "Guardar palavra-passe", exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        state.authRequests.some((request) =>
+          request.path.endsWith("/reauthenticate"),
+        ),
+      )
+      .toBe(true);
+    await publishAuthSession(
+      page,
+      session(userA, 3600, {
+        sessionId: "33333333-3333-4333-8333-333333333333",
+      }),
+      "SIGNED_IN",
+    );
+    await expect(dialog).toBeHidden();
+    state.releaseAuth();
+    await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+    await expect(
+      page.getByText(/Enviámos um código de confirmação/),
+    ).toHaveCount(0);
+    expect(
+      state.authRequests.filter(
+        (request) => request.body.password === "discarded-reauth-password-test",
       ),
-    )
-    .toBe(true);
-  await publishAuthSession(
-    page,
-    session(userA, 3600, { sessionId: "33333333-3333-4333-8333-333333333333" }),
-    "SIGNED_IN",
-  );
-  await expect(dialog).toBeHidden();
-  state.releaseAuth();
-  await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
-  await expect(page.getByText(/Enviámos um código de confirmação/)).toHaveCount(
-    0,
-  );
-  expect(
-    state.authRequests.filter(
-      (request) => request.body.password === "discarded-reauth-password-test",
-    ),
-  ).toHaveLength(1);
-  expect(state.authRequests.some((request) => request.body.nonce)).toBe(false);
-});
+    ).toHaveLength(1);
+    expect(state.authRequests.some((request) => request.body.nonce)).toBe(
+      false,
+    );
+  },
+);
