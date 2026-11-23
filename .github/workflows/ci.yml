@@ -84,7 +84,7 @@ jobs:
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: End-to-end tests
-        run: npm run test:e2e -- --reporter=line,html --output=test-results/local
+        run: npm run test:e2e -- tests/e2e/local/ --reporter=line,html --output=test-results/local
         env:
           TEST_NO_ACCOUNT_CONFIG: "1"
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/local
@@ -130,7 +130,7 @@ jobs:
         run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: Account end-to-end tests with HTTP mocks
-        run: npm run test:e2e -- tests/e2e/account.spec.ts --reporter=line,html --output=test-results/account
+        run: npm run test:e2e -- tests/e2e/account/ --reporter=line,html --output=test-results/account
         env:
           TEST_ACCOUNT_AUTH: "1"
           TEST_CAPTCHA: "1"
