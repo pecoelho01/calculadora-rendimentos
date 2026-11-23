@@ -10,12 +10,18 @@ test("preferências Auth ausentes ou com versão desconhecida usam valores prede
     version: 1,
     theme: "system",
     chartPeriod: "Máximo",
+    positionsPeriod: "Máximo",
   });
   assert.deepEqual(
     parseAccountPreferences({
       rendimentosPreferences: { version: 2, theme: "dark", chartPeriod: "1A" },
     }),
-    { version: 1, theme: "system", chartPeriod: "Máximo" },
+    {
+      version: 1,
+      theme: "system",
+      chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
+    },
   );
 });
 
@@ -33,6 +39,7 @@ test("só uma versão inteira superior à atual fica em modo só de leitura", ()
       version: 1,
       theme: "system",
       chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
     });
   }
 
@@ -47,14 +54,50 @@ test("só uma versão inteira superior à atual fica em modo só de leitura", ()
 test("valida cada campo independentemente", () => {
   assert.deepEqual(
     parseAccountPreferences({
-      rendimentosPreferences: { version: 1, theme: "dark", chartPeriod: "bad" },
+      rendimentosPreferences: {
+        version: 1,
+        theme: "dark",
+        chartPeriod: "1A",
+      },
     }),
-    { version: 1, theme: "dark", chartPeriod: "Máximo" },
+    {
+      version: 1,
+      theme: "dark",
+      chartPeriod: "1A",
+      positionsPeriod: "Máximo",
+    },
+  );
+
+  assert.deepEqual(
+    parseAccountPreferences({
+      rendimentosPreferences: {
+        version: 1,
+        theme: "dark",
+        chartPeriod: "bad",
+        positionsPeriod: "1A",
+      },
+    }),
+    {
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+      positionsPeriod: "1A",
+    },
   );
   assert.deepEqual(
     parseAccountPreferences({
-      rendimentosPreferences: { version: 1, theme: "bad", chartPeriod: "1A" },
+      rendimentosPreferences: {
+        version: 1,
+        theme: "bad",
+        chartPeriod: "1A",
+        positionsPeriod: "bad",
+      },
     }),
-    { version: 1, theme: "system", chartPeriod: "1A" },
+    {
+      version: 1,
+      theme: "system",
+      chartPeriod: "1A",
+      positionsPeriod: "Máximo",
+    },
   );
 });

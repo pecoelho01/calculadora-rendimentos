@@ -2359,6 +2359,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
       version: 1,
       theme: "dark",
       chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
     },
   };
   await page.emulateMedia({ colorScheme: "light" });
@@ -2415,6 +2416,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
       version: 1,
       theme: "light",
       chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
     },
   };
   await login(page);
@@ -3172,6 +3174,7 @@ test("preferências da conta guardam tema e período sem alterar preferências l
       version: 1,
       theme: "dark",
       chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
     });
   await expect.poll(() => state.completedUserUpdates).toBe(1);
   expect(
@@ -3191,8 +3194,24 @@ test("preferências da conta guardam tema e período sem alterar preferências l
       version: 1,
       theme: "dark",
       chartPeriod: "1A",
+      positionsPeriod: "Máximo",
     });
   await expect.poll(() => state.completedUserUpdates).toBe(2);
+  await page.getByLabel("Período predefinido das posições").selectOption("1A");
+  await expect
+    .poll(() => state.userMetadata.rendimentosPreferences)
+    .toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "1A",
+      positionsPeriod: "1A",
+    });
+  await expect.poll(() => state.completedUserUpdates).toBe(3);
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("rendimentos-positions-period-v1"),
+    ),
+  ).toBeNull();
   const storedAuth = await page.evaluate((key) => {
     const value = localStorage.getItem(key);
     return value ? JSON.parse(value).user?.user_metadata : null;
@@ -3200,6 +3219,9 @@ test("preferências da conta guardam tema e período sem alterar preferências l
   expect(storedAuth).toEqual(state.userMetadata);
   await page.reload();
   await expect(page.getByLabel("Período predefinido do gráfico")).toHaveValue(
+    "1A",
+  );
+  await expect(page.getByLabel("Período predefinido das posições")).toHaveValue(
     "1A",
   );
 });
@@ -3215,7 +3237,12 @@ test("falha ao guardar preferência repõe o valor confirmado e permite fechar a
   await page.getByRole("radio", { name: "Escuro" }).click();
   await expect
     .poll(() => state.userMetadata.rendimentosPreferences)
-    .toEqual({ version: 1, theme: "dark", chartPeriod: "Máximo" });
+    .toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
+    });
   await expect.poll(() => state.completedUserUpdates).toBe(1);
   state.failNextUserUpdate = true;
   await page.getByLabel("Período predefinido do gráfico").selectOption("1A");
@@ -3266,6 +3293,7 @@ test("pintura inicial usa a cache da conta antes da preferência local", async (
         version: 1,
         theme: "dark",
         chartPeriod: "Máximo",
+        positionsPeriod: "Máximo",
       },
     };
     localStorage.setItem(key, JSON.stringify(saved));
@@ -3319,6 +3347,7 @@ test("escolhas rápidas de tema guardam a última sem aviso", async ({
       version: 1,
       theme: "dark",
       chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
     });
   await expect.poll(() => state.completedUserUpdates).toBe(2);
   const preferenceWrites = state.authRequests
@@ -3330,6 +3359,7 @@ test("escolhas rápidas de tema guardam a última sem aviso", async ({
         version: 1,
         theme: "dark",
         chartPeriod: "Máximo",
+        positionsPeriod: "Máximo",
       },
     },
     {
@@ -3337,6 +3367,7 @@ test("escolhas rápidas de tema guardam a última sem aviso", async ({
         version: 1,
         theme: "dark",
         chartPeriod: "Máximo",
+        positionsPeriod: "Máximo",
       },
     },
   ]);
