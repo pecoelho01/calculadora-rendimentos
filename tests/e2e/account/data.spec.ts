@@ -255,128 +255,134 @@ test("recarregar conta limpa as pesquisas de todos os separadores e preserva os 
   await assertNoOverflow(page);
 });
 
-test("CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/data ao mercado", async ({
-  page,
-}) => {
-  const state = await setup(page, true);
-  const marketRequests: URL[] = [];
-  const geographyRequests: URL[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("/api/market?"))
-      marketRequests.push(new URL(request.url()));
-    if (request.url().includes("/api/geography?"))
-      geographyRequests.push(new URL(request.url()));
-  });
-  await page.goto("/");
-  await expect(
-    selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
-  ).toBeVisible();
-  const csv =
-    "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-01,TEST,Teste,120,3,sell";
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "ordens.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
+test(
+  "CSV remoto é atómico, conserva ordem no mesmo dia e só envia tickers/data ao mercado",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const state = await setup(page, true);
+    const marketRequests: URL[] = [];
+    const geographyRequests: URL[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/market?"))
+        marketRequests.push(new URL(request.url()));
+      if (request.url().includes("/api/geography?"))
+        geographyRequests.push(new URL(request.url()));
     });
-  await confirmCsvReview(page);
-  await expect
-    .poll(() => state.accounts[userA].portfolios[0].portfolio.orders.length)
-    .toBe(2);
-  expect(
-    state.accounts[userA].portfolios[0].portfolio.orders.map(
-      (order) => order.type,
-    ),
-  ).toEqual(["buy", "sell"]);
-  expect(state.requests[0].changes[0].expectedRevision).toBe(3);
-  await expect.poll(() => marketRequests.length).toBeGreaterThan(0);
-  expect([...marketRequests[0].searchParams.keys()].sort()).toEqual([
-    "start",
-    "tickers",
-  ]);
-  expect(marketRequests[0].searchParams.get("tickers")).toBe("TEST");
-  await expect.poll(() => geographyRequests.length).toBeGreaterThan(0);
-  for (const url of geographyRequests) {
-    expect([...url.searchParams.keys()]).toEqual(["tickers"]);
-    expect(url.searchParams.get("tickers")).toBe("TEST");
-  }
-  const invalid =
-    "date,ticker,name,pricebuy,shares,type\n2024-01-02,TEST,Teste,120,8,sell\n2024-01-03,TEST,Teste,120,1,buy";
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "venda-invalida.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(invalid),
-    });
-  await expect(
-    page.getByText(/venda superior à posição disponível/),
-  ).toBeVisible();
-  expect(state.requests).toHaveLength(1);
-  expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(2);
-  expect(
-    await page.evaluate((key) => localStorage.getItem(key), storageKey),
-  ).toBe(localJson);
-});
-
-test("restauro JSON na conta valida todas as carteiras antes do lote com revisões", async ({
-  page,
-}) => {
-  const state = await setup(page, true);
-  await page.goto("/");
-  await expect(
-    selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
-  ).toBeVisible();
-  const restored: Portfolio = {
-    id: "backup-one",
-    name: "Carteira restaurada",
-    currency: "USD",
-    orders: [],
-  };
-  const invalid = JSON.stringify({
-    version: 1,
-    portfolios: [
-      restored,
-      { ...restored, id: "backup-two", currency: "INVALID" },
-    ],
-  });
-  await page
-    .getByLabel("Restaurar cópia de segurança", { exact: true })
-    .setInputFiles({
-      name: "invalido.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(invalid),
-    });
-  await expect(
-    page.getByText("Carteira inválida.", { exact: true }),
-  ).toBeVisible();
-  expect(state.requests).toHaveLength(0);
-  expect(state.accounts[userA].portfolios[0].portfolio.name).toBe(
-    "Carteira da Ana",
-  );
-  page.once("dialog", (dialog) => dialog.accept());
-  await page
-    .getByLabel("Restaurar cópia de segurança", { exact: true })
-    .setInputFiles({
-      name: "backup.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({ version: 1, portfolios: [restored] }),
+    await page.goto("/");
+    await expect(
+      selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
+    ).toBeVisible();
+    const csv =
+      "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-01,TEST,Teste,120,3,sell";
+    await page
+      .getByLabel("Importar ficheiro CSV", { exact: true })
+      .setInputFiles({
+        name: "ordens.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(csv),
+      });
+    await confirmCsvReview(page);
+    await expect
+      .poll(() => state.accounts[userA].portfolios[0].portfolio.orders.length)
+      .toBe(2);
+    expect(
+      state.accounts[userA].portfolios[0].portfolio.orders.map(
+        (order) => order.type,
       ),
+    ).toEqual(["buy", "sell"]);
+    expect(state.requests[0].changes[0].expectedRevision).toBe(3);
+    await expect.poll(() => marketRequests.length).toBeGreaterThan(0);
+    expect([...marketRequests[0].searchParams.keys()].sort()).toEqual([
+      "start",
+      "tickers",
+    ]);
+    expect(marketRequests[0].searchParams.get("tickers")).toBe("TEST");
+    await expect.poll(() => geographyRequests.length).toBeGreaterThan(0);
+    for (const url of geographyRequests) {
+      expect([...url.searchParams.keys()]).toEqual(["tickers"]);
+      expect(url.searchParams.get("tickers")).toBe("TEST");
+    }
+    const invalid =
+      "date,ticker,name,pricebuy,shares,type\n2024-01-02,TEST,Teste,120,8,sell\n2024-01-03,TEST,Teste,120,1,buy";
+    await page
+      .getByLabel("Importar ficheiro CSV", { exact: true })
+      .setInputFiles({
+        name: "venda-invalida.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(invalid),
+      });
+    await expect(
+      page.getByText(/venda superior à posição disponível/),
+    ).toBeVisible();
+    expect(state.requests).toHaveLength(1);
+    expect(state.accounts[userA].portfolios[0].portfolio.orders).toHaveLength(
+      2,
+    );
+    expect(
+      await page.evaluate((key) => localStorage.getItem(key), storageKey),
+    ).toBe(localJson);
+  },
+);
+
+test(
+  "restauro JSON na conta valida todas as carteiras antes do lote com revisões",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    const state = await setup(page, true);
+    await page.goto("/");
+    await expect(
+      selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
+    ).toBeVisible();
+    const restored: Portfolio = {
+      id: "backup-one",
+      name: "Carteira restaurada",
+      currency: "USD",
+      orders: [],
+    };
+    const invalid = JSON.stringify({
+      version: 1,
+      portfolios: [
+        restored,
+        { ...restored, id: "backup-two", currency: "INVALID" },
+      ],
     });
-  await expect(
-    selectedPortfolio(page).getByText(restored.name, { exact: true }),
-  ).toBeVisible();
-  expect(state.requests).toHaveLength(1);
-  expect(state.requests[0].changes).toEqual(
-    expect.arrayContaining([
-      { id: "remote-a", portfolio: null, expectedRevision: 3 },
-      { id: restored.id, portfolio: restored, expectedRevision: null },
-    ]),
-  );
-  expect(state.accounts[userA].portfolios).toHaveLength(1);
-  expect(
-    await page.evaluate((key) => localStorage.getItem(key), storageKey),
-  ).toBe(localJson);
-});
+    await page
+      .getByLabel("Restaurar cópia de segurança", { exact: true })
+      .setInputFiles({
+        name: "invalido.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(invalid),
+      });
+    await expect(
+      page.getByText("Carteira inválida.", { exact: true }),
+    ).toBeVisible();
+    expect(state.requests).toHaveLength(0);
+    expect(state.accounts[userA].portfolios[0].portfolio.name).toBe(
+      "Carteira da Ana",
+    );
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .getByLabel("Restaurar cópia de segurança", { exact: true })
+      .setInputFiles({
+        name: "backup.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(
+          JSON.stringify({ version: 1, portfolios: [restored] }),
+        ),
+      });
+    await expect(
+      selectedPortfolio(page).getByText(restored.name, { exact: true }),
+    ).toBeVisible();
+    expect(state.requests).toHaveLength(1);
+    expect(state.requests[0].changes).toEqual(
+      expect.arrayContaining([
+        { id: "remote-a", portfolio: null, expectedRevision: 3 },
+        { id: restored.id, portfolio: restored, expectedRevision: null },
+      ]),
+    );
+    expect(state.accounts[userA].portfolios).toHaveLength(1);
+    expect(
+      await page.evaluate((key) => localStorage.getItem(key), storageKey),
+    ).toBe(localJson);
+  },
+);
