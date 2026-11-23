@@ -1,5 +1,5 @@
 import { type Page, type TestInfo } from "@playwright/test";
-import { confirmCsvReview } from "./csv-helpers";
+import { confirmCsvReview } from "../csv-helpers";
 
 export const assets = {
   TEST: {
@@ -42,7 +42,7 @@ export function positionPeriodGroup(page: Page) {
   return page.getByRole("group", { name: "Período da rentabilidade" });
 }
 
-export { navigateTo } from "./sidebar-helpers";
+export { navigateTo } from "../sidebar-helpers";
 
 export async function openPeriodPreferences(page: Page, testInfo: TestInfo) {
   await openLocal(page);

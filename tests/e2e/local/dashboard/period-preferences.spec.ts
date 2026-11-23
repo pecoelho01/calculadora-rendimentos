@@ -4,7 +4,7 @@ import {
   navigateTo,
   openPeriodPreferences,
   positionPeriodGroup,
-} from "../helpers/dashboard-helpers";
+} from "../../../helpers/dashboard/dashboard-helpers";
 
 test.beforeEach(async ({ page }) => {
   await mockMarketAndGeography(page);

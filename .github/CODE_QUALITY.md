@@ -142,11 +142,14 @@ FORMAT_BASE=<sha-base> FORMAT_HEAD=<sha-head> npm run format:check:changed
 A CI agrega quatro jobs independentes: `Quality checks and build` (formatação,
 lint, tipos, unitários e build), `E2E local` (build sem conta), `E2E account`
 (build com configuração fictícia e mocks HTTP) e `E2E Supabase local real`
-(Auth, Mailpit, PostgREST e PostgreSQL numa pilha Docker descartável). Os dois E2E
-existentes cobrem desktop/mobile e guardam diagnósticos em caso de falha durante
-sete dias. A suite real usa Chromium e contas sintéticas para verificar
-confirmação de registo por email e isolamento de carteiras. Os diagnósticos
-omitem conteúdo de email, ligações de confirmação, credenciais e sessões.
+(Auth, Mailpit, PostgREST e PostgreSQL numa pilha Docker descartável). Os E2E
+local e account correm por omissão nos projetos desktop e mobile; só os testes
+que não dependem de layout, navegação ou toque recebem `@desktop-only`, que o
+projeto mobile exclui com `grepInvert`. Estes dois jobs guardam diagnósticos em
+caso de falha durante sete dias. A suite real usa Chromium e contas sintéticas
+para verificar confirmação de registo por email e isolamento de carteiras. Os
+diagnósticos omitem conteúdo de email, ligações de confirmação, credenciais e
+sessões.
 O agregador `Quality, tests and build` corre ainda que uma dependência falhe,
 seja cancelada ou ignorada. Só passa se todos os resultados forem `success`.
 O nome obrigatório no GitHub e na Vercel mantém-se, com as proteções existentes.

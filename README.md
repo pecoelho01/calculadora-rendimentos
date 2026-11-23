@@ -249,7 +249,9 @@ scripts/                                 # Verificações e automações
 public/                                  # CSV para download
 tests/unit/                              # Testes determinísticos
 tests/integration/                       # Testes de API, conta, release e scripts
-tests/e2e/                               # Fluxos Playwright
+tests/e2e/local/                         # Playwright com build sem Supabase
+tests/e2e/account/                       # Playwright com Supabase simulado
+tests/e2e/supabase-real/                 # Playwright com Supabase local real
 tests/helpers/                           # Auxiliares partilhados
 tests/fixtures/csv/                      # CSV de teste
 ```
@@ -276,11 +278,13 @@ O Playwright inicia `next start` depois do build e testa desktop/móvel, persist
 
 Se a porta 3100 estiver ocupada por outro worktree, definir `PLAYWRIGHT_PORT` com uma porta livre no comando de teste; o servidor e os callbacks usam a mesma origem isolada.
 
+As specs Playwright estão organizadas por modo de build: `tests/e2e/local/` usa um build sem Supabase, `tests/e2e/account/` um build com Supabase simulado e `tests/e2e/supabase-real/` corre só através de `npm run test:e2e:supabase-real`. Cada job E2E da CI seleciona a sua pasta.
+
 Os testes de conta no Playwright exigem um build com configuração pública fictícia, sem credenciais reais:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://rendimentos-test.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=public-test-key npm run build
-TEST_ACCOUNT_AUTH=1 npm run test:e2e
+TEST_ACCOUNT_AUTH=1 npm run test:e2e -- tests/e2e/account/
 ```
 
 Estes testes interceptam Auth e `/api/account`; verificam UI, isolamento do estado e pedidos, sem comprovar a execução real do SQL/RLS ou entrega de emails. Um build sem configuração continua a suportar todos os fluxos locais.
@@ -297,13 +301,13 @@ O teste de registo usa um destinatário sintético e exige confirmação de emai
 
 O mesmo comando corre no job `E2E Supabase local real` e faz parte do check agregador obrigatório. Uma base nova por execução evita estado partilhado entre branches e permite testar sessões Auth reais sem contas remotas nem secrets de CI. Um projeto remoto dedicado permitiria validar a configuração alojada, mas exigiria provisionamento, credenciais e limpeza de estado entre execuções. A entrega por SMTP externo, a recuperação de palavra-passe, a configuração de Auth em produção e Vercel ficam fora da cobertura desta suite. O binding de portas é controlado pelo runtime Docker. Usa uma máquina ou VM isolada para a execução local.
 
-Para incluir Turnstile, acrescentar `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` ao comando de build fictício e executar `TEST_ACCOUNT_AUTH=1 TEST_CAPTCHA=1 npm run test:e2e`. O script/widget Cloudflare também é simulado; os testes verificam tokens novos por tentativa, bloqueio na expiração/falha, repetição e reautenticação com nonce. Não comprovam CAPTCHA ou SMTP reais. Não usar a chave de teste num build publicado. Os testes CSP verificam headers reais, nonces diferentes, hidratação e bloqueio de scripts sem nonce em Chromium.
+Para incluir Turnstile, acrescentar `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` ao comando de build fictício e executar `TEST_ACCOUNT_AUTH=1 TEST_CAPTCHA=1 npm run test:e2e -- tests/e2e/account/`. O script/widget Cloudflare também é simulado; os testes verificam tokens novos por tentativa, bloqueio na expiração/falha, repetição e reautenticação com nonce. Não comprovam CAPTCHA ou SMTP reais. Não usar a chave de teste num build publicado. Os testes CSP verificam headers reais, nonces diferentes, hidratação e bloqueio de scripts sem nonce em Chromium.
 
 Para verificar a entrada sem Supabase mesmo quando existe `.env.local`, usar um build com as variáveis públicas explicitamente vazias:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= npm run build
-TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/e2e/dashboard.spec.ts
+TEST_NO_ACCOUNT_CONFIG=1 npm run test:e2e -- tests/e2e/local/
 ```
 
 Depois dos testes com configuração fictícia ou vazia, executar novamente `npm run build` para repor a configuração local real.
