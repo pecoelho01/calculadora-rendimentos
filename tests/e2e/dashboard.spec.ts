@@ -1,30 +1,15 @@
 import { confirmCsvReview } from "../helpers/csv-helpers";
+import { openSidebar, selectedPortfolio } from "../helpers/sidebar-helpers";
 import {
-  openSidebar,
+  assets,
+  csv,
+  mockMarketAndGeography,
   navigateTo,
-  selectedPortfolio,
-} from "../helpers/sidebar-helpers";
+  openLocal,
+  positionPeriodGroup,
+} from "../helpers/dashboard-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-const assets = {
-  TEST: {
-    price: 140,
-    previousClose: 130,
-    currency: "EUR",
-    name: "Teste",
-    asOf: "2026-10-29T16:00:00Z",
-    history: [
-      { date: "2024-01-05", close: 100 },
-      { date: "2024-01-12", close: 140 },
-    ],
-  },
-};
-async function openLocal(page: Page) {
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Continuar sem sessão", exact: true })
-    .click();
-}
 async function openListFilters(page: Page, kind: "posições" | "transações") {
   if ((page.viewportSize()?.width ?? 1440) > 800) return;
   const summary = page.getByLabel(`Filtrar ${kind}`, { exact: true });
@@ -49,18 +34,8 @@ async function choosePerformanceMode(
   )
     await menu.locator("summary").click();
 }
-function positionPeriodGroup(page: Page) {
-  return page.getByRole("group", { name: "Período da rentabilidade" });
-}
-const csv =
-  "date,ticker,name,pricebuy,shares,type\n2024-01-01,TEST,Teste,100,10,buy\n2024-01-02,TEST,Teste,120,10,buy\n2024-01-03,TEST,Teste,130,5,sell";
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/geography?*", (route) =>
-    route.fulfill({ json: { geographies: {} } }),
-  );
-  await page.route("**/api/market?*", (route) =>
-    route.fulfill({ json: { assets } }),
-  );
+  await mockMarketAndGeography(page);
 });
 test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   await openLocal(page);
@@ -125,70 +100,6 @@ test("mostrar o resumo apenas na visão geral", async ({ page }) => {
   );
 });
 
-test("guardar e aplicar o período predefinido do gráfico", async ({
-  page,
-}, testInfo) => {
-  await openLocal(page);
-  await page
-    .getByLabel("Importar ficheiro CSV", { exact: true })
-    .setInputFiles({
-      name: "portfolio.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
-  await confirmCsvReview(page);
-
-  if (testInfo.project.name === "mobile") {
-    await page
-      .getByRole("navigation", { name: "Navegação móvel" })
-      .getByRole("link", { name: "Conta", exact: true })
-      .click();
-  } else {
-    await page
-      .getByRole("link", { name: "Definições da conta", exact: true })
-      .click();
-  }
-  const preference = page.getByLabel("Período predefinido do gráfico");
-  await preference.selectOption("1A");
-  await expect
-    .poll(() =>
-      page.evaluate(() => localStorage.getItem("rendimentos-chart-period-v1")),
-    )
-    .toBe("1A");
-  if (testInfo.project.name === "mobile") {
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-  }
-
-  await page.goto("/");
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "1A", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-
-  // Os botões do gráfico mudam só a vista atual, não o período predefinido.
-  await page.getByRole("button", { name: "1M", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "1M", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-  expect(
-    await page.evaluate(() =>
-      localStorage.getItem("rendimentos-chart-period-v1"),
-    ),
-  ).toBe("1A");
-
-  await page.evaluate(() =>
-    localStorage.setItem("rendimentos-chart-period-v1", "max"),
-  );
-  await page.goto("/");
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Máximo", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-});
 test("manter pesquisas independentes e permitir limpar resultados vazios", async ({
   page,
 }, testInfo) => {
