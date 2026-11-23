@@ -6,7 +6,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: "../tests/e2e",
   testMatch: "**/*.spec.ts",
-  testIgnore: "**/supabase-real.spec.ts",
+  testIgnore: "**/supabase-real/**",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   use: { baseURL, trace: "retain-on-failure" },
@@ -14,6 +14,8 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile",
+      // Os testes independentes de layout, navegação e toque já correm no desktop.
+      grepInvert: /@desktop-only/,
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
     },
   ],

@@ -1,9 +1,16 @@
-import { useState, type KeyboardEvent } from "react";
-import type { Position } from "@/lib/portfolio/portfolio";
-import type { Currency, MarketData } from "@/lib/types";
+import { useMemo, useState, type KeyboardEvent } from "react";
+import {
+  calculatePositionPeriodReturns,
+  performancePeriods,
+  type PerformancePeriod,
+  type Position,
+  type PositionPeriodReturn,
+} from "@/lib/portfolio/portfolio";
+import type { Currency, MarketData, Order } from "@/lib/types";
 import { Icon } from "@/components/icon";
 import { useTableSort } from "@/components/sortable-table/use-table-sort";
 import { SortableColumnHeading } from "@/components/sortable-table/sortable-column-heading";
+import { usePositionsPeriodPreference } from "@/components/positions-period/use-positions-period-preference";
 
 type Filter = "open" | "closed" | "all";
 type Sort = "value" | "return" | "asset";
@@ -13,16 +20,35 @@ const sortNames = {
   return: "Rentabilidade",
   asset: "Ativo",
 };
+const positionFilterIcon = (
+  <svg
+    className="icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    aria-hidden="true"
+  >
+    <path d="M4 5h16l-6 7v7l-4-2v-5z" />
+  </svg>
+);
 
 function gainClass(value: number | null) {
   if (value === null || value === 0) return "";
   return value > 0 ? "positive" : "negative";
 }
 
-function positionReturn(position: Position) {
-  return position.shares === 0
-    ? position.realizedPercent
-    : position.unrealizedPercent;
+function displayedReturn(
+  position: Position,
+  periodReturns: Map<string, PositionPeriodReturn> | null,
+): PositionPeriodReturn {
+  if (position.shares === 0) {
+    return { gain: position.realized, percent: position.realizedPercent };
+  }
+  if (periodReturns === null) {
+    return { gain: position.unrealized, percent: position.unrealizedPercent };
+  }
+  return periodReturns.get(position.ticker) ?? { gain: null, percent: null };
 }
 
 function positionQuoteStatus(
@@ -135,20 +161,238 @@ function validQuoteDate(asOf: string | null | undefined) {
   return date && Number.isFinite(date.getTime()) ? date : null;
 }
 
+function PositionsToolbar({
+  compact,
+  period,
+  onPeriodChange,
+  filter,
+  counts,
+  onFilterChange,
+  sort,
+  onSortChange,
+  direction,
+  onToggleDirection,
+}: {
+  compact: boolean;
+  period: PerformancePeriod;
+  onPeriodChange: (period: PerformancePeriod) => void;
+  filter: Filter;
+  counts: Record<Filter, number>;
+  onFilterChange: (filter: Filter) => void;
+  sort: Sort;
+  onSortChange: (sort: Sort) => void;
+  direction: "asc" | "desc";
+  onToggleDirection: () => void;
+}) {
+  return (
+    <div className="positions-toolbar no-print">
+      {!compact ? (
+        <div
+          className="segments position-period"
+          role="group"
+          aria-label="Período da rentabilidade"
+        >
+          {performancePeriods.map((performancePeriod) => (
+            <button
+              key={performancePeriod}
+              type="button"
+              aria-pressed={period === performancePeriod}
+              onClick={() => onPeriodChange(performancePeriod)}
+            >
+              {performancePeriod}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <details
+        className="list-filter-menu"
+        onKeyDown={closeDetailsOnEscape}
+      >
+        <summary aria-label="Filtrar posições">{positionFilterIcon}</summary>
+        <div className="list-filter-content">
+          <div
+            className="position-filters"
+            role="group"
+            aria-label="Estado das posições"
+          >
+            {(["open", "closed", "all"] as const).map((key) => (
+              <button
+                key={key}
+                aria-pressed={filter === key}
+                onClick={() => onFilterChange(key)}
+              >
+                {filterNames[key]} <span>{counts[key]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="position-order">
+            <label>
+              <span>Ordenar por</span>
+              <select
+                aria-label="Ordenar posições por"
+                value={sort}
+                onChange={(event) => onSortChange(event.target.value as Sort)}
+              >
+                {(["value", "return", "asset"] as const).map((key) => (
+                  <option
+                    key={key}
+                    value={key}
+                  >
+                    {sortNames[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="position-direction"
+              onClick={onToggleDirection}
+              aria-label={`Ordenação ${direction === "asc" ? "ascendente" : "descendente"}. Inverter ordem`}
+            >
+              <span aria-hidden="true">{direction === "asc" ? "↑" : "↓"}</span>
+            </button>
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function usePositionPeriodReturns({
+  orders,
+  market,
+  currency,
+  compact,
+}: {
+  orders: Order[];
+  market: MarketData;
+  currency: Currency;
+  compact: boolean;
+}) {
+  const preferredPeriod = usePositionsPeriodPreference();
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<PerformancePeriod | null>(null);
+  // A escolha nos botões vale só para esta vista; sem escolha, segue a
+  // preferência das Definições, tal como o gráfico. A tabela compacta da visão
+  // geral não tem seletor e mostra sempre a rentabilidade desde a aquisição.
+  const period = compact ? "Máximo" : (selectedPeriod ?? preferredPeriod);
+  const endDate = new Date().toISOString().slice(0, 10);
+  const periodReturns = useMemo(
+    () =>
+      period === "Máximo"
+        ? null
+        : calculatePositionPeriodReturns({
+            orders,
+            market,
+            currency,
+            period,
+            end: endDate,
+          }),
+    [orders, market, currency, period, endDate],
+  );
+
+  return { period, setPeriod: setSelectedPeriod, periodReturns };
+}
+
+function positionColumnHeadings(filter: Filter, period: PerformancePeriod) {
+  const periodSuffix =
+    period !== "Máximo" && filter !== "closed" ? ` (${period})` : "";
+  const gainHeading =
+    filter === "closed"
+      ? "Ganho realizado"
+      : `${filter === "open" ? "Ganho não realizado" : "Ganho"}${periodSuffix}`;
+  const returnHeading = periodSuffix
+    ? `Rentabilidade${periodSuffix}`
+    : "Rentabilidade";
+
+  return { returnHeading, gainHeading };
+}
+
+function PositionsEmptyState({
+  message,
+  search,
+  filter,
+  onClearSearch,
+  onShowAll,
+}: {
+  message: string;
+  search: string;
+  filter: Filter;
+  onClearSearch: () => void;
+  onShowAll: () => void;
+}) {
+  return (
+    <div className="position-empty no-results">
+      <Icon name="positions" />
+      <p>{message}</p>
+      {search ? (
+        <button
+          className="text-button"
+          onClick={onClearSearch}
+        >
+          Limpar pesquisa
+        </button>
+      ) : filter !== "all" ? (
+        <button
+          className="text-button"
+          onClick={onShowAll}
+        >
+          Ver todas as posições
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function PositionGainCell({
+  closed,
+  gain,
+  gainPercent,
+  period,
+  showRealizedNote,
+}: {
+  closed: boolean;
+  gain: number | null;
+  gainPercent: number | null;
+  period: PerformancePeriod;
+  showRealizedNote: boolean;
+}) {
+  const mobileLabel = closed
+    ? "Rentabilidade realizada"
+    : `Rentabilidade${period !== "Máximo" ? ` (${period})` : ""}`;
+
+  return (
+    <td
+      className={`position-gain ${closed ? "position-gain-realized" : ""} ${gainClass(gain)}`}
+    >
+      <span className="position-mobile-label">{mobileLabel}</span>
+      <strong className="gain-percent">{percent(gainPercent)}</strong>
+      {showRealizedNote ? (
+        <small className="position-period-note">Realizado</small>
+      ) : null}
+    </td>
+  );
+}
+
 function PositionRow({
   position,
+  returnValue,
+  showRealizedNote,
+  period,
   market,
   currency,
   loading,
 }: {
   position: Position;
+  returnValue: PositionPeriodReturn;
+  showRealizedNote: boolean;
+  period: PerformancePeriod;
   market: MarketData;
   currency: Currency;
   loading: boolean;
 }) {
   const closed = position.shares === 0;
-  const gain = closed ? position.realized : position.unrealized;
-  const gainPercent = positionReturn(position);
+  const gain = returnValue.gain;
+  const gainPercent = returnValue.percent;
   const asOf = market[position.ticker]?.asOf;
   const validDate = validQuoteDate(asOf);
   const fullDate = validDate?.toLocaleString("pt-PT", {
@@ -208,18 +452,18 @@ function PositionRow({
           <small className="position-mobile-label">{position.issue}</small>
         ) : null}
       </td>
-      <td className={`position-gain ${gainClass(gain)}`}>
-        <span className="position-mobile-label">
-          {closed ? "Rentabilidade realizada" : "Rentabilidade"}
-        </span>
-        <strong className="gain-percent">{percent(gainPercent)}</strong>
-      </td>
+      <PositionGainCell
+        closed={closed}
+        gain={gain}
+        gainPercent={gainPercent}
+        period={period}
+        showRealizedNote={showRealizedNote}
+      />
       <td className={`position-profit ${gainClass(gain)}`}>
         <span className="position-mobile-label">Ganho</span>
         <strong>{money(currency, gain, true)}</strong>
       </td>
       <td className="position-actions">
-        {" "}
         <PositionDetails
           position={position}
           currency={currency}
@@ -233,6 +477,7 @@ function PositionRow({
 
 export function PositionsTable({
   positions,
+  orders,
   market,
   currency,
   loading,
@@ -242,6 +487,7 @@ export function PositionsTable({
 }: {
   compact?: boolean;
   positions: Position[];
+  orders: Order[];
   market: MarketData;
   currency: Currency;
   loading: boolean;
@@ -249,6 +495,12 @@ export function PositionsTable({
   onClearSearch: () => void;
 }) {
   const [filter, setFilter] = useState<Filter>("open");
+  const { period, setPeriod, periodReturns } = usePositionPeriodReturns({
+    orders,
+    market,
+    currency,
+    compact,
+  });
   const sorting = useTableSort<Sort>("value", {
     value: "desc",
     return: "desc",
@@ -281,9 +533,13 @@ export function PositionsTable({
       );
     } else {
       const leftValue =
-        sort === "value" ? leftPosition.value : positionReturn(leftPosition);
+        sort === "value"
+          ? leftPosition.value
+          : displayedReturn(leftPosition, periodReturns).percent;
       const rightValue =
-        sort === "value" ? rightPosition.value : positionReturn(rightPosition);
+        sort === "value"
+          ? rightPosition.value
+          : displayedReturn(rightPosition, periodReturns).percent;
 
       // Missing observations always follow known values, including a valid zero.
       if (leftValue === null) {
@@ -303,11 +559,7 @@ export function PositionsTable({
     );
   }
   const visiblePositions = filteredPositions.sort(comparePositions);
-  const gainHeading = {
-    closed: "Ganho realizado",
-    all: "Ganho",
-    open: "Ganho não realizado",
-  }[filter];
+  const { returnHeading, gainHeading } = positionColumnHeadings(filter, period);
   const emptyMessage = search
     ? "Nenhuma posição corresponde à pesquisa."
     : {
@@ -320,70 +572,18 @@ export function PositionsTable({
     <div
       className={`positions-view fidelity-positions ${compact ? "list-compact" : ""}`}
     >
-      <div className="positions-toolbar no-print">
-        <details
-          className="list-filter-menu"
-          onKeyDown={closeDetailsOnEscape}
-        >
-          <summary aria-label="Filtrar posições">
-            <svg
-              className="icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              aria-hidden="true"
-            >
-              <path d="M4 5h16l-6 7v7l-4-2v-5z" />
-            </svg>
-          </summary>
-          <div className="list-filter-content">
-            <div
-              className="position-filters"
-              role="group"
-              aria-label="Estado das posições"
-            >
-              {(["open", "closed", "all"] as const).map((key) => (
-                <button
-                  key={key}
-                  aria-pressed={filter === key}
-                  onClick={() => setFilter(key)}
-                >
-                  {filterNames[key]} <span>{counts[key]}</span>
-                </button>
-              ))}
-            </div>
-            <div className="position-order">
-              <label>
-                <span>Ordenar por</span>
-                <select
-                  aria-label="Ordenar posições por"
-                  value={sort}
-                  onChange={(event) => selectSort(event.target.value as Sort)}
-                >
-                  {(["value", "return", "asset"] as const).map((key) => (
-                    <option
-                      key={key}
-                      value={key}
-                    >
-                      {sortNames[key]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className="position-direction"
-                onClick={toggleDirection}
-                aria-label={`Ordenação ${direction === "asc" ? "ascendente" : "descendente"}. Inverter ordem`}
-              >
-                <span aria-hidden="true">
-                  {direction === "asc" ? "↑" : "↓"}
-                </span>
-              </button>
-            </div>
-          </div>
-        </details>
-      </div>
+      <PositionsToolbar
+        compact={compact}
+        period={period}
+        onPeriodChange={setPeriod}
+        filter={filter}
+        counts={counts}
+        onFilterChange={setFilter}
+        sort={sort}
+        onSortChange={selectSort}
+        direction={direction}
+        onToggleDirection={toggleDirection}
+      />
       <p
         className="position-context"
         aria-live="polite"
@@ -392,6 +592,7 @@ export function PositionsTable({
         {visiblePositions.length} de {counts[filter]}{" "}
         {counts[filter] === 1 ? "posição" : "posições"} · {filterNames[filter]}
         {search ? ` · Pesquisa: “${search}”` : ""}
+        {!compact && period !== "Máximo" ? ` · Rentabilidade: ${period}` : ""}
         <span className="position-print-order">
           {" "}
           · {sortNames[sort]} ·{" "}
@@ -421,7 +622,7 @@ export function PositionsTable({
               />
               <SortableColumnHeading
                 sortKey="return"
-                label="Rentabilidade"
+                label={returnHeading}
                 sorting={sorting}
                 className="position-sort"
               />
@@ -436,6 +637,13 @@ export function PositionsTable({
               <PositionRow
                 key={position.ticker}
                 position={position}
+                returnValue={displayedReturn(position, periodReturns)}
+                period={period}
+                showRealizedNote={
+                  filter === "all" &&
+                  period !== "Máximo" &&
+                  position.shares === 0
+                }
                 market={market}
                 currency={currency}
                 loading={loading}
@@ -444,25 +652,13 @@ export function PositionsTable({
           </tbody>
         </table>
       ) : (
-        <div className="position-empty no-results">
-          <Icon name="positions" />
-          <p>{emptyMessage}</p>
-          {search ? (
-            <button
-              className="text-button"
-              onClick={onClearSearch}
-            >
-              Limpar pesquisa
-            </button>
-          ) : filter !== "all" ? (
-            <button
-              className="text-button"
-              onClick={() => setFilter("all")}
-            >
-              Ver todas as posições
-            </button>
-          ) : null}
-        </div>
+        <PositionsEmptyState
+          message={emptyMessage}
+          search={search}
+          filter={filter}
+          onClearSearch={onClearSearch}
+          onShowAll={() => setFilter("all")}
+        />
       )}
     </div>
   );

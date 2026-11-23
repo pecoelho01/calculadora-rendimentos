@@ -1,4 +1,5 @@
 import { parseChartPeriod } from "@/lib/chart-period";
+import { parsePositionsPeriod } from "@/lib/positions-period";
 import { parseTheme, type ThemePreference } from "@/lib/theme";
 import type { PerformancePeriod } from "@/lib/portfolio/portfolio";
 
@@ -9,6 +10,7 @@ export type AccountPreferences = {
   version: 1;
   theme: ThemePreference;
   chartPeriod: PerformancePeriod;
+  positionsPeriod: PerformancePeriod;
 };
 
 export function parseAccountPreferences(
@@ -17,13 +19,21 @@ export function parseAccountPreferences(
   const metadata = record(userMetadata);
   const preferences = record(metadata?.[ACCOUNT_PREFERENCES_KEY]);
   if (preferences?.version !== 1) {
-    return { version: 1, theme: "system", chartPeriod: "Máximo" };
+    return {
+      version: 1,
+      theme: "system",
+      chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
+    };
   }
   return {
     version: 1,
     theme: parseTheme(preferences.theme as string | undefined),
     chartPeriod: parseChartPeriod(
       preferences.chartPeriod as string | undefined,
+    ),
+    positionsPeriod: parsePositionsPeriod(
+      preferences.positionsPeriod as string | undefined,
     ),
   };
 }

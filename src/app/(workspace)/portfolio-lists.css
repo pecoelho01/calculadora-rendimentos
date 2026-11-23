@@ -364,6 +364,17 @@
     right: 0;
     z-index: 6;
   }
+  .fidelity-positions .positions-toolbar .position-period {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    margin-bottom: 12px;
+  }
+  .fidelity-positions .positions-toolbar .position-period button {
+    flex: 1 1 auto;
+    padding-inline: 4px;
+  }
   :is(.fidelity-positions, .fidelity-transactions) .list-filter-menu > summary {
     display: grid;
     place-items: center;

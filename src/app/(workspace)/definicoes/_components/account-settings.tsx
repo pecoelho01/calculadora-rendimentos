@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "@/components/icon";
 import { ChartPeriodSelector } from "@/components/chart-period/chart-period-selector";
+import { PositionsPeriodSelector } from "@/components/positions-period/positions-period-selector";
 import { ThemePicker } from "@/components/theme/theme-picker";
 
 type AccountSettingsProps = {
@@ -110,6 +111,18 @@ export function AccountSettings({
                 </span>
               </div>
               <ChartPeriodSelector />
+            </div>
+            <div className="settings-row">
+              <div>
+                <strong>Período predefinido das posições</strong>
+                <span>
+                  Período apresentado ao abrir a tabela de posições.{" "}
+                  {isAccountMode
+                    ? "Guardado na tua conta."
+                    : "Guardado neste dispositivo."}
+                </span>
+              </div>
+              <PositionsPeriodSelector />
             </div>
             <div className="settings-row">
               <div>

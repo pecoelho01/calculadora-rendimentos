@@ -741,10 +741,10 @@ html:has(.workspace-drawer:modal) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 24px 22px;
+  margin: 0 24px 16px;
 }
 .performance-modes button {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 0;
@@ -1712,12 +1712,15 @@ ul.import-help {
     flex: 1;
   }
   .performance-modes {
-    margin: 0 18px 20px;
+    margin: 0 18px 16px;
     gap: 6px;
   }
   .performance-modes button {
     flex: 1;
-    padding: 8px;
+    min-width: 0;
+    padding: 8px 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .performance-current {
     padding: 0 18px 18px;
@@ -2322,6 +2325,13 @@ ul.import-help {
   flex-wrap: wrap;
   gap: 16px;
   padding: 4px 24px 0;
+}
+.position-period-note {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 :is(.position-filters, .transaction-filters) {
   display: flex;
@@ -3274,6 +3284,7 @@ ul.import-help {
     border-radius: 9px;
     min-height: 44px;
     font-size: 11px;
+    line-height: 1.25;
   }
   .performance .panel-heading {
     padding-block: 18px 12px;
@@ -3898,6 +3909,15 @@ ul.import-help {
   .positions-table .position-gain > :is(.gain-amount, .gain-percent) {
     grid-column: 2;
     text-align: right;
+  }
+  .positions-table .position-gain > .position-period-note {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 0;
+    text-align: right;
+  }
+  .positions-table .position-gain-realized > .position-period-note {
+    display: none;
   }
   .position-details {
     margin-top: 0;

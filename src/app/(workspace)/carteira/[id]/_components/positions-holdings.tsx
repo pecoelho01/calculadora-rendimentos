@@ -24,6 +24,7 @@ export function PositionsHoldings({ compact = false }: { compact?: boolean }) {
         key={portfolio.id}
         compact={compact}
         positions={summary.positions}
+        orders={portfolio.orders}
         market={market}
         currency={portfolio.currency}
         loading={loading}
