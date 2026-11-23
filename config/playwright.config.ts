@@ -14,6 +14,8 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile",
+      // Os testes independentes de layout, navegação e toque já correm no desktop.
+      grepInvert: /@desktop-only/,
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
     },
   ],
