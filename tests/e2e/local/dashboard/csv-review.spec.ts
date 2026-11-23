@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { confirmCsvReview } from "../helpers/csv-helpers";
+import { confirmCsvReview } from "../../../helpers/csv-helpers";
 
 const storageKey = "rendimentos.portfolios.v1";
 const header = "date,ticker,name,pricebuy,shares,type\n";

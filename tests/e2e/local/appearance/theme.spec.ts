@@ -1,5 +1,5 @@
-import { confirmCsvReview } from "../helpers/csv-helpers";
-import { navigateTo } from "../helpers/sidebar-helpers";
+import { confirmCsvReview } from "../../../helpers/csv-helpers";
+import { navigateTo } from "../../../helpers/sidebar-helpers";
 import { test, expect } from "@playwright/test";
 
 const themeKey = "rendimentos-theme-v1";
