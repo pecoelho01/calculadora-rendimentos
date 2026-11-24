@@ -278,7 +278,7 @@ O Playwright inicia `next start` depois do build e testa desktop/móvel, persist
 
 Se a porta 3100 estiver ocupada por outro worktree, definir `PLAYWRIGHT_PORT` com uma porta livre no comando de teste; o servidor e os callbacks usam a mesma origem isolada.
 
-As specs Playwright estão organizadas por modo de build: `tests/e2e/local/` usa um build sem Supabase, `tests/e2e/account/` um build com Supabase simulado e `tests/e2e/supabase-real/` corre só através de `npm run test:e2e:supabase-real`. Cada job E2E da CI seleciona a sua pasta.
+As specs Playwright estão organizadas por modo de build: `tests/e2e/local/` usa um build sem Supabase, `tests/e2e/account/` um build com Supabase simulado e `tests/e2e/supabase-real/` corre só através de `npm run test:e2e:supabase-real`. Cada job E2E da CI seleciona a sua pasta. O catálogo dos testes E2E, com o que cada um verifica, está em [tests/e2e/README.md](tests/e2e/README.md).
 
 Os testes de conta no Playwright exigem um build com configuração pública fictícia, sem credenciais reais:
 
