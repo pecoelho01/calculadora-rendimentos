@@ -93,3 +93,14 @@ export async function assertNoOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+
+/**
+ * Waits until the entry redirect (`/` → `/carteira` → `/carteira/<id>/geral`)
+ * has settled. The sidebar and the recovery dialog already render on `/`, but
+ * submitting a new password there calls `history.replaceState`, which makes
+ * Next discard the pending redirect and leaves `/` without content (app bug,
+ * still to fix). Requires an account with at least one portfolio.
+ */
+export async function waitForPortfolioOverviewRoute(page: Page) {
+  await expect(page).toHaveURL(/\/carteira\/[^/?]+\/geral(?:\?.*)?$/);
+}

@@ -14,6 +14,7 @@ import {
   authSurface,
   login,
   assertNoOverflow,
+  waitForPortfolioOverviewRoute,
 } from "../../helpers/account/actions";
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
@@ -222,6 +223,7 @@ for (const localMode of [false, true]) {
   }) => {
     const state = await setup(page, true);
     await page.goto("/");
+    await waitForPortfolioOverviewRoute(page);
     await expect(
       selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
     ).toBeVisible();
