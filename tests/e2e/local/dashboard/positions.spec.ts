@@ -10,7 +10,12 @@ import {
 } from "../../../helpers/dashboard/dashboard-helpers";
 import { openListFilters } from "../../../helpers/dashboard/list-filters";
 
+// "Hoje" fixo, no dia seguinte ao último fecho dos mocks (asOf em dashboard-helpers),
+// para que os períodos relativos (1M, 1A, …) não dependam da data da execução.
+const fixedToday = new Date("2026-10-30T12:00:00Z");
+
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(fixedToday);
   await mockMarketAndGeography(page);
 });
 
@@ -152,7 +157,6 @@ async function verifyPositionPeriodValues(page: Page) {
 test("período da tabela é independente, aplica-se às posições abertas e adapta-se a telemóvel", async ({
   page,
 }) => {
-  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   const history = [
     { date: "2025-01-03", close: 100 },
     { date: "2025-10-29", close: 105 },

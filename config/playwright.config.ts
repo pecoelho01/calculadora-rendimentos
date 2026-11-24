@@ -9,7 +9,12 @@ export default defineConfig({
   testIgnore: "**/supabase-real/**",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  use: { baseURL, trace: "retain-on-failure" },
+  use: {
+    baseURL,
+    locale: "pt-PT",
+    timezoneId: "Europe/Lisbon",
+    trace: "retain-on-failure",
+  },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
