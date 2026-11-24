@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import { confirmCsvReview } from "../../../helpers/csv-helpers";
 import {
@@ -126,11 +127,23 @@ test("registar ordens, bloquear venda excessiva e criar carteira", async ({
   await expect(
     page.getByRole("button", { name: "Exportar backup JSON", exact: true }),
   ).toBeVisible();
+  const storedPortfolios = await page.evaluate(() => {
+    const stored = localStorage.getItem("rendimentos.portfolios.v1");
+    return stored ? JSON.parse(stored).portfolios : [];
+  });
   const download = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Exportar backup JSON", exact: true })
     .click();
-  expect((await download).suggestedFilename()).toBe("carteiras.json");
+  const backupDownload = await download;
+  expect(backupDownload.suggestedFilename()).toBe("carteiras.json");
+  const backupPath = await backupDownload.path();
+  expect(backupPath).not.toBeNull();
+  const backup = JSON.parse(await readFile(backupPath!, "utf8"));
+  expect(backup).toEqual({ version: 1, portfolios: storedPortfolios });
+  expect(backup.portfolios).toContainEqual(
+    expect.objectContaining({ name: "Longo prazo", currency: "USD" }),
+  );
 });
 
 test("filtrar e ordenar transações, consultar detalhes e preservar a validação de remoção", async ({

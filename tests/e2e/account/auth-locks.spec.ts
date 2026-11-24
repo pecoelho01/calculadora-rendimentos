@@ -14,6 +14,11 @@ import {
   authSurface,
   login,
 } from "../../helpers/account/actions";
+import {
+  countAuthLockRequests,
+  isAuthMutationLockHeld,
+  readAuthLockRequests,
+} from "../../helpers/account/auth-lock";
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
@@ -264,6 +269,7 @@ test(
   async ({ page, context }) => {
     const state = await setup(page, true);
     await page.clock.install();
+    await countAuthLockRequests(page);
     await page.goto("/");
     await expect(selectedPortfolio(page)).toBeVisible();
     const other = await context.newPage();
@@ -288,11 +294,18 @@ test(
       ({ key, expired }) => localStorage.setItem(key, JSON.stringify(expired)),
       { key: authKey, expired: session(userA, -3600) },
     );
+    const lockRequestsBeforeRefresh = await readAuthLockRequests(page);
     await page.clock.fastForward(30_000);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("focus"));
       document.dispatchEvent(new Event("visibilitychange"));
     });
+    // The refresh must have asked for the lock (and been turned away, since the
+    // other tab holds it) for the absence of Auth requests below to mean
+    // anything.
+    await expect
+      .poll(() => readAuthLockRequests(page))
+      .toBeGreaterThan(lockRequestsBeforeRefresh);
     expect(state.authRequests).toHaveLength(0);
     await other.evaluate(() =>
       (
@@ -324,11 +337,19 @@ test(
   async ({ page }) => {
     const state = await setup(page, true);
     await page.clock.install();
+    await countAuthLockRequests(page);
     await page.goto("/");
     await expect(selectedPortfolio(page)).toBeVisible();
     await startLogoutAndStoreExpiredSession(page, state);
+    await expect.poll(() => isAuthMutationLockHeld(page)).toBe(true);
+    // While the logout runs, refresh() stops at its in-tab mutation guard before
+    // asking for the lock (src/lib/auth/browser-auth.ts). Both the timer and the
+    // focus handler reach that point synchronously, so no new lock request may
+    // appear. The previous test covers refreshes that are never triggered.
+    const lockRequestsDuringLogout = await readAuthLockRequests(page);
     await page.clock.fastForward(30_000);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    expect(await readAuthLockRequests(page)).toBe(lockRequestsDuringLogout);
     expect(
       state.authRequests.filter((request) => request.grant === "refresh_token"),
     ).toHaveLength(0);

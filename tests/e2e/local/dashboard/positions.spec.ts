@@ -300,7 +300,7 @@ test("organizar posições por estado, valor e rentabilidade sem confundir zero 
   const fx = rows.filter({
     has: page.locator(".position-identity a", { hasText: /^FX/ }),
   });
-  await expect(zero.locator(".position-value strong")).toHaveText(/0,00/);
+  await expect(zero.locator(".position-value strong")).toHaveText(/^0,00\s€$/);
   await expect(zero.locator(".position-profit")).toContainText("-10,00");
   await expect(missing.locator(".position-value strong")).toHaveText("—");
   await expect(missing.locator(".position-gain strong")).toHaveText("—");

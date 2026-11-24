@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import { confirmCsvReview } from "../../../helpers/csv-helpers";
 import {
@@ -165,12 +166,6 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
       .getByRole("button", { name: "Importar CSV", exact: true }),
   ).toBeHidden();
   await toggle.press("Enter");
-  const downloadPromise = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Exportar transações CSV", exact: true })
-    .click();
-  expect((await downloadPromise).suggestedFilename()).toBe("transacoes.csv");
-  await expect(actions).not.toHaveAttribute("open");
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
     .setInputFiles({
@@ -179,6 +174,27 @@ test("ações agrupadas acessíveis por teclado e metodologia completa na impres
       buffer: Buffer.from(csv),
     });
   await confirmCsvReview(page);
+  await expect(
+    page.getByRole("button", { name: "Exportar transações CSV", exact: true }),
+  ).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Exportar transações CSV", exact: true })
+    .click();
+  const download = await downloadPromise;
+  await expect(actions).not.toHaveAttribute("open");
+  expect(download.suggestedFilename()).toBe("transacoes.csv");
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const csvContents = await readFile(downloadPath!, "utf8");
+  expect(csvContents).toBe(
+    [
+      "date,ticker,name,pricebuy,shares,type",
+      '"2024-01-01","TEST","Teste","100","10","buy"',
+      '"2024-01-02","TEST","Teste","120","10","buy"',
+      '"2024-01-03","TEST","Teste","130","5","sell"',
+    ].join("\r\n"),
+  );
   const methodology = page.locator(".chart-methodology");
   const explanation = methodology.locator(".fine-print");
   await expect(page.locator(".chart-limitations")).toContainText(

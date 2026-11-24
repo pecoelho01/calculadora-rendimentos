@@ -61,6 +61,11 @@ test("preferência das posições é independente do gráfico e das escolhas loc
 }, testInfo) => {
   await openPeriodPreferences(page, testInfo);
 
+  // Start from a different stored value so the poll below can only pass after
+  // the selection is actually written.
+  await page.evaluate(() =>
+    localStorage.setItem("rendimentos-positions-period-v1", "Máximo"),
+  );
   await page.getByLabel("Período predefinido das posições").selectOption("1A");
   await page.getByLabel("Período predefinido do gráfico").selectOption("6M");
   await expect
@@ -70,6 +75,13 @@ test("preferência das posições é independente do gráfico e das escolhas loc
       ),
     )
     .toBe("1A");
+  await page.reload();
+  await expect(page.getByLabel("Período predefinido das posições")).toHaveValue(
+    "1A",
+  );
+  await expect(page.getByLabel("Período predefinido do gráfico")).toHaveValue(
+    "6M",
+  );
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
