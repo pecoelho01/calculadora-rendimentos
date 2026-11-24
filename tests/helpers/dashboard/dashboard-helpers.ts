@@ -9,6 +9,9 @@ export const assets = {
     name: "Teste",
     asOf: "2026-10-29T16:00:00Z",
     history: [
+      { date: "2024-01-01", close: 100 },
+      { date: "2024-01-02", close: 120 },
+      { date: "2024-01-03", close: 130 },
       { date: "2024-01-05", close: 100 },
       { date: "2024-01-12", close: 140 },
     ],

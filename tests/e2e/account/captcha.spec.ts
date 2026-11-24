@@ -164,54 +164,61 @@ test("CAPTCHA expira e cada tentativa Auth exige um token novo", async ({
   expect(tokens[1]).not.toBe(tokens[0]);
 });
 
-test("CAPTCHA bloqueado permite repetir a verificação sem enviar Auth", async ({
-  page,
-}) => {
-  test.skip(
-    !process.env.TEST_CAPTCHA,
-    "Requer build com site key Turnstile fictícia.",
-  );
-  const state = await setup(page, false, false);
-  let blockScript = true;
-  await page.route(
-    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
-    (route) => (blockScript ? route.abort() : route.fallback()),
-  );
-  await page.goto("/");
-  await page.getByRole("button", { name: "Criar conta", exact: true }).click();
-  const dialog = authSurface(page);
-  await expect(
-    dialog.getByText(/Não foi possível concluir a verificação/),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Criar conta", exact: true }),
-  ).toBeDisabled();
-  expect(state.authRequests).toHaveLength(0);
-  blockScript = false;
-  // A network failure never leaves a previous token usable, even after retry.
-  await dialog
-    .getByRole("button", { name: "Tentar verificação novamente", exact: true })
-    .click();
-  await expect(
-    dialog.getByText("Verificação de segurança simulada"),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Criar conta", exact: true }),
-  ).toBeDisabled();
-  expect(state.authRequests).toHaveLength(0);
-  await page.evaluate(() =>
-    (window as unknown as CaptchaMockWindow).__captchaMock.issue(),
-  );
-  await expect(
-    dialog.getByRole("button", { name: "Criar conta", exact: true }),
-  ).toBeEnabled();
-  await page.evaluate(() =>
-    (window as unknown as CaptchaMockWindow).__captchaMock.timeout(),
-  );
-  await expect(
-    dialog.getByText(/Não foi possível concluir a verificação/),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Criar conta", exact: true }),
-  ).toBeDisabled();
-});
+test(
+  "CAPTCHA bloqueado permite repetir a verificação sem enviar Auth",
+  { tag: "@desktop-only" },
+  async ({ page }) => {
+    test.skip(
+      !process.env.TEST_CAPTCHA,
+      "Requer build com site key Turnstile fictícia.",
+    );
+    const state = await setup(page, false, false);
+    let blockScript = true;
+    await page.route(
+      "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
+      (route) => (blockScript ? route.abort() : route.fallback()),
+    );
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Criar conta", exact: true })
+      .click();
+    const dialog = authSurface(page);
+    await expect(
+      dialog.getByText(/Não foi possível concluir a verificação/),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Criar conta", exact: true }),
+    ).toBeDisabled();
+    expect(state.authRequests).toHaveLength(0);
+    blockScript = false;
+    // A network failure never leaves a previous token usable, even after retry.
+    await dialog
+      .getByRole("button", {
+        name: "Tentar verificação novamente",
+        exact: true,
+      })
+      .click();
+    await expect(
+      dialog.getByText("Verificação de segurança simulada"),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Criar conta", exact: true }),
+    ).toBeDisabled();
+    expect(state.authRequests).toHaveLength(0);
+    await page.evaluate(() =>
+      (window as unknown as CaptchaMockWindow).__captchaMock.issue(),
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Criar conta", exact: true }),
+    ).toBeEnabled();
+    await page.evaluate(() =>
+      (window as unknown as CaptchaMockWindow).__captchaMock.timeout(),
+    );
+    await expect(
+      dialog.getByText(/Não foi possível concluir a verificação/),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Criar conta", exact: true }),
+    ).toBeDisabled();
+  },
+);
