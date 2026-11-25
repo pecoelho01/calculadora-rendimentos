@@ -10,7 +10,10 @@ import {
   session,
   setup,
 } from "../../helpers/account/mock-backend";
-import { authSurface } from "../../helpers/account/actions";
+import {
+  authSurface,
+  waitForPortfolioOverviewRoute,
+} from "../../helpers/account/actions";
 import {
   requestRecovery,
   openRecovery,
@@ -56,6 +59,7 @@ test(
     await page.goto("/?recovery=1&code=recovery-test-code");
     const dialog = authSurface(page, "Definir nova palavra-passe");
     await expect(dialog).toBeVisible();
+    await waitForPortfolioOverviewRoute(page);
     await dialog
       .getByLabel("Nova palavra-passe", { exact: true })
       .fill("recovered-password-test");

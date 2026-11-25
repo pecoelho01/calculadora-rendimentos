@@ -14,6 +14,7 @@ import {
   accountAction,
   authSurface,
   login,
+  waitForPortfolioOverviewRoute,
 } from "../../helpers/account/actions";
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
@@ -156,6 +157,7 @@ test(
     await page.goto("/?code=recovery-test-code&recovery=1");
     dialog = authSurface(page, "Definir nova palavra-passe");
     await expect(dialog).toBeVisible();
+    await waitForPortfolioOverviewRoute(page);
     state.delayAuthPath = "/user";
     await dialog
       .getByLabel("Nova palavra-passe", { exact: true })
