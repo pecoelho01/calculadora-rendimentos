@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { mockMarketAndGeography } from "../../helpers/dashboard/dashboard-helpers";
 
 test.beforeEach(async ({ page }) => {
@@ -8,9 +9,9 @@ test.beforeEach(async ({ page }) => {
 test("entrada sem Supabase conserva acesso explícito ao modo local", async ({
   page,
 }) => {
-  test.skip(
-    !process.env.TEST_NO_ACCOUNT_CONFIG,
-    "Requer TEST_NO_ACCOUNT_CONFIG=1 e build sem configuração Supabase.",
+  skipUnlessEnv(
+    "TEST_NO_ACCOUNT_CONFIG",
+    "Requer build sem configuração Supabase.",
   );
   await page.goto("/");
   await expect(
@@ -50,9 +51,9 @@ for (const [kind, callback] of [
   test(`limpar callback Auth sem Supabase e preservar modo local: ${kind}`, async ({
     page,
   }) => {
-    test.skip(
-      !process.env.TEST_NO_ACCOUNT_CONFIG,
-      "Requer build sem configuração Supabase válida.",
+    skipUnlessEnv(
+      "TEST_NO_ACCOUNT_CONFIG",
+      "Requer build sem configuração Supabase.",
     );
     let authRequests = 0;
     await page.route("**/auth/v1/**", (route) => {

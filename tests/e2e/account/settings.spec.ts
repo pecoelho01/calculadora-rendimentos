@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import {
   openSidebar,
   navigateTo,
@@ -21,8 +22,8 @@ import {
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -100,7 +101,7 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
   state.userMetadata = {
     rendimentosPreferences: {
       version: 1,
-      theme: "dark",
+      theme: "light",
       chartPeriod: "Máximo",
       positionsPeriod: "Máximo",
     },
@@ -124,14 +125,14 @@ test("preservar tema entre entrada, conta, modo local e saída", async ({
   await openAccountSettings(page);
   await expect(page.locator(".account-controls")).toHaveCSS(
     "background-color",
-    "rgb(19, 32, 45)",
+    "rgb(255, 255, 255)",
   );
   await expect(
-    page.getByRole("radio", { name: "Escuro", exact: true }),
+    page.getByRole("radio", { name: "Claro", exact: true }),
   ).toBeChecked();
   await assertNoOverflow(page);
   await page.screenshot({
-    path: testInfo.outputPath("conta-tema-escuro.png"),
+    path: testInfo.outputPath("conta-tema-claro.png"),
     fullPage: true,
   });
   await accountAction(page, "Usar modo local");
@@ -421,9 +422,19 @@ test(
     await expect(page.locator(".notice[role='alert']")).toContainText(
       "Não foi possível guardar",
     );
-    await expect(page.getByRole("radio", { name: "Escuro" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    expect(state.userMetadata.rendimentosPreferences).toEqual({
+      version: 1,
+      theme: "dark",
+      chartPeriod: "Máximo",
+      positionsPeriod: "Máximo",
+    });
+    const storedAuth = await page.evaluate((key) => {
+      const value = localStorage.getItem(key);
+      return value ? JSON.parse(value).user?.user_metadata : null;
+    }, authKey);
+    expect(storedAuth).toEqual(state.userMetadata);
+    await expect(page.getByLabel("Período predefinido do gráfico")).toHaveValue(
+      "Máximo",
     );
     await page.getByRole("button", { name: "Fechar aviso" }).click();
     await expect(page.locator(".notice[role='alert']")).toHaveCount(0);

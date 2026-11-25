@@ -1,15 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { userA, session, setup } from "../../helpers/account/mock-backend";
 import { authSurface, assertNoOverflow } from "../../helpers/account/actions";
 import {
   openRecovery,
   publishAuthSession,
 } from "../../helpers/account/recovery";
+import { isAuthMutationLockHeld } from "../../helpers/account/auth-lock";
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -58,6 +60,8 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
         request.body.email === "ana@example.test",
     ),
   ).toBe(true);
+  // Só o build com site key Turnstile envia tokens; captcha.spec.ts garante que
+  // TEST_CAPTCHA está definido no job de conta.
   if (process.env.TEST_CAPTCHA) {
     const tokens = state.authRequests
       .filter(
@@ -203,11 +207,24 @@ test(
       "SIGNED_IN",
     );
     await expect(dialog).toBeHidden();
+    const reauthenticationResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/reauthenticate") && response.ok(),
+    );
     state.releaseAuth();
+    await reauthenticationResponse;
     await expect(page.getByText(/A sessão de recuperação mudou/)).toBeVisible();
+    await expect.poll(() => isAuthMutationLockHeld(page)).toBe(false);
     await expect(
       page.getByText(/Enviámos um código de confirmação/),
     ).toHaveCount(0);
+    expect(
+      state.authRequests.filter((request) =>
+        request.path.endsWith("/reauthenticate"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      state.authRequests.filter((request) => request.path.endsWith("/recover")),
+    ).toHaveLength(1);
     expect(
       state.authRequests.filter(
         (request) => request.body.password === "discarded-reauth-password-test",

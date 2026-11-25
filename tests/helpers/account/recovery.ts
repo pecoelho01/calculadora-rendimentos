@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { authKey, session } from "./mock-backend";
-import { authSurface } from "./actions";
+import { authSurface, waitForPortfolioOverviewRoute } from "./actions";
 
 export async function requestRecovery(page: Page) {
   await page
@@ -25,6 +25,7 @@ export async function openRecovery(page: Page) {
   await page.goto("/?code=recovery-test-code&recovery=1");
   const dialog = authSurface(page, "Definir nova palavra-passe");
   await expect(dialog).toBeVisible();
+  await waitForPortfolioOverviewRoute(page);
   return dialog;
 }
 
