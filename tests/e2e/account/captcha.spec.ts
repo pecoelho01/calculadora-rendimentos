@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { selectedPortfolio } from "../../helpers/sidebar-helpers";
 import { setup } from "../../helpers/account/mock-backend";
 import {
@@ -9,8 +10,8 @@ import {
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -26,8 +27,8 @@ type CaptchaMockWindow = Window & {
 test("CAPTCHA mantém o nonce do documento após navegar para as definições da conta", async ({
   page,
 }) => {
-  test.skip(
-    !process.env.TEST_CAPTCHA,
+  skipUnlessEnv(
+    "TEST_CAPTCHA",
     "Requer build com site key Turnstile fictícia.",
   );
   const state = await setup(page, true, false);
@@ -96,8 +97,8 @@ test("CAPTCHA mantém o nonce do documento após navegar para as definições da
 test("CAPTCHA expira e cada tentativa Auth exige um token novo", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    !process.env.TEST_CAPTCHA,
+  skipUnlessEnv(
+    "TEST_CAPTCHA",
     "Requer build com site key Turnstile fictícia.",
   );
   const state = await setup(page, false, false);
@@ -168,8 +169,8 @@ test(
   "CAPTCHA bloqueado permite repetir a verificação sem enviar Auth",
   { tag: "@desktop-only" },
   async ({ page }) => {
-    test.skip(
-      !process.env.TEST_CAPTCHA,
+    skipUnlessEnv(
+      "TEST_CAPTCHA",
       "Requer build com site key Turnstile fictícia.",
     );
     const state = await setup(page, false, false);

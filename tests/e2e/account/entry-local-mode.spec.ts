@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { openSidebar, selectedPortfolio } from "../../helpers/sidebar-helpers";
 import {
   storageKey,
@@ -19,8 +20,8 @@ import {
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { userA, session, setup } from "../../helpers/account/mock-backend";
 import { authSurface, assertNoOverflow } from "../../helpers/account/actions";
 import {
@@ -8,8 +9,8 @@ import {
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -58,6 +59,8 @@ test("registo pede confirmação por email e recuperação envia ligação", asy
         request.body.email === "ana@example.test",
     ),
   ).toBe(true);
+  // Só o build com site key Turnstile envia tokens; captcha.spec.ts garante que
+  // TEST_CAPTCHA está definido no job de conta.
   if (process.env.TEST_CAPTCHA) {
     const tokens = state.authRequests
       .filter(
