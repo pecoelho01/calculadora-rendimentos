@@ -375,6 +375,7 @@ test(
       selectedPortfolio(page).getByText(restored.name, { exact: true }),
     ).toBeVisible();
     expect(state.requests).toHaveLength(1);
+    expect(state.requests[0].changes).toHaveLength(2);
     expect(state.requests[0].changes).toEqual(
       expect.arrayContaining([
         { id: "remote-a", portfolio: null, expectedRevision: 3 },

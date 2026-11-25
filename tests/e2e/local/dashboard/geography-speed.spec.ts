@@ -3,7 +3,7 @@ import {
   navigateTo,
   selectedPortfolio,
 } from "../../../helpers/sidebar-helpers";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 const asset = (price: number) => ({
   price,
   previousClose: price,
@@ -65,6 +65,30 @@ test.beforeEach(async ({ page }) => {
     }),
   );
 });
+/**
+ * Refreshes prices and waits until the refresh has finished, so that
+ * assertions about geography requests made afterwards are not read too early.
+ * On mobile the data menu closes after the action, so it is reopened to read
+ * the button state.
+ */
+async function refreshPricesAndWait(page: Page) {
+  const isMobile = (page.viewportSize()?.width ?? 1440) <= 800;
+  const dataMenu = page.locator(".data-actions summary");
+  const refreshButton = page.getByRole("button", {
+    name: "Atualizar preços",
+    exact: true,
+  });
+  if (isMobile) await dataMenu.click();
+  const marketResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/market?"),
+  );
+  await refreshButton.click();
+  await marketResponse;
+  if (isMobile) await dataMenu.click();
+  await expect(refreshButton).toBeEnabled();
+  if (isMobile) await dataMenu.click();
+}
+
 test("mostrar preços antes da geografia e reutilizar pedidos pendentes e resultados", async ({
   page,
 }) => {
@@ -90,14 +114,10 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   });
   await expect(chart).toContainText("A obter a distribuição por continente");
   await expect(chart.getByRole("img")).toHaveCount(0);
-  expect(requests).toHaveLength(1);
+  await expect.poll(() => requests.length).toBe(1);
   expect([...requests[0].searchParams.keys()]).toEqual(["tickers"]);
   expect(requests[0].searchParams.get("tickers")).toBe("TEST");
-  if ((page.viewportSize()?.width ?? 1440) <= 800)
-    await page.locator(".data-actions summary").click();
-  await page
-    .getByRole("button", { name: "Atualizar preços", exact: true })
-    .click();
+  await refreshPricesAndWait(page);
   await navigateTo(page, /^Posições/);
   await navigateTo(page, "Visão geral");
   await expect(chart).toContainText("A obter a distribuição por continente");
@@ -110,11 +130,7 @@ test("mostrar preços antes da geografia e reutilizar pedidos pendentes e result
   await page.locator(".portfolio-link").filter({ hasText: "Segunda" }).click();
   await expect(selectedPortfolio(page)).toContainText("Segunda");
   await expect(chart.locator(".donut")).toContainText("100%");
-  if ((page.viewportSize()?.width ?? 1440) <= 800)
-    await page.locator(".data-actions summary").click();
-  await page
-    .getByRole("button", { name: "Atualizar preços", exact: true })
-    .click();
+  await refreshPricesAndWait(page);
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toHaveLength(1);
 });
@@ -150,7 +166,14 @@ test("resposta antiga não altera a geografia da carteira selecionada", async ({
   await openSidebar(page);
   await page.locator(".portfolio-link").filter({ hasText: "Outra" }).click();
   await expect(chart.locator(".allocation-list")).toContainText("Ásia");
+  const releasedResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/geography?") &&
+      response.url().includes("tickers=TEST"),
+  );
   release();
+  await releasedResponse;
+  await expect(chart.locator(".allocation-list")).toContainText("Ásia");
   await expect(chart.locator(".allocation-list")).not.toContainText(
     "América do Norte",
   );
@@ -181,11 +204,7 @@ test("falha geográfica não bloqueia preços nem é repetida ao atualizar", asy
   await expect(chart.locator(".allocation-list")).toContainText(
     "Sem classificação",
   );
-  if ((page.viewportSize()?.width ?? 1440) <= 800)
-    await page.locator(".data-actions summary").click();
-  await page
-    .getByRole("button", { name: "Atualizar preços", exact: true })
-    .click();
+  await refreshPricesAndWait(page);
   await expect(page.locator(".metric").first()).toContainText("1400,00");
   expect(requests).toBe(1);
 });

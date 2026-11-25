@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { navigateTo } from "../../../helpers/sidebar-helpers";
 
 const portfolios = [
@@ -25,6 +25,13 @@ const portfolios = [
     orders: [],
   },
 ];
+
+async function readStoredPortfolios(page: Page) {
+  return page.evaluate(() => {
+    const stored = localStorage.getItem("rendimentos.portfolios.v1");
+    return stored ? JSON.parse(stored).portfolios : [];
+  });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
@@ -156,6 +163,7 @@ test("manter listas e formulários legíveis nas larguras do handoff", async ({
 test("respeitar a densidade das referências e calcular a pré-visualização da ordem", async ({
   page,
 }, testInfo) => {
+  const storedPortfoliosBeforeDialog = await readStoredPortfolios(page);
   if (testInfo.project.name === "desktop") {
     await expect(page.locator(".performance")).toBeVisible();
     const chart = await page.locator(".performance").boundingBox();
@@ -189,5 +197,8 @@ test("respeitar a densidade das referências e calcular a pré-visualização da
   await form.getByLabel("Quantidade", { exact: true }).fill("inválido");
   await expect(form.locator("output")).toHaveText("—");
   await form.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(page.locator(".transactions-table")).toHaveCount(0);
+  await expect(form).toBeHidden();
+  expect(await readStoredPortfolios(page)).toEqual(
+    storedPortfoliosBeforeDialog,
+  );
 });
