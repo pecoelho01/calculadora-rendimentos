@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { openSidebar, selectedPortfolio } from "../../helpers/sidebar-helpers";
 import {
   storageKey,
@@ -14,12 +15,13 @@ import {
   authSurface,
   login,
   assertNoOverflow,
+  waitForPortfolioOverviewRoute,
 } from "../../helpers/account/actions";
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -222,6 +224,7 @@ for (const localMode of [false, true]) {
   }) => {
     const state = await setup(page, true);
     await page.goto("/");
+    await waitForPortfolioOverviewRoute(page);
     await expect(
       selectedPortfolio(page).getByText("Carteira da Ana", { exact: true }),
     ).toBeVisible();

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { skipUnlessEnv } from "../../helpers/require-test-env";
 import { selectedPortfolio } from "../../helpers/sidebar-helpers";
 import {
   authKey,
@@ -13,6 +14,7 @@ import {
   accountAction,
   authSurface,
   login,
+  waitForPortfolioOverviewRoute,
 } from "../../helpers/account/actions";
 import {
   countAuthLockRequests,
@@ -22,8 +24,8 @@ import {
 
 // This suite exercises the real browser Auth SDK against deterministic HTTP mocks.
 // Build with the public dummy Supabase config documented in README, then set TEST_ACCOUNT_AUTH=1.
-test.skip(
-  !process.env.TEST_ACCOUNT_AUTH,
+skipUnlessEnv(
+  "TEST_ACCOUNT_AUTH",
   "Requer build com configuração Supabase fictícia para mocks de Auth.",
 );
 
@@ -160,6 +162,7 @@ test(
     await page.goto("/?code=recovery-test-code&recovery=1");
     dialog = authSurface(page, "Definir nova palavra-passe");
     await expect(dialog).toBeVisible();
+    await waitForPortfolioOverviewRoute(page);
     state.delayAuthPath = "/user";
     await dialog
       .getByLabel("Nova palavra-passe", { exact: true })
