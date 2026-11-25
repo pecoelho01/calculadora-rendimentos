@@ -20,6 +20,8 @@ export default defineConfig({
   outputDir,
   use: {
     baseURL,
+    locale: "pt-PT",
+    timezoneId: "Europe/Lisbon",
     trace: "off",
     video: "off",
     screenshot: "off",

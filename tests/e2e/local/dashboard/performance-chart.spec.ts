@@ -15,7 +15,12 @@ async function choosePerformanceMode(
   await target.click();
 }
 
+// "Hoje" fixo, no dia seguinte ao último fecho dos mocks (asOf em dashboard-helpers),
+// para que os períodos relativos (1M, 1A, …) não dependam da data da execução.
+const fixedToday = new Date("2026-10-30T12:00:00Z");
+
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(fixedToday);
   await mockMarketAndGeography(page);
 });
 
@@ -243,7 +248,6 @@ test("alternar ROI total e posições abertas com FIFO no resumo, histórico e i
 test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
   page,
 }, testInfo) => {
-  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   const history = [
     { date: "2025-01-03", close: 100 },
     { date: "2025-10-29", close: 105 },
@@ -414,7 +418,6 @@ test("Os sete períodos recalculam o destaque e o hover sem benchmark", async ({
 test("1D preenche falhas curtas, identifica estimativas e mantém interrupções longas", async ({
   page,
 }, testInfo) => {
-  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   await page.route("**/api/market?*", (route) =>
     route.fulfill({
       json: {
@@ -494,7 +497,6 @@ test("1D preenche falhas curtas, identifica estimativas e mantém interrupções
 test("1D sem observações intradiárias não desenha uma reta com os fechos diários", async ({
   page,
 }) => {
-  await page.clock.setFixedTime(new Date("2026-10-30T12:00:00Z"));
   await openLocal(page);
   await page
     .getByLabel("Importar ficheiro CSV", { exact: true })
